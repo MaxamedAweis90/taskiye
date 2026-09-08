@@ -1,0 +1,189 @@
+{
+  "name": "Taskiye",
+  "path": "c:\\Users\\HP\\Desktop\\WorkPlace\\Dev_Place\\Taskiye",
+  "type": "directory",
+  "children": [
+    {
+      "name": "client",
+      "type": "folder",
+      "icon": "📁",
+      "children": [
+        {
+          "name": "src",
+          "type": "folder",
+          "icon": "📁",
+          "children": [
+            {
+              "name": "App.tsx",
+              "type": "file",
+              "icon": "⚛️"
+            },
+            {
+              "name": "index.css",
+              "type": "file",
+              "icon": "🎨"
+            },
+            {
+              "name": "main.tsx",
+              "type": "file",
+              "icon": "⚛️"
+            }
+          ]
+        },
+        {
+          "name": ".env.example",
+          "type": "file",
+          "icon": "📄"
+        },
+        {
+          "name": "index.html",
+          "type": "file",
+          "icon": "🌐"
+        },
+        {
+          "name": "package.json",
+          "type": "file",
+          "icon": "📦"
+        },
+        {
+          "name": "tsconfig.json",
+          "type": "file",
+          "icon": "⚙️"
+        },
+        {
+          "name": "tsconfig.node.json",
+          "type": "file",
+          "icon": "⚙️"
+        },
+        {
+          "name": "vite.config.d.ts",
+          "type": "file",
+          "icon": "📘"
+        },
+        {
+          "name": "vite.config.js",
+          "type": "file",
+          "icon": "📜"
+        },
+        {
+          "name": "vite.config.ts",
+          "type": "file",
+          "icon": "📘"
+        }
+      ]
+    },
+    {
+      "name": "plan",
+      "type": "folder",
+      "icon": "📁",
+      "children": [
+        {
+          "name": "specs.md",
+          "type": "file",
+          "icon": "📝"
+        },
+        {
+          "name": "v2-roadmap.md",
+          "type": "file",
+          "icon": "📝"
+        }
+      ]
+    },
+    {
+      "name": "server",
+      "type": "folder",
+      "icon": "📁",
+      "children": [
+        {
+          "name": "src",
+          "type": "folder",
+          "icon": "📁",
+          "children": [
+            {
+              "name": "index.ts",
+              "type": "file",
+              "icon": "📘"
+            }
+          ]
+        },
+        {
+          "name": ".env.example",
+          "type": "file",
+          "icon": "📄"
+        },
+        {
+          "name": "package.json",
+          "type": "file",
+          "icon": "📦"
+        },
+        {
+          "name": "tsconfig.json",
+          "type": "file",
+          "icon": "⚙️"
+        }
+      ]
+    },
+    {
+      "name": ".env.example",
+      "type": "file",
+      "icon": "📄"
+    },
+    {
+      "name": ".gitignore",
+      "type": "file",
+      "icon": "📁"
+    },
+    {
+      "name": ".prettierignore",
+      "type": "file",
+      "icon": "📄"
+    },
+    {
+      "name": ".prettierrc",
+      "type": "file",
+      "icon": "📄"
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "icon": "📝"
+    },
+    {
+      "name": "eslint.config.js",
+      "type": "file",
+      "icon": "📜"
+    },
+    {
+      "name": "package.json",
+      "type": "file",
+      "icon": "📦"
+    },
+    {
+      "name": "pnpm-lock.yaml",
+      "type": "file",
+      "icon": "⚙️"
+    },
+    {
+      "name": "pnpm-workspace.yaml",
+      "type": "file",
+      "icon": "⚙️"
+    },
+    {
+      "name": "powershell.cmd",
+      "type": "file",
+      "icon": "📄"
+    },
+    {
+      "name": "tsconfig.base.json",
+      "type": "file",
+      "icon": "⚙️"
+    }
+  ],
+  "metadata": {
+    "generated": "2026-09-08T08:05:01.460Z",
+    "generator": "FileTree Pro Extension",
+    "version": "0.2.0",
+    "showIcons": true,
+    "maxDepth": 15
+  }
+}

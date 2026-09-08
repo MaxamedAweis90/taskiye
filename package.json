@@ -1,0 +1,28 @@
+{
+  "name": "taskiye",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"CLIENT,SERVER\" -c \"cyan.bold,green.bold\" \"pnpm --filter @taskiye/client dev\" \"pnpm --filter @taskiye/server dev\"",
+    "build": "pnpm run build:client && pnpm run build:server",
+    "build:client": "pnpm --filter @taskiye/client build",
+    "build:server": "pnpm --filter @taskiye/server build",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.1",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.20.1",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^15.15.0",
+    "prettier": "^3.5.2",
+    "typescript-eslint": "^8.24.1"
+  }
+}
