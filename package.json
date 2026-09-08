@@ -12,6 +12,7 @@
     "build": "pnpm run build:client && pnpm run build:server",
     "build:client": "pnpm --filter @taskiye/client build",
     "build:server": "pnpm --filter @taskiye/server build",
+    "seed": "pnpm --filter @taskiye/server seed",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\""
   },
