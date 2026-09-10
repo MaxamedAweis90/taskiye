@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { Task } from '../models/Task.js';
+import { Habit } from '../models/Habit.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
@@ -49,7 +50,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
  */
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { title, date, sortOrder, isHabitInstance, habitId } = req.body;
+    const { title, date, sortOrder, isHabitInstance, habitId, isCompleted } = req.body;
 
     if (!title || typeof title !== 'string' || !title.trim()) {
       return sendError(res, 'Task title is required', 400);
@@ -76,10 +77,22 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       title: title.trim(),
       date: taskDate,
       sortOrder: calculatedSortOrder,
-      isCompleted: false,
+      isCompleted: Boolean(isCompleted),
       isHabitInstance: Boolean(isHabitInstance),
       habitId: habitId || null,
     });
+
+    // If a completed habit instance is created, update the habit counters (+1 completion, +1 streak, 0 warnings)
+    if (task.isHabitInstance && task.habitId && task.isCompleted) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      await Habit.findOneAndUpdate(
+        { _id: task.habitId, userId: req.user!.id },
+        {
+          $inc: { totalCompletions: 1, streakDays: 1 },
+          $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
+        }
+      );
+    }
 
     return sendSuccess(res, task, 'Task created successfully', 201);
   } catch (error) {
@@ -142,6 +155,39 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       return sendError(res, 'Task not found or unauthorized', 404);
     }
 
+    // Sync habit completion & streak counters (NEVER set isArchived: true!)
+    if (typeof isCompleted === 'boolean' && task.isHabitInstance && task.habitId) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (isCompleted) {
+        // Checking off: +1 completion, +1 streak, clear warnings to 0
+        await Habit.findOneAndUpdate(
+          { _id: task.habitId, userId: req.user!.id },
+          {
+            $inc: { totalCompletions: 1, streakDays: 1 },
+            $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
+          }
+        );
+      } else {
+        // Unchecking: -1 completion, -1 streak (floor at 0)
+        const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
+        if (linkedHabit) {
+          const nextCompletions = Math.max(0, (linkedHabit.totalCompletions || 0) - 1);
+          const nextStreak = Math.max(0, (linkedHabit.streakDays || 0) - 1);
+          await Habit.updateOne(
+            { _id: task.habitId, userId: req.user!.id },
+            {
+              $set: {
+                totalCompletions: nextCompletions,
+                streakDays: nextStreak,
+                lastCompletedDate: null,
+                isArchived: false,
+              },
+            }
+          );
+        }
+      }
+    }
+
     return sendSuccess(res, task, 'Task updated successfully');
   } catch (error) {
     return sendError(res, 'Failed to update task', 500, error);
@@ -161,14 +207,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
       return sendError(res, 'Task not found or unauthorized', 404);
     }
 
-    if (existingTask.isHabitInstance) {
-      return sendError(
-        res,
-        'Habit instances cannot be deleted directly from daily view. Manage habits in Settings.',
-        403
-      );
-    }
-
+    // Allow deleting any daily task or habit instance
     await Task.deleteOne({ _id: id });
     return sendSuccess(res, { id }, 'Task deleted successfully');
   } catch (error) {

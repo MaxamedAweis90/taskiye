@@ -8,7 +8,7 @@
     "server"
   ],
   "scripts": {
-    "dev": "concurrently -k -p \"[{name}]\" -n \"CLIENT,SERVER\" -c \"cyan.bold,green.bold\" \"pnpm --filter @taskiye/client dev\" \"pnpm --filter @taskiye/server dev\"",
+    "dev": "node scripts/dev.js",
     "build": "pnpm run build:client && pnpm run build:server",
     "build:client": "pnpm --filter @taskiye/client build",
     "build:server": "pnpm --filter @taskiye/server build",
