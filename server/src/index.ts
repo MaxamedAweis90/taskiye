@@ -11,6 +11,7 @@ import usersRouter from './routes/users.js';
 import syncRouter from './routes/sync.js';
 
 dotenv.config();
+dotenv.config({ path: '../.env' });
 
 const app = express();
 const PORT = process.env.PORT || 5000;

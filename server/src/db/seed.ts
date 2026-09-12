@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
+dotenv.config({ path: '../.env' });
 
 import { connectDB, mongoDb, mongoClient } from './connection.js';
 import { auth } from '../lib/auth.js';

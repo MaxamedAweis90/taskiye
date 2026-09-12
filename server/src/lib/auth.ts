@@ -5,6 +5,7 @@ import { mongoClient, mongoDb } from '../db/connection.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
+dotenv.config({ path: '../.env' });
 
 export const auth = betterAuth({
   database: mongodbAdapter(mongoDb, {
