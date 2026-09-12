@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../../lib/auth-client';
+import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 
 export const SplashScreen: React.FC = () => {
   const { data: session, isPending: isSessionLoading } = useSession();
+  const { isLoggingOut, logoutMessage, finishLogoutSplash } = useTaskiyeStore();
   const [progress, setProgress] = useState(15);
   const [isDone, setIsDone] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
+  const [activeMessage, setActiveMessage] = useState<string>('Getting user info...');
 
+  // 1. Handle Initial App Mount Loading
   useEffect(() => {
+    if (isLoggingOut) return;
+
     // Initial progress acceleration
     const interval = setInterval(() => {
       setProgress((prev) => {
@@ -17,11 +23,13 @@ export const SplashScreen: React.FC = () => {
     }, 100);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isLoggingOut]);
 
   useEffect(() => {
-    // When session resolution completes
+    if (isLoggingOut) return;
+
     if (!isSessionLoading) {
+      setActiveMessage(session?.user ? 'Getting user info...' : 'Loading guest data...');
       const completeTimer = setTimeout(() => {
         setProgress(100);
         const fadeTimer = setTimeout(() => {
@@ -36,11 +44,47 @@ export const SplashScreen: React.FC = () => {
 
       return () => clearTimeout(completeTimer);
     }
-  }, [isSessionLoading]);
+  }, [isSessionLoading, isLoggingOut, session?.user]);
+
+  // 2. Handle Logout Transition Splash
+  useEffect(() => {
+    if (isLoggingOut) {
+      setShouldRender(true);
+      setIsDone(false);
+      setProgress(20);
+      setActiveMessage(logoutMessage || 'Logging out user info...');
+
+      // Stage 1: Logging out user info (0 - 450ms)
+      const stage1Timer = setTimeout(() => {
+        setProgress(55);
+        setActiveMessage('Loading guest cache data...');
+      }, 450);
+
+      // Stage 2: Completing guest data load (450ms - 900ms)
+      const stage2Timer = setTimeout(() => {
+        setProgress(100);
+        setActiveMessage('Welcome back to guest workspace');
+
+        const fadeTimer = setTimeout(() => {
+          setIsDone(true);
+          const finishTimer = setTimeout(() => {
+            setShouldRender(false);
+            finishLogoutSplash();
+          }, 450);
+          return () => clearTimeout(finishTimer);
+        }, 300);
+
+        return () => clearTimeout(fadeTimer);
+      }, 950);
+
+      return () => {
+        clearTimeout(stage1Timer);
+        clearTimeout(stage2Timer);
+      };
+    }
+  }, [isLoggingOut, logoutMessage]);
 
   if (!shouldRender) return null;
-
-  const statusMessage = session?.user ? 'Getting user info...' : 'Loading guest data...';
 
   return (
     <div
@@ -96,7 +140,7 @@ export const SplashScreen: React.FC = () => {
         {/* Dynamic Status Text with Pulse Indicator */}
         <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-          <span>{statusMessage}</span>
+          <span>{activeMessage}</span>
         </div>
       </div>
 

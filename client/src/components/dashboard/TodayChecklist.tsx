@@ -13,6 +13,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+import { useTaskiyeStore } from '../../store/useTaskiyeStore';
+
 export interface ChecklistItem {
   id: string;
   title: string;
@@ -29,6 +31,7 @@ export interface ChecklistItem {
 interface TodayChecklistProps {
   items: ChecklistItem[];
   onToggle: (id: string) => void;
+  onReorder?: (items: ChecklistItem[]) => void;
   onQuickTaskClick?: () => void;
   onEdit?: (item: ChecklistItem) => void;
   onDelete?: (id: string) => void;
@@ -98,6 +101,7 @@ const TypewriterTitle: React.FC<TypewriterTitleProps> = ({
 export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   items,
   onToggle,
+  onReorder,
   onQuickTaskClick,
   onEdit,
   onDelete,
@@ -106,10 +110,22 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   highlightedTaskId,
   onCreationAnimationComplete,
 }) => {
+  const { setTodayChecklistCompletedCount } = useTaskiyeStore();
   const [filterMode, setFilterMode] = useState<'all' | 'active' | 'completed'>('all');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ChecklistItem | null>(null);
   const [swipingOutTaskId, setSwipingOutTaskId] = useState<string | null>(null);
+
+  // Drag to reorder state
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+
+  // Maintain local order so user drag-and-drop instantly updates the UI
+  const [localItems, setLocalItems] = useState<ChecklistItem[]>(items);
+
+  React.useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
 
   // Local optimistic toggle state for instant 0ms checkbox feedback
   const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, boolean>>({});
@@ -194,7 +210,55 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   const completedCount = items.filter((i) => isItemCompleted(i)).length;
   const totalCount = items.length;
 
-  const filteredItems = items.filter((item) => {
+  // Keep store's todayChecklistCompletedCount strictly in sync with actual completed items
+  React.useEffect(() => {
+    setTodayChecklistCompletedCount(completedCount);
+  }, [completedCount, setTodayChecklistCompletedCount]);
+
+  // Drag and drop handlers for reordering items
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedItemId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverItemId !== id) {
+      setDragOverItemId(id);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedItemId || draggedItemId === targetId) {
+      setDraggedItemId(null);
+      setDragOverItemId(null);
+      return;
+    }
+
+    const fromIndex = localItems.findIndex((i) => i.id === draggedItemId);
+    const toIndex = localItems.findIndex((i) => i.id === targetId);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const reordered = [...localItems];
+      const [removed] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, removed);
+      setLocalItems(reordered);
+      onReorder?.(reordered);
+    }
+
+    setDraggedItemId(null);
+    setDragOverItemId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemId(null);
+    setDragOverItemId(null);
+  };
+
+  const filteredItems = localItems.filter((item) => {
     const completed = isItemCompleted(item);
     if (filterMode === 'active') return !completed;
     if (filterMode === 'completed') return completed;
@@ -301,13 +365,24 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
             const isHabit = Boolean(item.isHabitInstance);
             const isSwipingOut = swipingOutTaskId === item.id;
+            const isDragging = draggedItemId === item.id;
+            const isDragOver = dragOverItemId === item.id;
 
             return (
               <div
                 key={item.id}
                 id={`task-item-${item.id}`}
-                className={`group rounded-xl p-3 sm:px-4 flex items-center justify-between gap-3 transition-all duration-300 relative overflow-hidden ${
-                  isSwipingOut
+                draggable
+                onDragStart={(e) => handleDragStart(e, item.id)}
+                onDragOver={(e) => handleDragOver(e, item.id)}
+                onDrop={(e) => handleDrop(e, item.id)}
+                onDragEnd={handleDragEnd}
+                className={`group rounded-xl p-3 sm:px-4 flex items-center justify-between gap-3 transition-all duration-200 relative overflow-hidden ${
+                  isDragging
+                    ? 'opacity-40 scale-[0.98] border-dashed border-amber-400/80 bg-[#162238]'
+                    : isDragOver
+                    ? 'border-2 border-amber-400 bg-amber-400/10 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+                    : isSwipingOut
                     ? 'animate-task-swipe-left z-20'
                     : isCompleted
                     ? 'opacity-85'
@@ -352,7 +427,10 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
                 {/* Left: Drag Handle, Checkbox, Type Badge & Title */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="text-slate-600 group-hover:text-slate-400 cursor-grab active:cursor-grabbing transition-colors shrink-0">
+                  <div
+                    className="text-slate-600 group-hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors shrink-0 p-1 -ml-1 rounded hover:bg-white/[0.04]"
+                    title="Drag to reorder"
+                  >
                     <GripVertical className="w-4 h-4" />
                   </div>
 

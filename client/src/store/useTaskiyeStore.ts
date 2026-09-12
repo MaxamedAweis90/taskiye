@@ -130,193 +130,9 @@ export type AuthModalTriggerReason =
 
 export const GUEST_ITEM_LIMIT = 100;
 
-export const DEFAULT_INITIAL_TASKS: GuestTask[] = [
-  {
-    id: 'guest_task_sample_1',
-    title: '45m Morning Deep Focus',
-    date: new Date().toISOString(),
-    isCompleted: true,
-    isHabitInstance: true,
-    habitId: 'guest_habit_sample_1',
-    sortOrder: 0,
-    category: 'Health',
-    timeTag: '08:00 AM',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_task_sample_2',
-    title: '2L Hydration & Electrolytes',
-    date: new Date().toISOString(),
-    isCompleted: true,
-    isHabitInstance: true,
-    habitId: 'guest_habit_sample_2',
-    sortOrder: 1,
-    category: 'Routine',
-    timeTag: 'Continuous',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_task_sample_3',
-    title: 'Review Product Design Tokens & System',
-    date: new Date().toISOString(),
-    isCompleted: false,
-    isHabitInstance: false,
-    sortOrder: 2,
-    priority: 'high',
-    category: 'Work',
-    timeTag: 'Est. 45m',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_task_sample_4',
-    title: 'Read 20 Pages of Non-Fiction',
-    date: new Date().toISOString(),
-    isCompleted: false,
-    isHabitInstance: true,
-    habitId: 'guest_habit_sample_4',
-    sortOrder: 3,
-    category: 'Mind',
-    timeTag: '30 min',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_task_sample_5',
-    title: 'Evening 10m Mindfulness Breathing',
-    date: new Date().toISOString(),
-    isCompleted: false,
-    isHabitInstance: true,
-    habitId: 'guest_habit_sample_5',
-    sortOrder: 4,
-    category: 'Health',
-    timeTag: '10 min',
-    createdAt: new Date().toISOString(),
-  },
-];
+export const DEFAULT_INITIAL_TASKS: GuestTask[] = [];
 
-export const DEFAULT_INITIAL_HABITS: GuestHabit[] = [
-  {
-    id: 'guest_habit_sample_1',
-    title: '45m Morning Deep Focus',
-    category: 'Health & Focus',
-    frequency: 'Daily',
-    timeOfDay: 'Morning (08:00 AM)',
-    targetUnit: 'sessions',
-    streakDays: 14,
-    totalCompletions: 142,
-    consistencyRate: 92.4,
-    activeDays: [0, 1, 2, 3, 4],
-    warnings: 0,
-    isArchived: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_sample_2',
-    title: '2L Hydration & Electrolytes',
-    category: 'Routine',
-    frequency: 'Daily',
-    timeOfDay: 'Continuous',
-    targetUnit: 'logs',
-    streakDays: 28,
-    totalCompletions: 210,
-    consistencyRate: 98.0,
-    activeDays: [0, 1, 2, 3, 4, 5, 6],
-    warnings: 0,
-    isArchived: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_sample_3',
-    title: 'Review Product Design System',
-    category: 'Work',
-    frequency: 'Weekdays',
-    timeOfDay: 'Afternoon',
-    targetUnit: 'checks',
-    streakDays: 8,
-    totalCompletions: 54,
-    consistencyRate: 85.0,
-    activeDays: [0, 1, 2, 4],
-    warnings: 1, // 1 warning: Streak at risk!
-    isArchived: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_sample_4',
-    title: 'Read 20 Pages of Non-Fiction',
-    category: 'Mind',
-    frequency: 'Daily',
-    timeOfDay: 'Evening',
-    targetUnit: 'days',
-    streakDays: 19,
-    totalCompletions: 88,
-    consistencyRate: 88.6,
-    activeDays: [0, 1, 3, 4, 5],
-    warnings: 0,
-    isArchived: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_sample_5',
-    title: 'Evening 10m Mindfulness Breathing',
-    category: 'Health',
-    frequency: 'Daily',
-    timeOfDay: 'Night (21:30)',
-    targetUnit: 'sessions',
-    streakDays: 12,
-    totalCompletions: 95,
-    consistencyRate: 91.2,
-    activeDays: [0, 1, 2, 3, 5],
-    warnings: 2, // 2 warnings: Final notice before reset!
-    isArchived: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_sample_6',
-    title: 'Post-Dinner 20m Brisk Walk',
-    category: 'Health',
-    frequency: 'Everyday',
-    timeOfDay: 'Evening',
-    targetUnit: 'walks',
-    streakDays: 6,
-    totalCompletions: 42,
-    consistencyRate: 79.5,
-    activeDays: [0, 1, 3, 4],
-    warnings: 0,
-    isArchived: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_archived_1',
-    title: 'Morning Cold Shower Challenge',
-    category: 'Health',
-    frequency: 'Daily',
-    timeOfDay: 'Morning',
-    targetUnit: 'days',
-    streakDays: 0,
-    totalCompletions: 34,
-    consistencyRate: 78.0,
-    activeDays: [],
-    isArchived: true,
-    archivedAt: 'Archived 12 days ago',
-    lastStreak: 21,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'guest_habit_archived_2',
-    title: 'French Language Practice',
-    category: 'Mind',
-    frequency: 'Daily',
-    timeOfDay: 'Evening',
-    targetUnit: 'lessons',
-    streakDays: 0,
-    totalCompletions: 22,
-    consistencyRate: 65.0,
-    activeDays: [],
-    isArchived: true,
-    archivedAt: 'Archived 1 month ago',
-    lastStreak: 15,
-    createdAt: new Date().toISOString(),
-  },
-];
+export const DEFAULT_INITIAL_HABITS: GuestHabit[] = [];
 
 interface TaskiyeState {
   // Guest Storage Data
@@ -327,9 +143,10 @@ interface TaskiyeState {
   // Global Auth Modal State
   isAuthModalOpen: boolean;
   authModalTriggerReason: AuthModalTriggerReason;
+  authModalInitialMode?: 'signin' | 'signup';
 
   // Modal Actions
-  openAuthModal: (reason?: AuthModalTriggerReason) => void;
+  openAuthModal: (reason?: AuthModalTriggerReason, initialMode?: 'signin' | 'signup') => void;
   closeAuthModal: () => void;
 
   // Guest Task Actions
@@ -364,21 +181,54 @@ interface TaskiyeState {
   // Synchronization
   syncHabitsToTodayTasks: () => void;
 
+  // Checklist & Topbar Streak sync
+  todayChecklistCompletedCount: number;
+  setTodayChecklistCompletedCount: (count: number) => void;
+  baseStreakDays: number;
+  setBaseStreakDays: (days: number) => void;
+
   // Bulk Operations
   clearGuestData: () => void;
   getGuestItemCount: () => number;
+
+  // Logout Transition Splash
+  isLoggingOut: boolean;
+  logoutMessage?: string;
+  triggerLogoutSplash: (message?: string) => void;
+  finishLogoutSplash: () => void;
 }
 
 export const useTaskiyeStore = create<TaskiyeState>()(
   persist(
     (set, get) => ({
-      tasks: DEFAULT_INITIAL_TASKS,
-      habits: DEFAULT_INITIAL_HABITS,
+      tasks: [],
+      habits: [],
       isAuthModalOpen: false,
       authModalTriggerReason: null,
+      authModalInitialMode: 'signin',
+      todayChecklistCompletedCount: 0,
+      baseStreakDays: 0,
+      isLoggingOut: false,
+      logoutMessage: undefined,
 
-      openAuthModal: (reason = 'manual') => {
-        set({ isAuthModalOpen: true, authModalTriggerReason: reason });
+      triggerLogoutSplash: (message = 'Logging out user info...') => {
+        set({ isLoggingOut: true, logoutMessage: message });
+      },
+
+      finishLogoutSplash: () => {
+        set({ isLoggingOut: false, logoutMessage: undefined });
+      },
+
+      setTodayChecklistCompletedCount: (count: number) => {
+        set({ todayChecklistCompletedCount: Math.max(0, count) });
+      },
+
+      setBaseStreakDays: (days: number) => {
+        set({ baseStreakDays: Math.max(0, days) });
+      },
+
+      openAuthModal: (reason = 'manual', initialMode = 'signin') => {
+        set({ isAuthModalOpen: true, authModalTriggerReason: reason, authModalInitialMode: initialMode });
       },
 
       closeAuthModal: () => {
@@ -652,24 +502,19 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         });
 
         const activeDueHabits = evaluatedHabits.filter(isHabitDueToday);
-
-        // Find habits that exist in library but are NOT due today or are archived
-        const notDueHabitIds = new Set(
-          evaluatedHabits.filter((h) => !isHabitDueToday(h)).map((h) => h.id)
-        );
-        const notDueHabitTitles = new Set(
-          evaluatedHabits
-            .filter((h) => !isHabitDueToday(h))
-            .map((h) => (h.title || '').toLowerCase().trim())
+        const activeDueHabitIds = new Set(activeDueHabits.map((h) => h.id));
+        const activeDueHabitTitles = new Set(
+          activeDueHabits.map((h) => (h.title || '').toLowerCase().trim())
         );
 
-        // Prune any uncompleted habit instance that is NOT assigned to today
+        // Prune any habit instance that is NOT an active due habit today
+        // (handles deleted habits, archived habits, and habits not scheduled for today)
         let updatedTasks = state.tasks.filter((task) => {
-          if (task.isHabitInstance && !task.isCompleted) {
-            const isNotDue =
-              (task.habitId && notDueHabitIds.has(task.habitId)) ||
-              (task.title && notDueHabitTitles.has(task.title.toLowerCase().trim()));
-            if (isNotDue) {
+          if (task.isHabitInstance) {
+            const isDue =
+              (task.habitId && activeDueHabitIds.has(task.habitId)) ||
+              (task.title && activeDueHabitTitles.has(task.title.toLowerCase().trim()));
+            if (!isDue) {
               return false;
             }
           }
@@ -813,18 +658,26 @@ export const useTaskiyeStore = create<TaskiyeState>()(
       },
 
       archiveGuestHabit: (id) => {
-        set((state) => ({
-          habits: state.habits.map((habit) =>
-            habit.id === id
-              ? {
-                  ...habit,
-                  isArchived: true,
-                  archivedAt: 'Archived recently',
-                  lastStreak: habit.streakDays,
-                }
-              : habit
-          ),
-        }));
+        set((state) => {
+          const target = state.habits.find((h) => h.id === id);
+          return {
+            habits: state.habits.map((habit) =>
+              habit.id === id
+                ? {
+                    ...habit,
+                    isArchived: true,
+                    archivedAt: 'Archived recently',
+                    lastStreak: habit.streakDays,
+                  }
+                : habit
+            ),
+            tasks: state.tasks.filter(
+              (t) =>
+                t.habitId !== id &&
+                !(target?.title && t.isHabitInstance && t.title.toLowerCase().trim() === target.title.toLowerCase().trim())
+            ),
+          };
+        });
         get().syncHabitsToTodayTasks();
       },
 
@@ -898,13 +751,20 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         dismissedHabitToday: state.dismissedHabitToday,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state && (!state.tasks || state.tasks.length === 0)) {
-          state.tasks = DEFAULT_INITIAL_TASKS;
+        if (state) {
+          // Filter out any legacy sample items from previous seeds
+          if (Array.isArray(state.tasks)) {
+            state.tasks = state.tasks.filter(
+              (t) => !t.id.includes('sample') && !t.id.includes('seed')
+            );
+          }
+          if (Array.isArray(state.habits)) {
+            state.habits = state.habits.filter(
+              (h) => !h.id.includes('sample') && !h.id.includes('seed')
+            );
+          }
+          state.syncHabitsToTodayTasks();
         }
-        if (state && (!state.habits || state.habits.length === 0)) {
-          state.habits = DEFAULT_INITIAL_HABITS;
-        }
-        state?.syncHabitsToTodayTasks();
       },
     }
   )

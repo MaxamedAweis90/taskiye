@@ -14,47 +14,61 @@ interface HeatmapCell {
 interface HeatmapMatrixProps {
   streakDays?: number;
   totalCompletedHabits?: number;
+  todayCompletedCount?: number;
+  todayTotalCount?: number;
 }
 
-// Pre-generate a visually faithful 18-week dataset matching the reference wireframe
-const generate18WeeksData = (): HeatmapCell[] => {
+type HeatmapTimeFilter = '7d' | 'month' | 'year';
+
+// Generate dynamic calendar weeks based on selected filter
+const generateDynamicHeatmapData = (
+  filter: HeatmapTimeFilter,
+  todayCompleted: number,
+  todayTotal: number
+): { cells: HeatmapCell[]; weekCount: number; subtitle: string; daysLogged: number } => {
   const cells: HeatmapCell[] = [];
-  const today = new Date();
+  const now = new Date();
+  const currentJsDay = now.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
+  const currentMonDay = (currentJsDay + 6) % 7; // Mon: 0, ..., Sun: 6
 
-  // Pattern weights matching the rich activity heatmap shown in layout_overview_screen.png
-  // Columns 0 to 17 (18 weeks), rows 0 to 6 (Mon to Sun)
-  const patternSeed: (0 | 1 | 2 | 3)[][] = [
-    // Mon:
-    [0, 3, 3, 2, 3, 0, 0, 3, 3, 3, 0, 3, 3, 3, 3, 3, 3, 0],
-    // Tue:
-    [0, 3, 3, 0, 3, 0, 0, 3, 3, 3, 0, 3, 3, 3, 3, 3, 3, 0],
-    // Wed:
-    [3, 3, 1, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0],
-    // Thu:
-    [0, 1, 3, 3, 3, 3, 3, 3, 3, 3, 0, 3, 3, 3, 3, 3, 3, 0], // May cell (col 17, row 3/4) is today
-    // Fri:
-    [1, 0, 3, 3, 0, 3, 3, 0, 3, 1, 0, 3, 3, 2, 3, 3, 0, 0],
-    // Sat:
-    [3, 3, 0, 3, 0, 3, 3, 3, 3, 3, 0, 3, 1, 0, 3, 3, 3, 0],
-    // Sun:
-    [3, 0, 0, 0, 0, 0, 3, 0, 2, 0, 0, 3, 0, 0, 3, 1, 0, 0],
-  ];
+  // Determine weekCount based on filter
+  // '7d': 1 week (the current 7 days)
+  // 'month': 5 weeks (~35 days covering the last month)
+  // 'year': 18 weeks (standard high-density matrix overview)
+  const weekCount = filter === '7d' ? 1 : filter === 'month' ? 5 : 18;
 
-  for (let week = 0; week < 18; week++) {
+  // Find the Monday of (weekCount - 1) weeks ago
+  const startMonday = new Date(now);
+  startMonday.setDate(now.getDate() - currentMonDay - (weekCount - 1) * 7);
+  startMonday.setHours(0, 0, 0, 0);
+
+  let totalCompletedLogged = 0;
+
+  for (let week = 0; week < weekCount; week++) {
     for (let day = 0; day < 7; day++) {
-      const daysAgo = (17 - week) * 7 + (6 - day);
-      const cellDate = new Date(today);
-      cellDate.setDate(today.getDate() - daysAgo);
+      const cellDate = new Date(startMonday);
+      cellDate.setDate(startMonday.getDate() + week * 7 + day);
 
-      const intensity = patternSeed[day]?.[week] ?? 0;
-      const isToday = week === 17 && day === 3;
+      const isFuture = cellDate > now && cellDate.toDateString() !== now.toDateString();
+      const isToday = cellDate.toDateString() === now.toDateString();
 
+      let intensity: 0 | 1 | 2 | 3 = 0;
       let completed = 0;
-      const total = 5;
-      if (intensity === 3) completed = 5;
-      else if (intensity === 2) completed = 3;
-      else if (intensity === 1) completed = 1;
-      else completed = 0;
+      const total = todayTotal || 5;
+
+      if (isToday) {
+        completed = todayCompleted;
+        if (total > 0 && todayCompleted >= total) intensity = 3;
+        else if (todayCompleted >= 3) intensity = 2;
+        else if (todayCompleted > 0) intensity = 1;
+        else intensity = 0;
+      } else {
+        // Real tracking: past and future days start clean (no fake seeded data)
+        intensity = 0;
+        completed = 0;
+      }
+
+      totalCompletedLogged += completed;
 
       cells.push({
         date: cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -68,19 +82,35 @@ const generate18WeeksData = (): HeatmapCell[] => {
     }
   }
 
-  return cells;
+  const subtitle =
+    filter === '7d'
+      ? `${totalCompletedLogged} habits completed in the last 7 days`
+      : filter === 'month'
+      ? `${totalCompletedLogged} habits completed in the last 30 days`
+      : `${totalCompletedLogged} habits completed in the past year`;
+
+  const daysLogged = weekCount * 7;
+
+  return { cells, weekCount, subtitle, daysLogged };
 };
 
 export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
-  streakDays = 14,
-  totalCompletedHabits = 418,
+  streakDays = 0,
+  todayCompletedCount = 0,
+  todayTotalCount = 0,
 }) => {
-  const [cells] = useState<HeatmapCell[]>(generate18WeeksData);
+  const [timeFilter, setTimeFilter] = useState<HeatmapTimeFilter>('year');
+  const { cells, weekCount, subtitle, daysLogged } = React.useMemo(
+    () => generateDynamicHeatmapData(timeFilter, todayCompletedCount, todayTotalCount),
+    [timeFilter, todayCompletedCount, todayTotalCount]
+  );
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
 
   const getIntensityClass = (intensity: number, isToday?: boolean) => {
     if (isToday) {
-      return 'bg-[#FACC15] border-2 border-amber-300 ring-2 ring-amber-400/40 shadow-[0_0_12px_rgba(250,204,21,0.6)]';
+      return intensity > 0
+        ? 'bg-[#FACC15] border-2 border-amber-300 ring-2 ring-amber-400/40 shadow-[0_0_12px_rgba(250,204,21,0.6)]'
+        : 'bg-[#1E2638] border-2 border-amber-400/80 ring-1 ring-amber-400/30';
     }
     switch (intensity) {
       case 3:
@@ -110,18 +140,55 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
               Activity Heatmap Matrix
             </h3>
             <p className="text-xs text-slate-400 font-normal">
-              {totalCompletedHabits} habits completed in the last 18 weeks
+              {subtitle}
             </p>
           </div>
         </div>
 
-        {/* Right Stats & Legend */}
-        <div className="flex items-center gap-4 text-xs">
+        {/* Right Filter Pills, Stats & Legend */}
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          {/* Filter Pills: Last 7 Days, Month, Year */}
+          <div className="flex items-center p-0.5 rounded-xl bg-[#0A101D] border border-white/[0.08]">
+            <button
+              type="button"
+              onClick={() => setTimeFilter('7d')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                timeFilter === '7d'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              7 Days
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimeFilter('month')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                timeFilter === 'month'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimeFilter('year')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                timeFilter === 'year'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Year
+            </button>
+          </div>
+
           <div className="text-slate-300 font-medium">
             Streak: <span className="text-amber-400 font-bold">{streakDays}d</span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-slate-400 font-medium">
+          <div className="hidden sm:flex items-center gap-1.5 text-slate-400 font-medium">
             <span className="text-[11px]">Less</span>
             <div className="w-3 h-3 rounded-[3px] bg-[#1E2638]" title="0% - 10%" />
             <div className="w-3 h-3 rounded-[3px] bg-[#715814]" title="11% - 50%" />
@@ -132,20 +199,15 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
         </div>
       </div>
 
-      {/* Months Timeline Header */}
+      {/* 7 Days Grid with Weekday Labels */}
       <div className="overflow-x-auto pb-1 scrollbar-none">
-        <div className="min-w-[560px]">
-          <div className="grid grid-cols-[38px_repeat(18,1fr)] gap-2 mb-2 text-[11px] text-slate-400 font-medium text-center">
-            <span />
-            <span className="col-span-4 text-left pl-1">Jan</span>
-            <span className="col-span-4 text-left pl-1">Feb</span>
-            <span className="col-span-4 text-left pl-1">Mar</span>
-            <span className="col-span-4 text-left pl-1">Apr</span>
-            <span className="col-span-2 text-left pl-1">May</span>
-          </div>
-
-          {/* 7 Days Grid with Weekday Labels */}
-          <div className="grid grid-cols-[38px_repeat(18,1fr)] gap-2">
+        <div className={weekCount === 1 ? 'max-w-[240px]' : weekCount === 5 ? 'max-w-[380px]' : 'min-w-[560px]'}>
+          <div
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns: `38px repeat(${weekCount}, minmax(0, 1fr))`,
+            }}
+          >
             {/* Weekday Row Labels */}
             <div className="flex flex-col justify-between py-1 text-[11px] text-slate-400 font-semibold select-none">
               {dayLabels.map((day, idx) => (
@@ -155,8 +217,8 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
               ))}
             </div>
 
-            {/* 18 Columns of 7 Days */}
-            {Array.from({ length: 18 }).map((_, weekIndex) => {
+            {/* Columns of 7 Days */}
+            {Array.from({ length: weekCount }).map((_, weekIndex) => {
               const weekCells = cells.filter((c) => c.weekIndex === weekIndex);
               return (
                 <div key={weekIndex} className="flex flex-col gap-2">
@@ -203,7 +265,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
         ) : (
           <span className="text-slate-400">Hover over any day to see completion details</span>
         )}
-        <span className="text-slate-400 hidden sm:inline">126 days logged</span>
+        <span className="text-slate-400 hidden sm:inline">{daysLogged} days logged</span>
       </div>
     </div>
   );

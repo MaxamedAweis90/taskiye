@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { Habit } from '../models/Habit.js';
+import { Task } from '../models/Task.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
@@ -176,6 +177,11 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
       if (!habit) {
         return sendError(res, 'Habit not found or unauthorized', 404);
       }
+      // Purge any associated daily tasks/habit instances
+      await Task.deleteMany({
+        userId: req.user!.id,
+        $or: [{ habitId: id }, { isHabitInstance: true, title: habit.title }],
+      });
       return sendSuccess(res, habit, 'Habit permanently deleted');
     }
 
@@ -194,6 +200,12 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
       },
       { new: true }
     );
+
+    // Remove habit task instances from daily tasks
+    await Task.deleteMany({
+      userId: req.user!.id,
+      $or: [{ habitId: id }, { isHabitInstance: true, title: existingHabit.title }],
+    });
 
     return sendSuccess(res, habit, 'Habit archived successfully (progress frozen)');
   } catch (error) {
@@ -240,6 +252,12 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         // Archiving
         updateFields.archivedAt = new Date();
         updateFields.lastStreak = existing.streakDays;
+
+        // Clean up task instances when archiving via PATCH
+        await Task.deleteMany({
+          userId: req.user!.id,
+          $or: [{ habitId: id }, { isHabitInstance: true, title: existing.title }],
+        });
       }
     }
 

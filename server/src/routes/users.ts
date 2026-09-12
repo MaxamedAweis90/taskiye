@@ -86,4 +86,44 @@ router.post(
   }
 );
 
+/**
+ * PUT /api/users/profile
+ * Update user display name, username, and OTP phone number
+ */
+router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { name, username, phoneNumber } = req.body;
+
+    let queryFilter: Record<string, unknown> = { id: userId };
+    try {
+      queryFilter = {
+        $or: [{ _id: new ObjectId(userId) }, { _id: userId }, { id: userId }],
+      };
+    } catch {
+      queryFilter = {
+        $or: [{ _id: userId }, { id: userId }],
+      };
+    }
+
+    const updateFields: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+    if (typeof name === 'string' && name.trim()) updateFields.name = name.trim();
+    if (typeof username === 'string') updateFields.username = username.trim();
+    if (typeof phoneNumber === 'string') updateFields.phoneNumber = phoneNumber.trim();
+
+    await mongoDb.collection('user').updateOne(queryFilter, {
+      $set: updateFields,
+    });
+
+    const updatedUser = await mongoDb.collection('user').findOne(queryFilter);
+
+    return sendSuccess(res, { user: updatedUser }, 'Profile updated successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to update user profile', 500, error);
+  }
+});
+
 export default router;
+

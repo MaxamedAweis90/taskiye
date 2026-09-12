@@ -11,6 +11,7 @@ import {
   RotateCcw,
   X,
   Sparkles,
+  Repeat,
   Zap,
   Trash2,
   AlertTriangle,
@@ -1014,7 +1015,7 @@ export const Habits: React.FC = () => {
       {filteredActiveHabits.length === 0 ? (
         <div className="bg-[#152033] border border-white/[0.06] rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
-            <Sparkles className="w-6 h-6" />
+            <Repeat className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-white">No habits match your view</h3>
           <p className="text-xs text-slate-400 max-w-sm">

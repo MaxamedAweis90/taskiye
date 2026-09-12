@@ -38,7 +38,24 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       .sort({ sortOrder: 1, createdAt: 1 })
       .populate('habitId', 'title frequency isArchived');
 
-    return sendSuccess(res, tasks);
+    // Filter out habit instances whose parent habit has been deleted or archived
+    const validTasks = tasks.filter((t) => {
+      if (!t.isHabitInstance) return true;
+      if (!t.habitId) return false;
+      const habitObj = t.habitId as any;
+      if (habitObj.isArchived) return false;
+      return true;
+    });
+
+    // Clean up any orphaned habit instances in the background
+    const orphanedIds = tasks
+      .filter((t) => t.isHabitInstance && (!t.habitId || (t.habitId as any).isArchived))
+      .map((t) => t._id);
+    if (orphanedIds.length > 0) {
+      Task.deleteMany({ _id: { $in: orphanedIds } }).catch(() => {});
+    }
+
+    return sendSuccess(res, validTasks);
   } catch (error) {
     return sendError(res, 'Failed to fetch tasks', 500, error);
   }

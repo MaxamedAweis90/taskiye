@@ -6,8 +6,6 @@ import {
   AlertCircle,
   Plus,
   Check,
-  BookOpen,
-  Activity,
   Sparkles,
   TrendingUp,
   ChevronDown,
@@ -32,6 +30,7 @@ export const Dashboard: React.FC = () => {
     addGuestTask,
     updateGuestTask,
     removeGuestTask,
+    reorderGuestTasks,
     syncHabitsToTodayTasks,
   } = useTaskiyeStore();
 
@@ -44,6 +43,7 @@ export const Dashboard: React.FC = () => {
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [deletedTaskIds, setDeletedTaskIds] = useState<Set<string>>(new Set());
+  const [customChecklistOrder, setCustomChecklistOrder] = useState<string[]>([]);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,29 +213,40 @@ export const Dashboard: React.FC = () => {
     const monBasedDay = (jsDay + 6) % 7; // Mon: 0, Tue: 1, ..., Sun: 6
 
     if (isAuthenticated) {
-      items = serverTasks.map((t) => {
-        const rawHabitId = typeof t.habitId === 'string' ? t.habitId : t.habitId?._id;
-        const linkedHabit = t.isHabitInstance
-          ? serverHabits.find(
-              (h) =>
-                h._id === rawHabitId ||
-                (h.title && t.title && h.title.toLowerCase().trim() === t.title.toLowerCase().trim())
-            )
-          : undefined;
+      items = serverTasks
+        .filter((t) => {
+          if (!t.isHabitInstance) return true;
+          const rawHabitId = typeof t.habitId === 'string' ? t.habitId : t.habitId?._id;
+          const linkedHabit = serverHabits.find(
+            (h) =>
+              h._id === rawHabitId ||
+              (h.title && t.title && h.title.toLowerCase().trim() === t.title.toLowerCase().trim())
+          );
+          // If the habit was removed (deleted or archived), omit its task instance
+          if (!linkedHabit || linkedHabit.isArchived) return false;
+          return true;
+        })
+        .map((t) => {
+          const rawHabitId = typeof t.habitId === 'string' ? t.habitId : t.habitId?._id;
+          const linkedHabit = serverHabits.find(
+            (h) =>
+              h._id === rawHabitId ||
+              (h.title && t.title && h.title.toLowerCase().trim() === t.title.toLowerCase().trim())
+          );
 
-        return {
-          id: t._id,
-          title: t.title,
-          isCompleted: Boolean(t.isCompleted),
-          category: t.category || (t.isHabitInstance ? 'Routine' : 'Work'),
-          priority: t.priority || 'normal',
-          timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
-          isHabitInstance: Boolean(t.isHabitInstance),
-          habitId: rawHabitId || linkedHabit?._id,
-          streakDays: linkedHabit?.streakDays,
-          warnings: linkedHabit?.warnings,
-        };
-      });
+          return {
+            id: t._id,
+            title: t.title,
+            isCompleted: Boolean(t.isCompleted),
+            category: t.category || (t.isHabitInstance ? 'Routine' : 'Work'),
+            priority: t.priority || 'normal',
+            timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
+            isHabitInstance: Boolean(t.isHabitInstance),
+            habitId: rawHabitId || linkedHabit?._id,
+            streakDays: linkedHabit?.streakDays,
+            warnings: linkedHabit?.warnings,
+          };
+        });
 
       // Ensure active server habits scheduled for today are present in overview
       const existingTitles = new Set(items.map((i) => i.title.toLowerCase().trim()));
@@ -263,36 +274,48 @@ export const Dashboard: React.FC = () => {
         }
       });
     } else {
-      const tasksToUse = guestTasks ?? DEFAULT_INITIAL_TASKS;
-      items = tasksToUse.map((t) => {
-        const linkedHabit = t.isHabitInstance
-          ? guestHabits.find(
-              (h) =>
-                h.id === t.habitId ||
-                (h.title && t.title && h.title.toLowerCase().trim() === t.title.toLowerCase().trim())
-            )
-          : undefined;
+      const tasksToUse = [...(guestTasks ?? DEFAULT_INITIAL_TASKS)].sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
+      items = tasksToUse
+        .filter((t) => {
+          if (!t.isHabitInstance) return true;
+          const linkedHabit = guestHabits.find(
+            (h) =>
+              h.id === t.habitId ||
+              (h.title && t.title && h.title.toLowerCase().trim() === t.title.toLowerCase().trim())
+          );
+          // If the habit was removed (deleted or archived), omit its task instance
+          if (!linkedHabit || linkedHabit.isArchived) return false;
+          return true;
+        })
+        .map((t) => {
+          const linkedHabit = guestHabits.find(
+            (h) =>
+              h.id === t.habitId ||
+              (h.title && t.title && h.title.toLowerCase().trim() === t.title.toLowerCase().trim())
+          );
 
-        return {
-          id: t.id,
-          title: t.title,
-          isCompleted: t.isCompleted,
-          category: t.category || (t.isHabitInstance ? 'Routine' : 'Work'),
-          priority: t.priority || 'normal',
-          timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
-          isHabitInstance: Boolean(t.isHabitInstance),
-          habitId: t.habitId || linkedHabit?.id,
-          streakDays: linkedHabit?.streakDays,
-          warnings: linkedHabit?.warnings,
-        };
-      });
+          return {
+            id: t.id,
+            title: t.title,
+            isCompleted: t.isCompleted,
+            category: t.category || (t.isHabitInstance ? 'Routine' : 'Work'),
+            priority: t.priority || 'normal',
+            timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
+            isHabitInstance: Boolean(t.isHabitInstance),
+            habitId: t.habitId || linkedHabit?.id,
+            streakDays: linkedHabit?.streakDays,
+            warnings: linkedHabit?.warnings,
+          };
+        });
 
       // Ensure any active guest habit scheduled for today in Habit Manager is included
       const existingHabitIds = new Set(
-        tasksToUse.filter((t) => t.isHabitInstance).map((t) => t.habitId).filter(Boolean)
+        items.filter((t) => t.isHabitInstance).map((t) => t.habitId).filter(Boolean)
       );
       const existingTitles = new Set(
-        tasksToUse.map((t) => t.title.toLowerCase().trim())
+        items.map((t) => t.title.toLowerCase().trim())
       );
 
       guestHabits.forEach((h) => {
@@ -324,8 +347,19 @@ export const Dashboard: React.FC = () => {
       });
     }
 
-    return items.filter((item) => !deletedTaskIds.has(item.id));
-  }, [isAuthenticated, serverTasks, serverHabits, guestTasks, guestHabits, deletedTaskIds]);
+    const baseItems = items.filter((item) => !deletedTaskIds.has(item.id));
+
+    if (customChecklistOrder.length > 0) {
+      const orderMap = new Map(customChecklistOrder.map((id, index) => [id, index]));
+      return [...baseItems].sort((a, b) => {
+        const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999;
+        const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999;
+        return orderA - orderB;
+      });
+    }
+
+    return baseItems;
+  }, [isAuthenticated, serverTasks, serverHabits, guestTasks, guestHabits, deletedTaskIds, customChecklistOrder]);
 
   // Derived Metrics
   const totalItemsCount = checklistItems.length;
@@ -337,11 +371,12 @@ export const Dashboard: React.FC = () => {
   const normalPriorityPendingCount = Math.max(0, pendingTasksCount - highPriorityPendingCount);
 
   const habitsList = isAuthenticated ? serverHabits : guestHabits;
-  const habitsDoneCount = checklistItems.filter((i) => i.isHabitInstance && i.isCompleted).length;
-  const habitsTotalCount = Math.max(habitsList.length, 5);
+  const todayHabitItems = checklistItems.filter((i) => i.isHabitInstance);
+  const habitsDoneCount = todayHabitItems.filter((i) => i.isCompleted).length;
+  const habitsTodayTotalCount = todayHabitItems.length;
 
   const completionRate =
-    totalItemsCount > 0 ? Math.round((completedCount / totalItemsCount) * 100) : 85;
+    totalItemsCount > 0 ? Math.round((completedCount / totalItemsCount) * 100) : 0;
 
   // Toggle handler for items
   const handleToggleItem = (id: string) => {
@@ -388,6 +423,18 @@ export const Dashboard: React.FC = () => {
         }
       }
       toggleGuestTask(id);
+    }
+  };
+
+  // Reorder handler for drag and drop
+  const handleReorderChecklist = (reorderedItems: ChecklistItem[]) => {
+    setCustomChecklistOrder(reorderedItems.map((i) => i.id));
+    if (!isAuthenticated) {
+      const itemsToOrder = reorderedItems.map((item, index) => ({
+        id: item.id,
+        sortOrder: index,
+      }));
+      reorderGuestTasks(itemsToOrder);
     }
   };
 
@@ -642,19 +689,19 @@ export const Dashboard: React.FC = () => {
           </span>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-white tracking-tight leading-none">
-              88.4%
+              {completionRate}%
             </h1>
             <div className="inline-flex items-center gap-1 bg-[#092B21] border border-emerald-500/30 text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full">
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>+2.4% this week</span>
+              <span>{completedCount} completed today</span>
             </div>
           </div>
         </div>
 
         {/* Right Active Sprint Tag */}
         <div className="text-xs sm:text-sm text-slate-400 font-medium">
-          Active Sprint:{' '}
-          <span className="text-amber-400 font-bold">Q2 Focus</span> • Day 18 of 30
+          Daily Cadence:{' '}
+          <span className="text-amber-400 font-bold">{pendingTasksCount === 0 && totalItemsCount > 0 ? 'All Done' : `${pendingTasksCount} remaining`}</span>
         </div>
       </div>
 
@@ -689,11 +736,11 @@ export const Dashboard: React.FC = () => {
 
               <div className="flex items-center justify-between text-xs mt-3 pt-2.5 border-t border-white/[0.04]">
                 <span className="text-slate-400 font-medium">
-                  {totalItemsCount > 0
-                    ? `${completedCount} of ${totalItemsCount} items`
-                    : '17 of 20 items'}
+                  {completedCount} of {totalItemsCount} items
                 </span>
-                <span className="text-emerald-400 font-bold">+5% vs avg</span>
+                <span className="text-emerald-400 font-bold">
+                  {totalItemsCount > 0 && completedCount === totalItemsCount ? 'Complete' : `${totalItemsCount - completedCount} left`}
+                </span>
               </div>
             </div>
 
@@ -714,10 +761,10 @@ export const Dashboard: React.FC = () => {
                 </span>
                 <div className="flex items-baseline gap-1 mt-0.5">
                   <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    {habitsDoneCount || 4}
+                    {habitsDoneCount}
                   </span>
                   <span className="text-slate-400 font-semibold text-base">
-                    / {habitsTotalCount || 5} Done
+                    / {habitsTodayTotalCount} Done
                   </span>
                 </div>
               </div>
@@ -726,11 +773,11 @@ export const Dashboard: React.FC = () => {
                 <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-emerald-400 rounded-full transition-all duration-300"
-                    style={{ width: '80%' }}
+                    style={{ width: `${habitsTodayTotalCount > 0 ? Math.round((habitsDoneCount / habitsTodayTotalCount) * 100) : 0}%` }}
                   />
                 </div>
                 <span className="text-xs text-slate-400 mt-2 block font-medium">
-                  80% consistency rate today
+                  {habitsTodayTotalCount > 0 ? `${Math.round((habitsDoneCount / habitsTodayTotalCount) * 100)}% consistency rate today` : 'No routines scheduled'}
                 </span>
               </div>
             </div>
@@ -750,7 +797,7 @@ export const Dashboard: React.FC = () => {
                 <span className="text-xs text-slate-400 font-medium block">Tasks Left</span>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
                   <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    {pendingTasksCount || 3}
+                    {pendingTasksCount}
                   </span>
                   <span className="text-amber-400 font-bold text-base sm:text-lg">
                     Pending
@@ -762,22 +809,27 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-3 text-xs">
                   <div className="flex items-center gap-1.5 text-slate-300 font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
-                    <span>{highPriorityPendingCount || 1} High Priority</span>
+                    <span>{highPriorityPendingCount} High Priority</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
-                    <span>{normalPriorityPendingCount || 2} Normal</span>
+                    <span>{normalPriorityPendingCount} Normal</span>
                   </div>
                 </div>
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  Est. remaining: ~1h 15m
+                  {pendingTasksCount === 0 ? 'All caught up!' : `${pendingTasksCount} item${pendingTasksCount === 1 ? '' : 's'} remaining`}
                 </span>
               </div>
             </div>
           </div>
 
           {/* Activity Heatmap Matrix - Spans full 8 columns aligned with the 3 cards */}
-          <HeatmapMatrix streakDays={14} totalCompletedHabits={418} />
+          <HeatmapMatrix
+            streakDays={(useTaskiyeStore.getState().baseStreakDays ?? 0) + (completedCount > 0 ? 1 : 0)}
+            totalCompletedHabits={completedCount}
+            todayCompletedCount={completedCount}
+            todayTotalCount={totalItemsCount || 0}
+          />
         </div>
 
         {/* Right Column (4 cols): Quick Action at top + Active Goals */}
@@ -881,115 +933,111 @@ export const Dashboard: React.FC = () => {
             </form>
           </div>
 
-          {/* Widget 2: ACTIVE GOALS */}
+          {/* Widget 2: ACTIVE ROUTINES & GOALS */}
           <div className="bg-[#162032] border border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-white/[0.1]">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-100 uppercase">
-                  Active Goals
+                  Active Routines
                 </h3>
-                <span className="text-xs text-slate-400 font-medium">3 Targets</span>
+                <span className="text-xs text-slate-400 font-medium">
+                  {habitsList.filter((h) => !h.isArchived).length} {habitsList.filter((h) => !h.isArchived).length === 1 ? 'Target' : 'Targets'}
+                </span>
               </div>
 
               <Link
-                to="/goals"
+                to="/habits"
                 className="text-amber-400 hover:text-amber-300 text-xs font-bold transition-colors cursor-pointer"
               >
                 Manage
               </Link>
             </div>
 
-            {/* List of Active Goals - showing 2 goals with smooth scroll and bottom fade */}
+            {/* List of Active Habits / Goals */}
             <div className="relative">
-              <CustomScrollArea maxHeight="195px" className="flex flex-col gap-3.5">
-                {/* Goal 1: Read 12 Books */}
-                <div className="bg-[#111A2E] border border-white/[0.05] rounded-xl p-3.5 flex flex-col gap-2 shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-300">
-                        <BookOpen className="w-3.5 h-3.5" />
+              {habitsList.filter((h) => !h.isArchived).length === 0 ? (
+                <div className="py-7 px-3 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white">No active targets</span>
+                  <span className="text-[11px] text-slate-400 max-w-[200px]">
+                    Add recurring habits or routines to track your consistency
+                  </span>
+                  <Link
+                    to="/habits"
+                    className="text-xs text-amber-400 hover:text-amber-300 font-bold underline mt-1"
+                  >
+                    + Create Routine
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <CustomScrollArea maxHeight="195px" className="flex flex-col gap-3.5">
+                    {habitsList
+                      .filter((h) => !h.isArchived)
+                      .map((habit: any) => {
+                        const habitId = habit._id || habit.id;
+                        const isDoneToday = checklistItems.some(
+                          (it) => it.isHabitInstance && (it.habitId === habitId || it.title.toLowerCase().trim() === habit.title?.toLowerCase().trim()) && it.isCompleted
+                        );
+                        const streak = habit.streakDays ?? 0;
+                        const targetCompletions = 7;
+                        const progressPercent = Math.min(100, Math.round(((habit.totalCompletions ?? (isDoneToday ? 1 : 0)) % targetCompletions) / targetCompletions * 100)) || (isDoneToday ? 100 : 0);
+
+                        return (
+                          <div
+                            key={habitId}
+                            className="bg-[#111A2E] border border-white/[0.05] rounded-xl p-3.5 flex flex-col gap-2 shrink-0"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-amber-950/60 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="text-sm font-semibold text-slate-100 truncate max-w-[170px]">
+                                  {habit.title}
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-amber-400">
+                                {streak > 0 ? `${streak}d streak` : isDoneToday ? 'Done' : 'Pending'}
+                              </span>
+                            </div>
+
+                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-[#FACC15] rounded-full transition-all duration-300"
+                                style={{ width: `${isDoneToday ? 100 : progressPercent}%` }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
+                              <span>{habit.category || 'Routine'}</span>
+                              <span>{isDoneToday ? 'Done today' : 'Scheduled today'}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </CustomScrollArea>
+
+                  {/* Bottom Fade Mask with Scroll Indicator */}
+                  {habitsList.filter((h) => !h.isArchived).length > 2 && (
+                    <div className="pointer-events-none absolute -bottom-1 left-0 right-0 h-10 bg-gradient-to-t from-[#162032] via-[#162032]/85 to-transparent flex items-end justify-center pb-0.5">
+                      <div className="flex items-center gap-1 text-[10px] text-amber-400/90 font-bold tracking-wide">
+                        <ChevronDown className="w-3 h-3 animate-bounce" />
+                        <span>Scroll for more</span>
                       </div>
-                      <span className="text-sm font-semibold text-slate-100">
-                        Read 12 Books
-                      </span>
                     </div>
-                    <span className="text-xs font-bold text-amber-400">75%</span>
-                  </div>
-
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#FACC15] rounded-full w-[75%]" />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
-                    <span>9 of 12 completed</span>
-                    <span>Due Dec 2024</span>
-                  </div>
-                </div>
-
-                {/* Goal 2: Run 50km Monthly */}
-                <div className="bg-[#111A2E] border border-white/[0.05] rounded-xl p-3.5 flex flex-col gap-2 shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                        <Activity className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-100">
-                        Run 50km Monthly
-                      </span>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-400">64%</span>
-                  </div>
-
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#10B981] rounded-full w-[64%]" />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
-                    <span>32 / 50 km logged</span>
-                    <span>12 days left</span>
-                  </div>
-                </div>
-
-                {/* Goal 3: Morning Meditation Streak */}
-                <div className="bg-[#111A2E] border border-white/[0.05] rounded-xl p-3.5 flex flex-col gap-2 shrink-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-amber-950/60 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                        <Sparkles className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-100">
-                        Morning Meditation Streak
-                      </span>
-                    </div>
-                    <span className="text-xs font-bold text-amber-400">90%</span>
-                  </div>
-
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#FACC15] rounded-full w-[90%]" />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
-                    <span>27 / 30 day target</span>
-                    <span>3 days to goal</span>
-                  </div>
-                </div>
-              </CustomScrollArea>
-
-              {/* Bottom Fade Mask with Scroll Indicator */}
-              <div className="pointer-events-none absolute -bottom-1 left-0 right-0 h-10 bg-gradient-to-t from-[#162032] via-[#162032]/85 to-transparent flex items-end justify-center pb-0.5">
-                <div className="flex items-center gap-1 text-[10px] text-amber-400/90 font-bold tracking-wide">
-                  <ChevronDown className="w-3 h-3 animate-bounce" />
-                  <span>Scroll for more</span>
-                </div>
-              </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Quarterly Pace Footer */}
             <div className="flex items-center justify-between text-xs border-t border-white/[0.04] mt-4 pt-3">
-              <span className="text-slate-400 font-medium">Overall quarterly pace:</span>
+              <span className="text-slate-400 font-medium">Daily cadence:</span>
               <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <span>On Track</span>
-                <span>🚀</span>
+                <span>{habitsTodayTotalCount > 0 ? `${habitsDoneCount}/${habitsTodayTotalCount} Routines` : '0/0 Routines'}</span>
               </span>
             </div>
           </div>
@@ -1003,6 +1051,7 @@ export const Dashboard: React.FC = () => {
         <TodayChecklist
           items={checklistItems}
           onToggle={handleToggleItem}
+          onReorder={handleReorderChecklist}
           onQuickTaskClick={focusQuickAction}
           onEdit={handleEditItem}
           onDelete={handleDeleteItem}
