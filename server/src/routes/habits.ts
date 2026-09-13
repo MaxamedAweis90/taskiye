@@ -1,5 +1,5 @@
+import { Habit, IHabit } from '../models/Habit.js';
 import { Router, Response } from 'express';
-import { Habit } from '../models/Habit.js';
 import { Task } from '../models/Task.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
@@ -11,7 +11,7 @@ const router = Router();
  * based on missed scheduled days since lastCompletedDate.
  */
 export function evaluateHabitStreakAndWarnings(
-  habit: any,
+  habit: Partial<IHabit>,
   todayStr: string
 ): { streakDays: number; warnings: number } {
   if (habit.isArchived) {
@@ -114,10 +114,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
           if (h.streakDays !== streakDays || h.warnings !== warnings) {
             h.streakDays = streakDays;
             h.warnings = warnings;
-            await Habit.updateOne(
-              { _id: h._id },
-              { $set: { streakDays, warnings } }
-            );
+            await Habit.updateOne({ _id: h._id }, { $set: { streakDays, warnings } });
           }
         }
         return h;
@@ -291,9 +288,7 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const willBeCompleted =
-      typeof isCompleted === 'boolean'
-        ? isCompleted
-        : habit.lastCompletedDate !== todayStr;
+      typeof isCompleted === 'boolean' ? isCompleted : habit.lastCompletedDate !== todayStr;
 
     let updatedHabit;
     if (willBeCompleted) {

@@ -17,6 +17,19 @@ import { HeatmapMatrix } from '../components/dashboard/HeatmapMatrix';
 import { TodayChecklist, ChecklistItem } from '../components/dashboard/TodayChecklist';
 import { CustomScrollArea } from '../components/common/CustomScrollArea';
 
+interface ServerTaskItem {
+  _id: string;
+  title: string;
+  isCompleted: boolean;
+  isHabitInstance: boolean;
+  habitId?: string | { _id: string };
+  sortOrder?: number;
+  category?: string;
+  priority?: 'normal' | 'high';
+  timeTag?: string;
+  createdAt?: string;
+}
+
 export const Dashboard: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
@@ -55,7 +68,7 @@ export const Dashboard: React.FC = () => {
     if (!isAuthenticated) {
       syncHabitsToTodayTasks();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, syncHabitsToTodayTasks]);
 
   // TanStack Query for Authenticated Tasks
   const { data: serverTasks = [] } = useQuery({
@@ -68,11 +81,12 @@ export const Dashboard: React.FC = () => {
         title: string;
         isCompleted: boolean;
         isHabitInstance: boolean;
-        habitId?: any;
+        habitId?: string | { _id: string };
         sortOrder: number;
         category?: string;
         priority?: 'normal' | 'high';
         timeTag?: string;
+        createdAt?: string;
       }>;
     },
     enabled: isAuthenticated,
@@ -120,9 +134,9 @@ export const Dashboard: React.FC = () => {
       const previousTasks = queryClient.getQueryData(['tasks', todayStr]);
 
       // Optimistically update the cache immediately
-      queryClient.setQueryData(['tasks', todayStr], (old: any) => {
+      queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
         if (!Array.isArray(old)) return old;
-        return old.map((t: any) =>
+        return old.map((t) =>
           t._id === id ? { ...t, isCompleted } : t
         );
       });
@@ -617,8 +631,8 @@ export const Dashboard: React.FC = () => {
 
     if (isAuthenticated) {
       // Optimistically insert task into TanStack cache so it appears immediately in DOM
-      queryClient.setQueryData(['tasks', todayStr], (old: any) => {
-        const optimisticTask = {
+      queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
+        const optimisticTask: ServerTaskItem = {
           _id: newTaskId,
           title: trimmedTitle,
           category: cleanCategory,
@@ -638,19 +652,19 @@ export const Dashboard: React.FC = () => {
           isHabitInstance: false,
         },
         {
-          onSuccess: (data: any) => {
+          onSuccess: (data: { data?: { _id?: string } }) => {
             const serverId = data?.data?._id;
             if (serverId && serverId !== newTaskId) {
-              queryClient.setQueryData(['tasks', todayStr], (old: any) => {
+              queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
                 if (!Array.isArray(old)) return old;
-                return old.map((t: any) => (t._id === newTaskId ? { ...t, _id: serverId } : t));
+                return old.map((t) => (t._id === newTaskId ? { ...t, _id: serverId } : t));
               });
             }
           },
           onError: () => {
-            queryClient.setQueryData(['tasks', todayStr], (old: any) => {
+            queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
               if (!Array.isArray(old)) return old;
-              return old.filter((t: any) => t._id !== newTaskId);
+              return old.filter((t) => t._id !== newTaskId);
             });
             setCreatingTaskId(null);
           },
@@ -976,10 +990,18 @@ export const Dashboard: React.FC = () => {
                   <CustomScrollArea maxHeight="195px" className="flex flex-col gap-3.5">
                     {habitsList
                       .filter((h) => !h.isArchived)
-                      .map((habit: any) => {
-                        const habitId = habit._id || habit.id;
+                      .map((habit: {
+                        _id?: string;
+                        id?: string;
+                        title?: string;
+                        category?: string;
+                        streakDays?: number;
+                        totalCompletions?: number;
+                        isArchived?: boolean;
+                      }) => {
+                        const habitId = habit._id || habit.id || '';
                         const isDoneToday = checklistItems.some(
-                          (it) => it.isHabitInstance && (it.habitId === habitId || it.title.toLowerCase().trim() === habit.title?.toLowerCase().trim()) && it.isCompleted
+                          (it) => it.isHabitInstance && (it.habitId === habitId || it.title.toLowerCase().trim() === (habit.title || '').toLowerCase().trim()) && it.isCompleted
                         );
                         const streak = habit.streakDays ?? 0;
                         const targetCompletions = 7;

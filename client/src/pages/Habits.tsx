@@ -576,7 +576,7 @@ export const Habits: React.FC = () => {
             activeDays: formData.activeDays,
           },
           {
-            onSuccess: (res: any) => {
+            onSuccess: (res: { data?: { _id?: string } }) => {
               const newId = res?.data?._id;
               if (newId) {
                 setNewlyCreatedHabitId(newId);

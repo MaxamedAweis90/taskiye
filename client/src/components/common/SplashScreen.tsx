@@ -82,7 +82,7 @@ export const SplashScreen: React.FC = () => {
         clearTimeout(stage2Timer);
       };
     }
-  }, [isLoggingOut, logoutMessage]);
+  }, [isLoggingOut, logoutMessage, finishLogoutSplash]);
 
   if (!shouldRender) return null;
 

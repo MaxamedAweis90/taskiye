@@ -42,14 +42,14 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     const validTasks = tasks.filter((t) => {
       if (!t.isHabitInstance) return true;
       if (!t.habitId) return false;
-      const habitObj = t.habitId as any;
+      const habitObj = t.habitId as unknown as { isArchived?: boolean };
       if (habitObj.isArchived) return false;
       return true;
     });
 
     // Clean up any orphaned habit instances in the background
     const orphanedIds = tasks
-      .filter((t) => t.isHabitInstance && (!t.habitId || (t.habitId as any).isArchived))
+      .filter((t) => t.isHabitInstance && (!t.habitId || (t.habitId as unknown as { isArchived?: boolean }).isArchived))
       .map((t) => t._id);
     if (orphanedIds.length > 0) {
       Task.deleteMany({ _id: { $in: orphanedIds } }).catch(() => {});

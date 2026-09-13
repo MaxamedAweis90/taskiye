@@ -49,7 +49,6 @@ const generateDynamicHeatmapData = (
       const cellDate = new Date(startMonday);
       cellDate.setDate(startMonday.getDate() + week * 7 + day);
 
-      const isFuture = cellDate > now && cellDate.toDateString() !== now.toDateString();
       const isToday = cellDate.toDateString() === now.toDateString();
 
       let intensity: 0 | 1 | 2 | 3 = 0;
