@@ -16,7 +16,10 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       return sendSuccess(res, [], 'Guest mode: no remote tasks');
     }
 
-    const filter: Record<string, unknown> = { userId: req.user.id };
+    const filter: Record<string, unknown> = {
+      userId: req.user.id,
+      deletedAt: null,
+    };
     const dateQuery = req.query.date as string | undefined;
 
     if (dateQuery) {
@@ -114,6 +117,7 @@ router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Res
 
     const tasks = await Task.find({
       userId,
+      deletedAt: null,
       date: { $gte: oneYearAgo },
     }).select('date isCompleted isHabitInstance habitId');
 
@@ -132,7 +136,7 @@ router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Res
     }
 
     // Merge completedDates from habits (in case completed via Habit view directly)
-    const habits = await Habit.find({ userId, isArchived: false }).select('completedDates');
+    const habits = await Habit.find({ userId, isArchived: false, deletedAt: null }).select('completedDates');
     for (const habit of habits) {
       if (Array.isArray(habit.completedDates)) {
         for (const dateStr of habit.completedDates) {
@@ -200,10 +204,15 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 
           if (isCompleted) {
             const todayStr = taskDate.toISOString().slice(0, 10);
+            const linkedHabit = await Habit.findOne({ _id: habitId, userId: req.user!.id });
+            const isAlreadyCompletedToday = linkedHabit?.lastCompletedDate === todayStr;
             await Habit.findOneAndUpdate(
               { _id: habitId, userId: req.user!.id },
               {
-                $inc: { totalCompletions: 1, streakDays: 1 },
+                $inc: {
+                  totalCompletions: 1,
+                  streakDays: isAlreadyCompletedToday ? 0 : 1,
+                },
                 $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
                 $addToSet: { completedDates: todayStr },
               }
@@ -224,13 +233,18 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       habitId: habitId || null,
     });
 
-    // If a completed habit instance is created, update the habit counters (+1 completion, +1 streak, 0 warnings, completedDates)
+    // If a completed habit instance is created, update the habit counters (+1 completion, streak if not already done today, 0 warnings, completedDates)
     if (task.isHabitInstance && task.habitId && task.isCompleted) {
       const todayStr = taskDate.toISOString().slice(0, 10);
+      const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
+      const isAlreadyCompletedToday = linkedHabit?.lastCompletedDate === todayStr;
       await Habit.findOneAndUpdate(
         { _id: task.habitId, userId: req.user!.id },
         {
-          $inc: { totalCompletions: 1, streakDays: 1 },
+          $inc: {
+            totalCompletions: 1,
+            streakDays: isAlreadyCompletedToday ? 0 : 1,
+          },
           $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
           $addToSet: { completedDates: todayStr },
         }
@@ -303,33 +317,51 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       const taskDateObj = task.date ? new Date(task.date) : new Date();
       const taskDateStr = taskDateObj.toISOString().slice(0, 10);
       if (isCompleted) {
-        // Checking off: +1 completion, +1 streak, clear warnings to 0, persist in completedDates
+        // Checking off: only increment streak if not already completed on this date
+        const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
+        const isAlreadyCompletedToday = linkedHabit?.lastCompletedDate === taskDateStr;
         await Habit.findOneAndUpdate(
           { _id: task.habitId, userId: req.user!.id },
           {
-            $inc: { totalCompletions: 1, streakDays: 1 },
+            $inc: {
+              totalCompletions: 1,
+              streakDays: isAlreadyCompletedToday ? 0 : 1,
+            },
             $set: { warnings: 0, lastCompletedDate: taskDateStr, isArchived: false },
             $addToSet: { completedDates: taskDateStr },
           }
         );
       } else {
-        // Unchecking: -1 completion, -1 streak (floor at 0), remove from completedDates
-        const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
-        if (linkedHabit) {
-          const nextCompletions = Math.max(0, (linkedHabit.totalCompletions || 0) - 1);
-          const nextStreak = Math.max(0, (linkedHabit.streakDays || 0) - 1);
-          await Habit.updateOne(
-            { _id: task.habitId, userId: req.user!.id },
-            {
-              $set: {
-                totalCompletions: nextCompletions,
-                streakDays: nextStreak,
-                lastCompletedDate: null,
-                isArchived: false,
-              },
-              $pull: { completedDates: taskDateStr },
-            }
-          );
+        // Unchecking: check if there are other completed tasks for this habit on this date
+        const otherCompletedToday = await Task.findOne({
+          _id: { $ne: task._id },
+          userId: req.user!.id,
+          habitId: task.habitId,
+          date: {
+            $gte: new Date(`${taskDateStr}T00:00:00.000Z`),
+            $lte: new Date(`${taskDateStr}T23:59:59.999Z`),
+          },
+          isCompleted: true,
+        });
+
+        if (!otherCompletedToday) {
+          const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
+          if (linkedHabit) {
+            const nextCompletions = Math.max(0, (linkedHabit.totalCompletions || 0) - 1);
+            const nextStreak = Math.max(0, (linkedHabit.streakDays || 0) - 1);
+            await Habit.updateOne(
+              { _id: task.habitId, userId: req.user!.id },
+              {
+                $set: {
+                  totalCompletions: nextCompletions,
+                  streakDays: nextStreak,
+                  lastCompletedDate: null,
+                  isArchived: false,
+                },
+                $pull: { completedDates: taskDateStr },
+              }
+            );
+          }
         }
       }
     }
@@ -341,21 +373,96 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
 });
 
 /**
+ * GET /api/tasks/trash
+ * Fetch all soft-deleted standalone tasks for the authenticated user (within 30-day retention window)
+ * Explicitly excludes habit instances so deleted habits don't duplicate inside tasks trash.
+ */
+router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const trashedTasks = await Task.find({
+      userId: req.user!.id,
+      deletedAt: { $ne: null },
+      isHabitInstance: { $ne: true },
+      habitId: null,
+    })
+      .sort({ deletedAt: -1 })
+      .populate('habitId', 'title category');
+
+    return sendSuccess(res, trashedTasks, 'Trashed tasks fetched successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to fetch trashed tasks', 500, error);
+  }
+});
+
+/**
+ * DELETE /api/tasks/trash/empty
+ * Permanently purge all soft-deleted standalone tasks in the user's trash
+ */
+router.delete('/trash/empty', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await Task.deleteMany({
+      userId: req.user!.id,
+      deletedAt: { $ne: null },
+      isHabitInstance: { $ne: true },
+      habitId: null,
+    });
+
+    return sendSuccess(res, { deletedCount: result.deletedCount }, 'Tasks trash emptied successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to empty tasks trash', 500, error);
+  }
+});
+
+/**
+ * POST /api/tasks/:id/restore
+ * Restore a soft-deleted task back to active checklist
+ */
+router.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const task = await Task.findOneAndUpdate(
+      { _id: id, userId: req.user!.id },
+      { $set: { deletedAt: null } },
+      { new: true }
+    );
+
+    if (!task) {
+      return sendError(res, 'Task not found or unauthorized', 404);
+    }
+
+    return sendSuccess(res, task, 'Task restored successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to restore task', 500, error);
+  }
+});
+
+/**
  * DELETE /api/tasks/:id
- * Delete a task (Habit instances are protected from deletion)
+ * Soft-delete task (retained in 30-day Trash) or permanent hard-delete if ?permanent=true
  */
 router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const isPermanent = req.query.permanent === 'true';
 
     const existingTask = await Task.findOne({ _id: id, userId: req.user!.id });
     if (!existingTask) {
       return sendError(res, 'Task not found or unauthorized', 404);
     }
 
-    // Allow deleting any daily task or habit instance
-    await Task.deleteOne({ _id: id });
-    return sendSuccess(res, { id }, 'Task deleted successfully');
+    if (isPermanent) {
+      await Task.deleteOne({ _id: id, userId: req.user!.id });
+      return sendSuccess(res, { id, permanent: true }, 'Task permanently deleted');
+    }
+
+    // Soft-delete with timestamp for 30-day TTL recovery window
+    const softDeleted = await Task.findOneAndUpdate(
+      { _id: id, userId: req.user!.id },
+      { $set: { deletedAt: new Date() } },
+      { new: true }
+    );
+
+    return sendSuccess(res, softDeleted, 'Task moved to trash (30-day retention window)');
   } catch (error) {
     return sendError(res, 'Failed to delete task', 500, error);
   }

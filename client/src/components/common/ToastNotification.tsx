@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Info, X, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Info, X, ShieldCheck, RotateCcw } from 'lucide-react';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 
 export const ToastNotification: React.FC = () => {
@@ -76,6 +76,23 @@ export const ToastNotification: React.FC = () => {
           <p className="text-xs text-slate-300 leading-relaxed mt-1 font-normal">
             {toastNotification.description}
           </p>
+
+          {toastNotification.action && (
+            <div className="mt-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  toastNotification.action?.onClick();
+                  setVisible(false);
+                  setTimeout(dismissToast, 200);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-200 shadow-[0_0_12px_rgba(250,204,21,0.35)] hover:shadow-[0_0_16px_rgba(250,204,21,0.5)] transition-all cursor-pointer active:scale-95 select-none"
+              >
+                <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{toastNotification.action.label}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Close Button */}

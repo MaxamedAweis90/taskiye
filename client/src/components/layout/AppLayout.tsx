@@ -23,6 +23,7 @@ import {
   Snowflake,
   CheckCheck,
   ArrowRight,
+  Trash2,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
@@ -56,14 +57,17 @@ export const AppLayout: React.FC = () => {
     getGuestItemCount,
     openAuthModal,
     todayChecklistCompletedCount,
-    baseStreakDays,
     setBaseStreakDays,
+    setIsTrashOpen,
     habits: guestHabits,
+    tasks: guestTasks,
+    getGuestActivityMap,
+    currentDateStr,
     triggerLogoutSplash,
     syncHabitsToTodayTasks,
   } = useTaskiyeStore();
 
-  const { data: serverHabits = [] } = useQuery<Array<{ streakDays?: number; isArchived?: boolean }>>({
+  const { data: serverHabits = [] } = useQuery<Array<{ streakDays?: number; isArchived?: boolean; lastCompletedDate?: string | null }>>({
     queryKey: ['habits'],
     queryFn: async () => {
       const res = await fetch('/api/habits', { credentials: 'include' });
@@ -74,17 +78,64 @@ export const AppLayout: React.FC = () => {
     staleTime: 30000,
   });
 
-  const activeHabitsMaxStreak = useMemo(() => {
+  const { data: serverActivity = {} } = useQuery({
+    queryKey: ['tasks', 'activity'],
+    queryFn: async () => {
+      const res = await fetch('/api/tasks/activity', { credentials: 'include' });
+      const json = await res.json();
+      return (json.data || {}) as Record<string, { completedCount: number; totalCount: number }>;
+    },
+    enabled: Boolean(session?.user),
+    staleTime: 30000,
+  });
+
+  const todayStr = currentDateStr || new Date().toLocaleDateString('en-CA');
+
+  const activityLogs = useMemo(() => {
+    if (session?.user) {
+      return serverActivity;
+    }
+    if (!guestTasks && !guestHabits) return {};
+    return getGuestActivityMap();
+  }, [session?.user, serverActivity, getGuestActivityMap, guestTasks, guestHabits]);
+
+  const pastConsecutiveDays = useMemo(() => {
+    if (!activityLogs) return 0;
+    let count = 0;
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    for (let i = 0; i < 365; i++) {
+      const dateStr = d.toLocaleDateString('en-CA');
+      if (activityLogs[dateStr] && activityLogs[dateStr].completedCount > 0) {
+        count++;
+        d.setDate(d.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return count;
+  }, [activityLogs]);
+
+  const pastHabitsMaxStreak = useMemo(() => {
     const list = session?.user ? serverHabits : guestHabits;
     const active = list.filter((h) => !h.isArchived);
-    return active.length > 0 ? Math.max(...active.map((h) => h.streakDays || 0)) : 0;
-  }, [session?.user, serverHabits, guestHabits]);
+    if (active.length === 0) return 0;
+    return Math.max(
+      ...active.map((h) => {
+        const s = h.streakDays || 0;
+        if (h.lastCompletedDate === todayStr) {
+          return Math.max(0, s - 1);
+        }
+        return s;
+      })
+    );
+  }, [session?.user, serverHabits, guestHabits, todayStr]);
+
+  const effectiveBaseStreak = Math.max(pastConsecutiveDays, pastHabitsMaxStreak);
 
   useEffect(() => {
-    if (activeHabitsMaxStreak > 0) {
-      setBaseStreakDays(activeHabitsMaxStreak);
-    }
-  }, [activeHabitsMaxStreak, setBaseStreakDays]);
+    setBaseStreakDays(effectiveBaseStreak);
+  }, [effectiveBaseStreak, setBaseStreakDays]);
 
   const [activeDropdown, setActiveDropdown] = useState<
     'streak' | 'notifications' | 'profile' | null
@@ -99,8 +150,8 @@ export const AppLayout: React.FC = () => {
   const [bellPillWidth, setBellPillWidth] = useState<number>(64);
 
   const isTaskDoneToday = useMemo(() => {
-    return todayChecklistCompletedCount > 0;
-  }, [todayChecklistCompletedCount]);
+    return todayChecklistCompletedCount > 0 || (activityLogs[todayStr]?.completedCount || 0) > 0;
+  }, [todayChecklistCompletedCount, activityLogs, todayStr]);
 
   const [notifications, setNotifications] = useState<
     Array<{
@@ -149,9 +200,6 @@ export const AppLayout: React.FC = () => {
     const currentDayOfWeek = now.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-    // Real streak: past days are only completed if the user actually had a streak covering them
-    const effectiveBaseStreak = Math.max(activeHabitsMaxStreak, baseStreakDays ?? 0);
-
     return days.map((label, index) => {
       const isPast = index < currentDayOfWeek;
       const isToday = index === currentDayOfWeek;
@@ -174,7 +222,7 @@ export const AppLayout: React.FC = () => {
         isCompleted,
       };
     });
-  }, [isTaskDoneToday, baseStreakDays, activeHabitsMaxStreak]);
+  }, [isTaskDoneToday, effectiveBaseStreak]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -203,11 +251,7 @@ export const AppLayout: React.FC = () => {
   const usagePercentage = Math.min(100, Math.round((guestItemCount / GUEST_ITEM_LIMIT) * 100));
 
   // Global Daily Streak: Base consecutive days prior to today + (1 if active today)
-  const effectiveBase = Math.max(
-    baseStreakDays ?? 0,
-    activeHabitsMaxStreak > 0 && todayChecklistCompletedCount === 0 ? activeHabitsMaxStreak : 0
-  );
-  const maxStreak = effectiveBase + (todayChecklistCompletedCount > 0 ? 1 : 0);
+  const maxStreak = effectiveBaseStreak + (isTaskDoneToday ? 1 : 0);
 
   useEffect(() => {
     if (streakMeasureRef.current) {
@@ -871,6 +915,23 @@ export const AppLayout: React.FC = () => {
                           </div>
                           <span className="text-[10px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
                             ⌘P
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            setIsTrashOpen(true);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer group/trash"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-400 transition-colors" />
+                            <span>Trash & Recovery (30 Days)</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded">
+                            30d TTL
                           </span>
                         </button>
 

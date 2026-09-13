@@ -7,7 +7,6 @@ import {
   Filter as FilterIcon,
   Pencil,
   Trash2,
-  AlertTriangle,
   X,
   Repeat,
   Sparkles,
@@ -111,7 +110,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   highlightedTaskId,
   onCreationAnimationComplete,
 }) => {
-  const { setTodayChecklistCompletedCount } = useTaskiyeStore();
+  const { setTodayChecklistCompletedCount, setIsTrashOpen } = useTaskiyeStore();
   const [filterMode, setFilterMode] = useState<'all' | 'active' | 'completed'>('all');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ChecklistItem | null>(null);
@@ -347,6 +346,18 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Quick Task</span>
+          </button>
+
+          <span className="text-slate-600 select-none">•</span>
+
+          <button
+            type="button"
+            onClick={() => setIsTrashOpen(true)}
+            title="View 30-Day Trash & Recovery"
+            className="flex items-center gap-1 text-slate-400 hover:text-rose-300 font-medium transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Trash</span>
           </button>
         </div>
       </div>
@@ -617,7 +628,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
       )}
     </div>
 
-      {/* Remove Confirmation Modal ("Are you sure?") */}
+      {/* Move to Trash Confirmation Modal */}
       {itemToDelete && (
         <div
           role="dialog"
@@ -626,7 +637,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
           onClick={() => setItemToDelete(null)}
         >
           <div
-            className="bg-[#162032] border border-white/10 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
+            className="bg-[#162032] border border-amber-400/20 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
@@ -638,17 +649,17 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
               <X className="w-4 h-4" />
             </button>
 
-            {/* Warning Icon & Heading */}
+            {/* Trash Icon & Heading with clear 30-day instruction */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+              <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
+                <Trash2 className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div>
                 <h4 className="text-base font-bold text-white leading-tight">
-                  Are you sure?
+                  Move to Trash?
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Are you sure you want to remove this task?
+                <p className="text-xs text-slate-400 mt-0.5 leading-normal">
+                  Retained in 30-Day Trash. You can restore it anytime.
                 </p>
               </div>
             </div>
@@ -659,7 +670,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
               <span className="font-semibold text-slate-100">{itemToDelete.title}</span>
             </div>
 
-            {/* Actions: Cancel & Remove */}
+            {/* Actions: Cancel & Move to Trash */}
             <div className="flex items-center justify-end gap-2.5 pt-1">
               <button
                 type="button"
@@ -680,9 +691,10 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                     setSwipingOutTaskId((curr) => (curr === targetId ? null : curr));
                   }, 380);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-[0_0_15px_rgba(225,29,72,0.35)] hover:shadow-[0_0_20px_rgba(225,29,72,0.5)] transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all cursor-pointer flex items-center gap-1.5"
               >
-                Yes, Remove
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Move to Trash</span>
               </button>
             </div>
           </div>

@@ -8,6 +8,7 @@ export interface ITask extends Document {
   isHabitInstance: boolean;
   habitId: Types.ObjectId | null;
   sortOrder: number;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,13 +47,26 @@ const taskSchema = new Schema<ITask>(
       type: Number,
       default: 0,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Optimize query for fetching tasks by user and date, sorted by sortOrder
-taskSchema.index({ userId: 1, date: 1, sortOrder: 1 });
+// Optimize query for fetching active tasks by user and date, sorted by sortOrder
+taskSchema.index({ userId: 1, deletedAt: 1, date: 1, sortOrder: 1 });
+
+// MongoDB TTL Index: automatically hard-deletes tasks 30 days after soft-deletion
+taskSchema.index(
+  { deletedAt: 1 },
+  {
+    expireAfterSeconds: 30 * 24 * 60 * 60, // 30 days = 2,592,000 seconds
+    partialFilterExpression: { deletedAt: { $type: 'date' } },
+  }
+);
 
 export const Task = mongoose.model<ITask>('Task', taskSchema);

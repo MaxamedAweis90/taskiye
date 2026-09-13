@@ -48,6 +48,8 @@ export const Dashboard: React.FC = () => {
     reorderGuestTasks,
     syncHabitsToTodayTasks,
     setBaseStreakDays,
+    showToast,
+    restoredTaskId,
   } = useTaskiyeStore();
 
   // Quick Action form state (Task-only creation)
@@ -60,6 +62,21 @@ export const Dashboard: React.FC = () => {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [deletedTaskIds, setDeletedTaskIds] = useState<Set<string>>(new Set());
   const [customChecklistOrder, setCustomChecklistOrder] = useState<string[]>([]);
+
+  // 1. Immediately unsuppress task when restored from TrashModal or Undo toast
+  React.useEffect(() => {
+    if (restoredTaskId) {
+      setDeletedTaskIds((prev) => {
+        if (prev.has(restoredTaskId)) {
+          const next = new Set(prev);
+          next.delete(restoredTaskId);
+          return next;
+        }
+        return prev;
+      });
+    }
+  }, [restoredTaskId]);
+
 
   const titleInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,6 +111,24 @@ export const Dashboard: React.FC = () => {
     },
     enabled: isAuthenticated,
   });
+
+  // 2. Auto-reconcile: If serverTasks has any task currently in deletedTaskIds, unsuppress it immediately
+  React.useEffect(() => {
+    if (serverTasks.length > 0 && deletedTaskIds.size > 0) {
+      const activeServerIds = new Set(serverTasks.map((t) => t._id));
+      setDeletedTaskIds((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const id of prev) {
+          if (activeServerIds.has(id)) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [serverTasks, deletedTaskIds.size]);
 
   // TanStack Query for Authenticated Tasks Activity Map (Heatmap Historical Activity)
   const { data: serverActivity = {} } = useQuery({
@@ -436,9 +471,11 @@ export const Dashboard: React.FC = () => {
   const habitsDoneCount = todayHabitItems.filter((i) => i.isCompleted).length;
   const habitsTodayTotalCount = todayHabitItems.length;
 
-  const activeHabits = isAuthenticated
-    ? serverHabits.filter((h) => !h.isArchived)
-    : guestHabits.filter((h) => !h.isArchived);
+  const activeHabits = useMemo(() => {
+    return isAuthenticated
+      ? serverHabits.filter((h) => !h.isArchived)
+      : guestHabits.filter((h) => !h.isArchived);
+  }, [isAuthenticated, serverHabits, guestHabits]);
 
   // Per-Habit Streaks are maintained individually on each habit (h.streakDays).
   // Global Daily Streak: counts if user checked ANY task or habit on that calendar day.
@@ -461,19 +498,24 @@ export const Dashboard: React.FC = () => {
     return streak;
   }, [activityLogs]);
 
-  const habitsMaxStreak =
-    activeHabits.length > 0 ? Math.max(...activeHabits.map((h) => h.streakDays || 0)) : 0;
+  const pastHabitsMaxStreak = useMemo(() => {
+    if (activeHabits.length === 0) return 0;
+    return Math.max(
+      ...activeHabits.map((h) => {
+        const s = h.streakDays || 0;
+        if (h.lastCompletedDate === todayStr) {
+          return Math.max(0, s - 1);
+        }
+        return s;
+      })
+    );
+  }, [activeHabits, todayStr]);
 
   // Base daily streak prior to today (supported by past consecutive days or unbroken habit records)
-  const baseDailyStreak = Math.max(
-    pastConsecutiveDailyStreak,
-    habitsMaxStreak > 0 && completedCount === 0
-      ? habitsMaxStreak
-      : Math.max(0, habitsMaxStreak - (completedCount > 0 ? 1 : 0))
-  );
+  const baseDailyStreak = Math.max(pastConsecutiveDailyStreak, pastHabitsMaxStreak);
 
   // If user completed ANY task or habit today, increment daily streak by 1
-  const isAnyItemDoneToday = completedCount > 0;
+  const isAnyItemDoneToday = completedCount > 0 || (activityLogs[todayStr]?.completedCount || 0) > 0;
   const globalDailyStreak = baseDailyStreak + (isAnyItemDoneToday ? 1 : 0);
 
   useEffect(() => {
@@ -582,11 +624,42 @@ export const Dashboard: React.FC = () => {
       handleCancelEdit();
     }
 
+    const taskToDelete = checklistItems.find((t) => t.id === id);
+    const taskTitle = taskToDelete?.title || 'Task';
+
     // Instantly remove from view optimistically with 0ms delay
     setDeletedTaskIds((prev) => new Set(prev).add(id));
 
     if (isAuthenticated) {
       deleteTaskMutation.mutate(id, {
+        onSuccess: () => {
+          showToast(
+            'Moved to Trash',
+            `"${taskTitle}" will be safely kept in 30-Day Trash before permanent cleanup.`,
+            'info',
+            {
+              label: 'Undo',
+              onClick: async () => {
+                try {
+                  await fetch(`/api/tasks/${id}/restore`, {
+                    method: 'POST',
+                    credentials: 'include',
+                  });
+                  setDeletedTaskIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(id);
+                    return next;
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['tasks'] });
+                  queryClient.invalidateQueries({ queryKey: ['tasks', 'trash'] });
+                  showToast('Task Restored', `"${taskTitle}" has been restored to your checklist.`, 'success');
+                } catch (err) {
+                  console.error('Failed to undo task deletion:', err);
+                }
+              },
+            }
+          );
+        },
         onError: () => {
           setDeletedTaskIds((prev) => {
             const next = new Set(prev);
@@ -596,7 +669,33 @@ export const Dashboard: React.FC = () => {
         },
       });
     } else {
+      const removedTask = guestTasks.find((t) => t.id === id);
       removeGuestTask(id);
+      if (removedTask) {
+        showToast(
+          'Removed',
+          `"${taskTitle}" removed from checklist.`,
+          'info',
+          {
+            label: 'Undo',
+            onClick: () => {
+              addGuestTask({
+                title: removedTask.title,
+                date: removedTask.date,
+                priority: removedTask.priority,
+                category: removedTask.category,
+                timeTag: removedTask.timeTag,
+              });
+              setDeletedTaskIds((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+              });
+              showToast('Task Restored', `"${taskTitle}" has been restored.`, 'success');
+            },
+          }
+        );
+      }
     }
   };
 

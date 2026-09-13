@@ -98,7 +98,10 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     }
 
     const includeArchived = req.query.includeArchived === 'true';
-    const filter: Record<string, unknown> = { userId: req.user.id };
+    const filter: Record<string, unknown> = {
+      userId: req.user.id,
+      deletedAt: null,
+    };
 
     if (!includeArchived) {
       filter.isArchived = false;
@@ -161,52 +164,139 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 });
 
 /**
+ * GET /api/habits/trash
+ * Fetch all soft-deleted habits for the authenticated user (within 30-day retention window)
+ */
+router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const trashedHabits = await Habit.find({
+      userId: req.user!.id,
+      deletedAt: { $ne: null },
+    }).sort({ deletedAt: -1 });
+
+    return sendSuccess(res, trashedHabits, 'Trashed habits fetched successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to fetch trashed habits', 500, error);
+  }
+});
+
+/**
+ * DELETE /api/habits/trash/empty
+ * Permanently purge all soft-deleted habits and cascade delete associated habit instance tasks
+ */
+router.delete('/trash/empty', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const trashed = await Habit.find({
+      userId: req.user!.id,
+      deletedAt: { $ne: null },
+    });
+
+    const trashedIds = trashed.map((h) => h._id);
+    const trashedTitles = trashed.map((h) => h.title);
+
+    // Cascade hard-delete habit documents
+    const habitResult = await Habit.deleteMany({
+      _id: { $in: trashedIds },
+      userId: req.user!.id,
+    });
+
+    // Cascade hard-delete linked habit task instances
+    await Task.deleteMany({
+      userId: req.user!.id,
+      $or: [
+        { habitId: { $in: trashedIds } },
+        { isHabitInstance: true, title: { $in: trashedTitles } },
+      ],
+    });
+
+    return sendSuccess(res, { deletedCount: habitResult.deletedCount }, 'Habits trash emptied and cascade purged');
+  } catch (error) {
+    return sendError(res, 'Failed to empty habits trash', 500, error);
+  }
+});
+
+/**
+ * POST /api/habits/:id/restore
+ * Restore a soft-deleted habit from trash back to active
+ */
+router.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const habit = await Habit.findOneAndUpdate(
+      { _id: id, userId: req.user!.id },
+      { $set: { deletedAt: null } },
+      { new: true }
+    );
+
+    if (!habit) {
+      return sendError(res, 'Habit not found or unauthorized', 404);
+    }
+
+    // Also un-delete any soft-deleted task instances linked to this habit
+    await Task.updateMany(
+      {
+        userId: req.user!.id,
+        $or: [{ habitId: id }, { isHabitInstance: true, title: habit.title }],
+        deletedAt: { $ne: null },
+      },
+      { $set: { deletedAt: null } }
+    );
+
+    return sendSuccess(res, habit, 'Habit restored successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to restore habit', 500, error);
+  }
+});
+
+/**
  * DELETE /api/habits/:id
- * Soft-delete / archive habit (Freezes streak & progress without deleting)
+ * Soft-delete habit to 30-day trash, or permanent hard-delete with cascade if ?permanent=true
  */
 router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const isPermanent = req.query.permanent === 'true';
 
-    if (isPermanent) {
-      const habit = await Habit.findOneAndDelete({ _id: id, userId: req.user!.id });
-      if (!habit) {
-        return sendError(res, 'Habit not found or unauthorized', 404);
-      }
-      // Purge any associated daily tasks/habit instances
-      await Task.deleteMany({
-        userId: req.user!.id,
-        $or: [{ habitId: id }, { isHabitInstance: true, title: habit.title }],
-      });
-      return sendSuccess(res, habit, 'Habit permanently deleted');
-    }
-
     const existingHabit = await Habit.findOne({ _id: id, userId: req.user!.id });
     if (!existingHabit) {
       return sendError(res, 'Habit not found or unauthorized', 404);
     }
 
-    // Freeze streak and preserve progress
+    if (isPermanent) {
+      // Cascade permanent delete: delete habit document + all linked task instances
+      await Habit.deleteOne({ _id: id, userId: req.user!.id });
+      await Task.deleteMany({
+        userId: req.user!.id,
+        $or: [{ habitId: id }, { isHabitInstance: true, title: existingHabit.title }],
+      });
+      return sendSuccess(res, { id, permanent: true }, 'Habit and linked tasks permanently deleted');
+    }
+
+    // Soft-delete habit with 30-day TTL recovery window
     const habit = await Habit.findOneAndUpdate(
       { _id: id, userId: req.user!.id },
       {
-        isArchived: true,
-        archivedAt: new Date(),
-        lastStreak: existingHabit.streakDays,
+        $set: {
+          deletedAt: new Date(),
+          lastStreak: existingHabit.streakDays,
+        },
       },
       { new: true }
     );
 
-    // Remove habit task instances from daily tasks
-    await Task.deleteMany({
-      userId: req.user!.id,
-      $or: [{ habitId: id }, { isHabitInstance: true, title: existingHabit.title }],
-    });
+    // Soft-delete all associated daily tasks
+    await Task.updateMany(
+      {
+        userId: req.user!.id,
+        $or: [{ habitId: id }, { isHabitInstance: true, title: existingHabit.title }],
+        deletedAt: null,
+      },
+      { $set: { deletedAt: new Date() } }
+    );
 
-    return sendSuccess(res, habit, 'Habit archived successfully (progress frozen)');
+    return sendSuccess(res, habit, 'Habit moved to trash (30-day retention)');
   } catch (error) {
-    return sendError(res, 'Failed to archive habit', 500, error);
+    return sendError(res, 'Failed to delete habit', 500, error);
   }
 });
 
@@ -306,9 +396,10 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
 
     let updatedHabit;
     if (willBeCompleted) {
-      // Completed: +1 total completions, +1 streak, clear all warnings, add to completedDates!
-      const nextStreak = (habit.streakDays || 0) + 1;
-      const nextCompletions = (habit.totalCompletions || 0) + 1;
+      // Completed: only increment streak if not already completed today
+      const isAlreadyCompletedToday = habit.lastCompletedDate === todayStr;
+      const nextStreak = isAlreadyCompletedToday ? (habit.streakDays || 0) : (habit.streakDays || 0) + 1;
+      const nextCompletions = isAlreadyCompletedToday ? (habit.totalCompletions || 0) : (habit.totalCompletions || 0) + 1;
 
       updatedHabit = await Habit.findOneAndUpdate(
         { _id: id, userId: req.user!.id },

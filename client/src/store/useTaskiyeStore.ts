@@ -198,14 +198,32 @@ interface TaskiyeState {
   clearGuestData: () => void;
   getGuestItemCount: () => number;
 
+  // Trash & Recovery Modal
+  isTrashOpen: boolean;
+  setIsTrashOpen: (open: boolean) => void;
+  restoredItemTimestamp: number;
+  restoredTaskId: string | null;
+  restoredHabitId: string | null;
+  markTaskRestored: (id: string) => void;
+  markHabitRestored: (id: string) => void;
+
   // Toast Notification System
   toastNotification: {
     id: string;
     title: string;
     description: string;
     type?: 'success' | 'info' | 'error';
+    action?: {
+      label: string;
+      onClick: () => void;
+    };
   } | null;
-  showToast: (title: string, description: string, type?: 'success' | 'info' | 'error') => void;
+  showToast: (
+    title: string,
+    description: string,
+    type?: 'success' | 'info' | 'error',
+    action?: { label: string; onClick: () => void }
+  ) => void;
   dismissToast: () => void;
 
   // Logout Transition Splash
@@ -228,15 +246,30 @@ export const useTaskiyeStore = create<TaskiyeState>()(
       baseStreakDays: 0,
       isLoggingOut: false,
       logoutMessage: undefined,
+      isTrashOpen: false,
+      setIsTrashOpen: (open: boolean) => set({ isTrashOpen: open }),
+      restoredItemTimestamp: 0,
+      restoredTaskId: null,
+      restoredHabitId: null,
+      markTaskRestored: (id: string) =>
+        set({ restoredTaskId: id, restoredItemTimestamp: Date.now() }),
+      markHabitRestored: (id: string) =>
+        set({ restoredHabitId: id, restoredItemTimestamp: Date.now() }),
       toastNotification: null,
 
-      showToast: (title: string, description: string, type: 'success' | 'info' | 'error' = 'success') => {
+      showToast: (
+        title: string,
+        description: string,
+        type: 'success' | 'info' | 'error' = 'success',
+        action?: { label: string; onClick: () => void }
+      ) => {
         set({
           toastNotification: {
             id: `toast_${Date.now()}`,
             title,
             description,
             type,
+            action,
           },
         });
       },
@@ -312,7 +345,6 @@ export const useTaskiyeStore = create<TaskiyeState>()(
 
         set((state) => {
           let updatedHabits = state.habits;
-          // If completing a habit instance, increment habit completion & streak, clear warnings
           // If completing a habit instance, increment habit completion & streak, clear warnings, update completedDates
           if (newTask.isHabitInstance && newTask.isCompleted) {
             updatedHabits = state.habits.map((habit) => {
@@ -324,12 +356,13 @@ export const useTaskiyeStore = create<TaskiyeState>()(
 
               if (!matchesId && !matchesTitle) return habit;
 
+              const isAlreadyCompletedToday = habit.lastCompletedDate === todayStr;
               const completedDates = Array.from(new Set([...(habit.completedDates || []), todayStr]));
 
               return {
                 ...habit,
-                totalCompletions: (habit.totalCompletions || 0) + 1,
-                streakDays: (habit.streakDays || 0) + 1,
+                totalCompletions: isAlreadyCompletedToday ? (habit.totalCompletions || 0) : (habit.totalCompletions || 0) + 1,
+                streakDays: isAlreadyCompletedToday ? (habit.streakDays || 0) : (habit.streakDays || 0) + 1,
                 warnings: 0,
                 lastCompletedDate: todayStr,
                 completedDates,
@@ -373,19 +406,33 @@ export const useTaskiyeStore = create<TaskiyeState>()(
             if (!matchesId && !matchesTitle) return habit;
 
             if (nextCompleted) {
-              // Checking off: +1 completion, +1 streak, clear warnings, add to completedDates
+              // Checking off: only increment streak if not already completed on this date
+              const isAlreadyCompletedToday = habit.lastCompletedDate === taskDateStr;
               const completedDates = Array.from(new Set([...(habit.completedDates || []), taskDateStr]));
               return {
                 ...habit,
-                totalCompletions: (habit.totalCompletions || 0) + 1,
-                streakDays: (habit.streakDays || 0) + 1,
+                totalCompletions: isAlreadyCompletedToday ? (habit.totalCompletions || 0) : (habit.totalCompletions || 0) + 1,
+                streakDays: isAlreadyCompletedToday ? (habit.streakDays || 0) : (habit.streakDays || 0) + 1,
                 warnings: 0,
                 lastCompletedDate: taskDateStr,
                 completedDates,
                 isArchived: false, // Ensure checking off NEVER archives!
               };
             } else {
-              // Unchecking: -1 completion, -1 streak (floor at 0), remove from completedDates
+              // Unchecking: check if other tasks for this habit on this date are still completed
+              const hasOtherCompleted = state.tasks.some(
+                (t) =>
+                  t.id !== id &&
+                  t.isCompleted &&
+                  t.date?.slice(0, 10) === taskDateStr &&
+                  ((targetTask.habitId && t.habitId === targetTask.habitId) ||
+                    (targetTask.title && t.title && t.title.toLowerCase().trim() === targetTask.title.toLowerCase().trim()))
+              );
+
+              if (hasOtherCompleted) {
+                return habit;
+              }
+
               const completedDates = (habit.completedDates || []).filter((d) => d !== taskDateStr);
               return {
                 ...habit,
@@ -419,11 +466,12 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         const updatedHabits = state.habits.map((h) => {
           if (h.id !== habitId) return h;
           if (willBeCompleted) {
+            const isAlreadyCompletedToday = h.lastCompletedDate === todayStr;
             const completedDates = Array.from(new Set([...(h.completedDates || []), todayStr]));
             return {
               ...h,
-              totalCompletions: (h.totalCompletions || 0) + 1,
-              streakDays: (h.streakDays || 0) + 1,
+              totalCompletions: isAlreadyCompletedToday ? (h.totalCompletions || 0) : (h.totalCompletions || 0) + 1,
+              streakDays: isAlreadyCompletedToday ? (h.streakDays || 0) : (h.streakDays || 0) + 1,
               warnings: 0,
               lastCompletedDate: todayStr,
               completedDates,

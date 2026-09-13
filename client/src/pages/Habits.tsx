@@ -154,6 +154,9 @@ export const Habits: React.FC = () => {
     deleteGuestHabit,
     reorderGuestHabits,
     toggleFreezeGuestHabit,
+    showToast,
+    setIsTrashOpen,
+    restoredHabitId: storeRestoredHabitId,
   } = useTaskiyeStore();
 
   // Local UI State
@@ -174,6 +177,21 @@ export const Habits: React.FC = () => {
   const [restoringHabitId, setRestoringHabitId] = useState<string | null>(null);
   const [restoredHabitId, setRestoredHabitId] = useState<string | null>(null);
   const [editedHabitId, setEditedHabitId] = useState<string | null>(null);
+
+  // 1. Immediately unsuppress habit when restored from TrashModal or Undo toast
+  React.useEffect(() => {
+    if (storeRestoredHabitId) {
+      setDeletedHabitIds((prev) => {
+        if (prev.has(storeRestoredHabitId)) {
+          const next = new Set(prev);
+          next.delete(storeRestoredHabitId);
+          return next;
+        }
+        return prev;
+      });
+    }
+  }, [storeRestoredHabitId]);
+
 
   // Optimistic tracking sets to eliminate any network re-render flicker
   const [optimisticallyArchivedIds, setOptimisticallyArchivedIds] = useState<Set<string>>(new Set());
@@ -215,6 +233,24 @@ export const Habits: React.FC = () => {
     },
     enabled: isAuthenticated,
   });
+
+  // 2. Auto-reconcile: If serverHabits has any habit currently in deletedHabitIds, unsuppress it immediately
+  React.useEffect(() => {
+    if (serverHabits.length > 0 && deletedHabitIds.size > 0) {
+      const activeServerIds = new Set(serverHabits.map((h) => h._id));
+      setDeletedHabitIds((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const id of prev) {
+          if (activeServerIds.has(id)) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [serverHabits, deletedHabitIds.size]);
 
   // TanStack Mutation: Create Habit
   const createHabitMutation = useMutation({
@@ -298,10 +334,10 @@ export const Habits: React.FC = () => {
     },
   });
 
-  // TanStack Mutation: Delete Habit (Permanent)
+  // TanStack Mutation: Soft-Delete Habit (30-Day Trash)
   const deleteHabitMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/habits/${id}?permanent=true`, {
+      const res = await fetch(`/api/habits/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -309,6 +345,7 @@ export const Habits: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
+      queryClient.invalidateQueries({ queryKey: ['habits', 'trash'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
@@ -658,6 +695,7 @@ export const Habits: React.FC = () => {
 
   const handleConfirmDeleteHabit = () => {
     if (!habitToDelete) return;
+    const habitTitle = habitToDelete.title || 'Habit';
     const targetId = habitToDelete.id;
     setHabitToDelete(null);
     setDeletingHabitId(targetId);
@@ -670,6 +708,35 @@ export const Habits: React.FC = () => {
       // 2. Perform actual deletion in database or guest store
       if (isAuthenticated) {
         deleteHabitMutation.mutate(targetId, {
+          onSuccess: () => {
+            showToast(
+              'Moved to Trash',
+              `"${habitTitle}" will be safely kept in 30-Day Trash with preserved streaks.`,
+              'info',
+              {
+                label: 'Undo',
+                onClick: async () => {
+                  try {
+                    await fetch(`/api/habits/${targetId}/restore`, {
+                      method: 'POST',
+                      credentials: 'include',
+                    });
+                    setDeletedHabitIds((prev) => {
+                      const next = new Set(prev);
+                      next.delete(targetId);
+                      return next;
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['habits'] });
+                    queryClient.invalidateQueries({ queryKey: ['habits', 'trash'] });
+                    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+                    showToast('Habit Restored', `"${habitTitle}" has been restored.`, 'success');
+                  } catch (err) {
+                    console.error('Failed to undo habit deletion:', err);
+                  }
+                },
+              }
+            );
+          },
           onError: () => {
             setDeletedHabitIds((prev) => {
               const next = new Set(prev);
@@ -680,6 +747,7 @@ export const Habits: React.FC = () => {
         });
       } else {
         deleteGuestHabit(targetId);
+        showToast('Moved to Trash', `"${habitTitle}" removed.`, 'info');
       }
     }, 400);
   };
@@ -963,15 +1031,30 @@ export const Habits: React.FC = () => {
           </p>
         </div>
 
-        {/* Primary CTA Button */}
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>+ Create New Habit</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsTrashOpen(true)}
+            className="bg-[#152033] hover:bg-[#1C2B44] text-slate-300 hover:text-white border border-white/[0.08] hover:border-amber-400/30 text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer group/trash shadow-sm"
+            title="Open 30-Day Trash & Recovery"
+          >
+            <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-400 transition-colors" />
+            <span>Trash</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/30">
+              30d
+            </span>
+          </button>
+
+          {/* Primary CTA Button */}
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Create New Habit</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. Controls & Filter Pills Bar */}
@@ -1713,19 +1796,19 @@ export const Habits: React.FC = () => {
           onClick={() => setHabitToDelete(null)}
         >
           <div
-            className="bg-[#141C2B] border border-rose-500/30 rounded-2xl p-6 max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative animate-in zoom-in-95 duration-150"
+            className="bg-[#141C2B] border border-amber-400/20 rounded-2xl p-6 max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.2)]">
-                <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              <div className="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(250,204,21,0.15)]">
+                <Trash2 className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white tracking-tight">
-                  Delete Habit?
+                  Move Habit to Trash?
                 </h3>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  Are you sure you want to delete <span className="text-white font-semibold">"{habitToDelete.title}"</span>? This will permanently remove this routine and its progress records.
+                  Are you sure you want to move <span className="text-white font-semibold">"{habitToDelete.title}"</span> to Trash? It will be safely retained in the 30-Day Trash with all streaks and history preserved before permanent cleanup.
                 </p>
               </div>
             </div>
@@ -1741,10 +1824,10 @@ export const Habits: React.FC = () => {
               <button
                 type="button"
                 onClick={handleConfirmDeleteHabit}
-                className="bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-[0_0_20px_rgba(244,63,94,0.3)] hover:shadow-[0_0_25px_rgba(244,63,94,0.5)] transition-all flex items-center gap-1.5 cursor-pointer"
+                className="bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Delete Habit</span>
+                <span>Move to Trash</span>
               </button>
             </div>
           </div>
