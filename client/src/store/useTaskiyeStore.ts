@@ -28,6 +28,8 @@ export interface GuestHabit {
   activeDays: number[]; // 0: Mon, 1: Tue, ..., 6: Sun
   warnings?: number; // 0, 1, 2
   lastCompletedDate?: string | null; // YYYY-MM-DD
+  isStreakFrozen?: boolean; // Vacation/freeze mode
+  completedDates?: string[]; // Historical completion dates (YYYY-MM-DD)
   isArchived: boolean;
   archivedAt?: string;
   lastStreak?: number;
@@ -41,6 +43,7 @@ export interface GuestHabit {
 export function evaluateHabitStreakAndWarnings(
   habit: {
     isArchived?: boolean;
+    isStreakFrozen?: boolean;
     streakDays?: number;
     warnings?: number;
     lastCompletedDate?: string | null;
@@ -48,7 +51,7 @@ export function evaluateHabitStreakAndWarnings(
   },
   todayStr: string
 ): { streakDays: number; warnings: number } {
-  if (habit.isArchived) {
+  if (habit.isArchived || habit.isStreakFrozen) {
     return {
       streakDays: habit.streakDays ?? 0,
       warnings: habit.warnings ?? 0,
@@ -177,9 +180,13 @@ interface TaskiyeState {
   deleteGuestHabit: (id: string) => boolean;
   reorderGuestHabits: (habits: GuestHabit[]) => void;
   toggleHabitCompletion: (habitId: string, isCompleted?: boolean) => void;
+  toggleFreezeGuestHabit: (id: string) => void;
 
-  // Synchronization
+  // Synchronization & Date Rollover
+  currentDateStr: string;
+  setCurrentDateStr: (date: string) => void;
   syncHabitsToTodayTasks: () => void;
+  getGuestActivityMap: () => Record<string, { completedCount: number; totalCount: number }>;
 
   // Checklist & Topbar Streak sync
   todayChecklistCompletedCount: number;
@@ -190,6 +197,16 @@ interface TaskiyeState {
   // Bulk Operations
   clearGuestData: () => void;
   getGuestItemCount: () => number;
+
+  // Toast Notification System
+  toastNotification: {
+    id: string;
+    title: string;
+    description: string;
+    type?: 'success' | 'info' | 'error';
+  } | null;
+  showToast: (title: string, description: string, type?: 'success' | 'info' | 'error') => void;
+  dismissToast: () => void;
 
   // Logout Transition Splash
   isLoggingOut: boolean;
@@ -206,10 +223,31 @@ export const useTaskiyeStore = create<TaskiyeState>()(
       isAuthModalOpen: false,
       authModalTriggerReason: null,
       authModalInitialMode: 'signin',
+      currentDateStr: new Date().toLocaleDateString('en-CA'),
       todayChecklistCompletedCount: 0,
       baseStreakDays: 0,
       isLoggingOut: false,
       logoutMessage: undefined,
+      toastNotification: null,
+
+      showToast: (title: string, description: string, type: 'success' | 'info' | 'error' = 'success') => {
+        set({
+          toastNotification: {
+            id: `toast_${Date.now()}`,
+            title,
+            description,
+            type,
+          },
+        });
+      },
+
+      dismissToast: () => {
+        set({ toastNotification: null });
+      },
+
+      setCurrentDateStr: (date: string) => {
+        set({ currentDateStr: date });
+      },
 
       triggerLogoutSplash: (message = 'Logging out user info...') => {
         set({ isLoggingOut: true, logoutMessage: message });
@@ -275,6 +313,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         set((state) => {
           let updatedHabits = state.habits;
           // If completing a habit instance, increment habit completion & streak, clear warnings
+          // If completing a habit instance, increment habit completion & streak, clear warnings, update completedDates
           if (newTask.isHabitInstance && newTask.isCompleted) {
             updatedHabits = state.habits.map((habit) => {
               const matchesId = newTask.habitId && habit.id === newTask.habitId;
@@ -285,12 +324,15 @@ export const useTaskiyeStore = create<TaskiyeState>()(
 
               if (!matchesId && !matchesTitle) return habit;
 
+              const completedDates = Array.from(new Set([...(habit.completedDates || []), todayStr]));
+
               return {
                 ...habit,
                 totalCompletions: (habit.totalCompletions || 0) + 1,
                 streakDays: (habit.streakDays || 0) + 1,
                 warnings: 0,
                 lastCompletedDate: todayStr,
+                completedDates,
                 isArchived: false, // Never archive
               };
             });
@@ -311,14 +353,14 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         if (!targetTask) return;
 
         const nextCompleted = !targetTask.isCompleted;
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const taskDateStr = targetTask.date ? targetTask.date.slice(0, 10) : new Date().toISOString().slice(0, 10);
 
         // 1. Update task completion status
         const updatedTasks = state.tasks.map((task) =>
           task.id === id ? { ...task, isCompleted: nextCompleted } : task
         );
 
-        // 2. If it's a habit instance, update habit in Habit Manager (+1 session, streak, clear warnings)
+        // 2. If it's a habit instance, update habit in Habit Manager (+1 session, streak, clear warnings, completedDates)
         let updatedHabits = state.habits;
         if (targetTask.isHabitInstance) {
           updatedHabits = state.habits.map((habit) => {
@@ -331,22 +373,26 @@ export const useTaskiyeStore = create<TaskiyeState>()(
             if (!matchesId && !matchesTitle) return habit;
 
             if (nextCompleted) {
-              // Checking off: +1 completion, +1 streak, clear warnings
+              // Checking off: +1 completion, +1 streak, clear warnings, add to completedDates
+              const completedDates = Array.from(new Set([...(habit.completedDates || []), taskDateStr]));
               return {
                 ...habit,
                 totalCompletions: (habit.totalCompletions || 0) + 1,
                 streakDays: (habit.streakDays || 0) + 1,
                 warnings: 0,
-                lastCompletedDate: todayStr,
+                lastCompletedDate: taskDateStr,
+                completedDates,
                 isArchived: false, // Ensure checking off NEVER archives!
               };
             } else {
-              // Unchecking: -1 completion, -1 streak (floor at 0)
+              // Unchecking: -1 completion, -1 streak (floor at 0), remove from completedDates
+              const completedDates = (habit.completedDates || []).filter((d) => d !== taskDateStr);
               return {
                 ...habit,
                 totalCompletions: Math.max(0, (habit.totalCompletions || 0) - 1),
                 streakDays: Math.max(0, (habit.streakDays || 0) - 1),
                 lastCompletedDate: null,
+                completedDates,
                 isArchived: false,
               };
             }
@@ -373,20 +419,24 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         const updatedHabits = state.habits.map((h) => {
           if (h.id !== habitId) return h;
           if (willBeCompleted) {
+            const completedDates = Array.from(new Set([...(h.completedDates || []), todayStr]));
             return {
               ...h,
               totalCompletions: (h.totalCompletions || 0) + 1,
               streakDays: (h.streakDays || 0) + 1,
               warnings: 0,
               lastCompletedDate: todayStr,
+              completedDates,
               isArchived: false,
             };
           } else {
+            const completedDates = (h.completedDates || []).filter((d) => d !== todayStr);
             return {
               ...h,
               totalCompletions: Math.max(0, (h.totalCompletions || 0) - 1),
               streakDays: Math.max(0, (h.streakDays || 0) - 1),
               lastCompletedDate: null,
+              completedDates,
               isArchived: false,
             };
           }
@@ -394,9 +444,11 @@ export const useTaskiyeStore = create<TaskiyeState>()(
 
         // Also update any matching task for today
         const updatedTasks = state.tasks.map((t) => {
+          const isTodayTask = t.date?.startsWith(todayStr);
           const matches =
-            t.habitId === habitId ||
-            (t.isHabitInstance && t.title.toLowerCase().trim() === habit.title.toLowerCase().trim());
+            isTodayTask &&
+            (t.habitId === habitId ||
+              (t.isHabitInstance && t.title.toLowerCase().trim() === habit.title.toLowerCase().trim()));
           return matches ? { ...t, isCompleted: willBeCompleted } : t;
         });
 
@@ -404,6 +456,38 @@ export const useTaskiyeStore = create<TaskiyeState>()(
           habits: updatedHabits,
           tasks: updatedTasks,
         });
+      },
+
+      toggleFreezeGuestHabit: (id: string) => {
+        const state = get();
+        const habit = state.habits.find((h) => h.id === id);
+        if (!habit) return;
+
+        const willBeFrozen = !habit.isStreakFrozen;
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+        set({
+          habits: state.habits.map((h) => {
+            if (h.id !== id) return h;
+            if (willBeFrozen) {
+              return {
+                ...h,
+                isStreakFrozen: true,
+                lastStreak: h.streakDays,
+              };
+            } else {
+              return {
+                ...h,
+                isStreakFrozen: false,
+                warnings: 0,
+                lastCompletedDate: yesterdayStr,
+              };
+            }
+          }),
+        });
+        get().syncHabitsToTodayTasks();
       },
 
       reorderGuestTasks: (items) => {
@@ -507,10 +591,12 @@ export const useTaskiyeStore = create<TaskiyeState>()(
           activeDueHabits.map((h) => (h.title || '').toLowerCase().trim())
         );
 
-        // Prune any habit instance that is NOT an active due habit today
+        // Prune only habit instances for TODAY that are no longer due
         // (handles deleted habits, archived habits, and habits not scheduled for today)
+        // Past days' historical completed tasks are retained!
         let updatedTasks = state.tasks.filter((task) => {
-          if (task.isHabitInstance) {
+          const isTodayTask = task.date?.startsWith(todayStr);
+          if (isTodayTask && task.isHabitInstance) {
             const isDue =
               (task.habitId && activeDueHabitIds.has(task.habitId)) ||
               (task.title && activeDueHabitTitles.has(task.title.toLowerCase().trim()));
@@ -521,20 +607,19 @@ export const useTaskiyeStore = create<TaskiyeState>()(
           return true;
         });
 
-        // For each active habit due today, ensure a task instance exists
+        // For each active habit due today, ensure a task instance exists for TODAY
         activeDueHabits.forEach((habit) => {
           const existingIndex = updatedTasks.findIndex(
             (t) =>
-              (t.habitId && t.habitId === habit.id) ||
-              (t.isHabitInstance &&
-                t.title.toLowerCase().trim() === habit.title.toLowerCase().trim())
+              t.date?.startsWith(todayStr) &&
+              ((t.habitId && t.habitId === habit.id) ||
+                (t.isHabitInstance &&
+                  t.title.toLowerCase().trim() === habit.title.toLowerCase().trim()))
           );
 
           if (existingIndex >= 0) {
             const existing = updatedTasks[existingIndex];
-            const isDifferentDay = existing.date && !existing.date.startsWith(todayStr);
-
-            // Update habit details on existing task
+            // Update habit details on existing today task
             updatedTasks[existingIndex] = {
               ...existing,
               title: habit.title,
@@ -542,11 +627,9 @@ export const useTaskiyeStore = create<TaskiyeState>()(
               timeTag: habit.timeOfDay || existing.timeTag,
               habitId: habit.id,
               isHabitInstance: true,
-              date: isDifferentDay ? new Date().toISOString() : existing.date,
-              isCompleted: isDifferentDay ? false : existing.isCompleted,
             };
           } else {
-            // Inject new habit task at the top (sortOrder: -1)
+            // Inject new habit task for today at the top (sortOrder: -1)
             const newTask: GuestTask = {
               id: `guest_task_habit_${habit.id}_${todayStr}`,
               title: habit.title,
@@ -738,8 +821,45 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         return true;
       },
 
+      getGuestActivityMap: () => {
+        const { tasks, habits } = get();
+        const activityMap: Record<string, { completedCount: number; totalCount: number }> = {};
+
+        for (const task of tasks) {
+          if (!task.date) continue;
+          const dateStr = task.date.slice(0, 10);
+          if (!activityMap[dateStr]) {
+            activityMap[dateStr] = { completedCount: 0, totalCount: 0 };
+          }
+          activityMap[dateStr].totalCount += 1;
+          if (task.isCompleted) {
+            activityMap[dateStr].completedCount += 1;
+          }
+        }
+
+        for (const habit of habits) {
+          if (Array.isArray(habit.completedDates)) {
+            for (const dateStr of habit.completedDates) {
+              if (!activityMap[dateStr]) {
+                activityMap[dateStr] = { completedCount: 1, totalCount: 1 };
+              } else if (activityMap[dateStr].completedCount === 0) {
+                activityMap[dateStr].completedCount = 1;
+                activityMap[dateStr].totalCount = Math.max(activityMap[dateStr].totalCount, 1);
+              }
+            }
+          }
+        }
+
+        return activityMap;
+      },
+
       clearGuestData: () => {
         set({ tasks: [], habits: [] });
+        try {
+          localStorage.removeItem('taskiye-guest-storage');
+        } catch {
+          // Ignore in SSR or restricted environments
+        }
       },
     }),
     {

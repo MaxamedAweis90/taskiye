@@ -1,50 +1,100 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useIsFetching } from '@tanstack/react-query';
 import { useSession } from '../../lib/auth-client';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 
 export const SplashScreen: React.FC = () => {
   const { data: session, isPending: isSessionLoading } = useSession();
+  const isFetching = useIsFetching();
   const { isLoggingOut, logoutMessage, finishLogoutSplash } = useTaskiyeStore();
+
   const [progress, setProgress] = useState(15);
   const [isDone, setIsDone] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
   const [activeMessage, setActiveMessage] = useState<string>('Getting user info...');
+  const [hasAuthSettled, setHasAuthSettled] = useState(false);
+  const [isDataReady, setIsDataReady] = useState(false);
 
-  // 1. Handle Initial App Mount Loading
+  // Safety ceiling ref to avoid hanging indefinitely if network stalls
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 1. Initial Progress Acceleration (Stages 15% -> 85%)
   useEffect(() => {
     if (isLoggingOut) return;
 
-    // Initial progress acceleration
     const interval = setInterval(() => {
       setProgress((prev) => {
-        if (prev >= 88) return prev;
-        return prev + Math.floor(Math.random() * 15) + 10;
+        // Cap progress at 85% until real data queries have fully completed
+        if (prev >= 85) return prev;
+        return prev + Math.floor(Math.random() * 8) + 5;
       });
-    }, 100);
+    }, 120);
 
     return () => clearInterval(interval);
   }, [isLoggingOut]);
 
+  // 2. Allow React component tree to mount and trigger background queries once session is known
   useEffect(() => {
     if (isLoggingOut) return;
 
-    if (!isSessionLoading) {
-      setActiveMessage(session?.user ? 'Getting user info...' : 'Loading guest data...');
-      const completeTimer = setTimeout(() => {
-        setProgress(100);
-        const fadeTimer = setTimeout(() => {
-          setIsDone(true);
-          const unmountTimer = setTimeout(() => {
-            setShouldRender(false);
-          }, 500);
-          return () => clearTimeout(unmountTimer);
-        }, 350);
-        return () => clearTimeout(fadeTimer);
-      }, 450);
-
-      return () => clearTimeout(completeTimer);
+    if (!isSessionLoading && !hasAuthSettled) {
+      const timer = setTimeout(() => {
+        setHasAuthSettled(true);
+      }, 180);
+      return () => clearTimeout(timer);
     }
-  }, [isSessionLoading, isLoggingOut, session?.user]);
+  }, [isSessionLoading, isLoggingOut, hasAuthSettled]);
+
+  // 3. Safety Timeout (Maximum 3.2s)
+  useEffect(() => {
+    if (isLoggingOut) return;
+
+    safetyTimeoutRef.current = setTimeout(() => {
+      setIsDataReady(true);
+    }, 3200);
+
+    return () => {
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    };
+  }, [isLoggingOut]);
+
+  // 4. Data Readiness Detection: Wait until session is loaded AND remote queries have finished
+  useEffect(() => {
+    if (isLoggingOut || isDataReady) return;
+
+    if (!isSessionLoading) {
+      if (session?.user) {
+        setActiveMessage('Loading workspace & habits...');
+        // For authenticated users: must wait until initial queries have dispatched and settled (isFetching === 0)
+        if (hasAuthSettled && isFetching === 0) {
+          setIsDataReady(true);
+        }
+      } else {
+        // For guest users: local store is immediately ready once auth resolves
+        if (hasAuthSettled) {
+          setIsDataReady(true);
+        }
+      }
+    }
+  }, [isSessionLoading, session?.user, hasAuthSettled, isFetching, isLoggingOut, isDataReady]);
+
+  // 5. Completion Transition: Once data is 100% ready, smoothly complete progress and fade out
+  useEffect(() => {
+    if (isLoggingOut || !isDataReady) return;
+
+    setActiveMessage(session?.user ? 'Workspace ready' : 'Guest workspace ready');
+    setProgress(100);
+
+    const fadeTimer = setTimeout(() => {
+      setIsDone(true);
+      const unmountTimer = setTimeout(() => {
+        setShouldRender(false);
+      }, 450);
+      return () => clearTimeout(unmountTimer);
+    }, 280);
+
+    return () => clearTimeout(fadeTimer);
+  }, [isDataReady, isLoggingOut, session?.user]);
 
   // 2. Handle Logout Transition Splash
   useEffect(() => {

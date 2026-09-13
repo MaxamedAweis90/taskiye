@@ -14,7 +14,7 @@ export function evaluateHabitStreakAndWarnings(
   habit: Partial<IHabit>,
   todayStr: string
 ): { streakDays: number; warnings: number } {
-  if (habit.isArchived) {
+  if (habit.isArchived || habit.isStreakFrozen) {
     return {
       streakDays: habit.streakDays ?? 0,
       warnings: habit.warnings ?? 0,
@@ -217,7 +217,7 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
 router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, category, frequency, timeOfDay, targetUnit, activeDays, isArchived } = req.body;
+    const { title, category, frequency, timeOfDay, targetUnit, activeDays, isArchived, isStreakFrozen } = req.body;
 
     const existing = await Habit.findOne({ _id: id, userId: req.user!.id });
     if (!existing) {
@@ -231,6 +231,19 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
     if (typeof timeOfDay === 'string') updateFields.timeOfDay = timeOfDay.trim();
     if (typeof targetUnit === 'string') updateFields.targetUnit = targetUnit.trim();
     if (Array.isArray(activeDays)) updateFields.activeDays = activeDays;
+
+    if (typeof isStreakFrozen === 'boolean') {
+      updateFields.isStreakFrozen = isStreakFrozen;
+      if (isStreakFrozen) {
+        updateFields.lastStreak = existing.streakDays;
+      } else {
+        // Resuming from freeze / vacation mode: clear warnings and offset last completed
+        updateFields.warnings = 0;
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        updateFields.lastCompletedDate = yesterday.toISOString().slice(0, 10);
+      }
+    }
 
     if (typeof isArchived === 'boolean') {
       updateFields.isArchived = isArchived;
@@ -274,6 +287,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
  * POST /api/habits/:id/toggle
  * Toggle habit completion state for today (from Overview or Habit Manager)
  * Increments or decrements completion count and streak, updates warnings.
+ * Persists historical completedDates array.
  * NEVER archives the habit.
  */
 router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
@@ -292,7 +306,7 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
 
     let updatedHabit;
     if (willBeCompleted) {
-      // Completed: +1 total completions, +1 streak, clear all warnings!
+      // Completed: +1 total completions, +1 streak, clear all warnings, add to completedDates!
       const nextStreak = (habit.streakDays || 0) + 1;
       const nextCompletions = (habit.totalCompletions || 0) + 1;
 
@@ -306,11 +320,14 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
             lastCompletedDate: todayStr,
             isArchived: false, // Ensure NEVER archived!
           },
+          $addToSet: {
+            completedDates: todayStr,
+          },
         },
         { new: true }
       );
     } else {
-      // Uncompleted: -1 total completions, -1 streak (floor at 0)
+      // Uncompleted: -1 total completions, -1 streak (floor at 0), remove from completedDates
       const nextStreak = Math.max(0, (habit.streakDays || 0) - 1);
       const nextCompletions = Math.max(0, (habit.totalCompletions || 0) - 1);
 
@@ -322,6 +339,9 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
             totalCompletions: nextCompletions,
             lastCompletedDate: null,
             isArchived: false, // Ensure NEVER archived!
+          },
+          $pull: {
+            completedDates: todayStr,
           },
         },
         { new: true }

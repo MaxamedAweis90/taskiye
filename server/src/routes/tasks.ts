@@ -36,7 +36,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
 
     const tasks = await Task.find(filter)
       .sort({ sortOrder: 1, createdAt: 1 })
-      .populate('habitId', 'title frequency isArchived');
+      .populate('habitId', 'title frequency isArchived category timeOfDay streakDays warnings isStreakFrozen');
 
     // Filter out habit instances whose parent habit has been deleted or archived
     const validTasks = tasks.filter((t) => {
@@ -55,9 +55,100 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       Task.deleteMany({ _id: { $in: orphanedIds } }).catch(() => {});
     }
 
-    return sendSuccess(res, validTasks);
+    // Deduplicate any accidental duplicate habit tasks for the same habit and date
+    const seenHabits = new Map<string, (typeof validTasks)[0]>();
+    const deduplicatedTasks: (typeof validTasks)[0][] = [];
+    const duplicateIdsToDelete: unknown[] = [];
+
+    for (const t of validTasks) {
+      if (t.isHabitInstance && t.habitId) {
+        const rawHabit = t.habitId as unknown as { _id?: { toString: () => string } };
+        const habitKey = rawHabit._id ? rawHabit._id.toString() : String(t.habitId);
+        const existing = seenHabits.get(habitKey);
+        if (!existing) {
+          seenHabits.set(habitKey, t);
+          deduplicatedTasks.push(t);
+        } else {
+          // If the new one is completed while existing is not, prioritize the completed one
+          if (!existing.isCompleted && t.isCompleted) {
+            const idx = deduplicatedTasks.indexOf(existing);
+            if (idx !== -1) deduplicatedTasks[idx] = t;
+            duplicateIdsToDelete.push(existing._id);
+            seenHabits.set(habitKey, t);
+          } else {
+            duplicateIdsToDelete.push(t._id);
+          }
+        }
+      } else {
+        deduplicatedTasks.push(t);
+      }
+    }
+
+    if (duplicateIdsToDelete.length > 0) {
+      Task.deleteMany({ _id: { $in: duplicateIdsToDelete } }).catch(() => {});
+    }
+
+    return sendSuccess(res, deduplicatedTasks);
   } catch (error) {
     return sendError(res, 'Failed to fetch tasks', 500, error);
+  }
+});
+
+/**
+ * GET /api/tasks/activity
+ * Aggregate historical completed and total tasks by date (YYYY-MM-DD)
+ * for heatmap matrix rendering. Retains past completions.
+ */
+router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return sendSuccess(res, {}, 'Guest mode: no remote activity');
+    }
+
+    const userId = req.user.id;
+
+    // Fetch tasks from the last 365 days
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+    oneYearAgo.setUTCHours(0, 0, 0, 0);
+
+    const tasks = await Task.find({
+      userId,
+      date: { $gte: oneYearAgo },
+    }).select('date isCompleted isHabitInstance habitId');
+
+    const activityMap: Record<string, { completedCount: number; totalCount: number }> = {};
+
+    for (const task of tasks) {
+      if (!task.date) continue;
+      const dateStr = new Date(task.date).toISOString().slice(0, 10);
+      if (!activityMap[dateStr]) {
+        activityMap[dateStr] = { completedCount: 0, totalCount: 0 };
+      }
+      activityMap[dateStr].totalCount += 1;
+      if (task.isCompleted) {
+        activityMap[dateStr].completedCount += 1;
+      }
+    }
+
+    // Merge completedDates from habits (in case completed via Habit view directly)
+    const habits = await Habit.find({ userId, isArchived: false }).select('completedDates');
+    for (const habit of habits) {
+      if (Array.isArray(habit.completedDates)) {
+        for (const dateStr of habit.completedDates) {
+          if (!activityMap[dateStr]) {
+            activityMap[dateStr] = { completedCount: 1, totalCount: 1 };
+          } else if (activityMap[dateStr].completedCount === 0) {
+            activityMap[dateStr].completedCount = 1;
+            activityMap[dateStr].totalCount = Math.max(activityMap[dateStr].totalCount, 1);
+          }
+        }
+      }
+    }
+
+    return sendSuccess(res, activityMap);
+  } catch (error) {
+    return sendError(res, 'Failed to fetch activity logs', 500, error);
   }
 });
 
@@ -89,6 +180,40 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       calculatedSortOrder = highestSortTask ? highestSortTask.sortOrder + 1 : 0;
     }
 
+    // Check if a habit task already exists for this date and habit
+    if (isHabitInstance && habitId) {
+      const startOfDay = new Date(taskDate);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(taskDate);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      const existingTask = await Task.findOne({
+        userId: req.user!.id,
+        habitId,
+        date: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      if (existingTask) {
+        if (typeof isCompleted === 'boolean' && existingTask.isCompleted !== isCompleted) {
+          existingTask.isCompleted = isCompleted;
+          await existingTask.save();
+
+          if (isCompleted) {
+            const todayStr = taskDate.toISOString().slice(0, 10);
+            await Habit.findOneAndUpdate(
+              { _id: habitId, userId: req.user!.id },
+              {
+                $inc: { totalCompletions: 1, streakDays: 1 },
+                $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
+                $addToSet: { completedDates: todayStr },
+              }
+            );
+          }
+        }
+        return sendSuccess(res, existingTask, 'Task already exists, updated successfully', 200);
+      }
+    }
+
     const task = await Task.create({
       userId: req.user!.id,
       title: title.trim(),
@@ -99,14 +224,15 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       habitId: habitId || null,
     });
 
-    // If a completed habit instance is created, update the habit counters (+1 completion, +1 streak, 0 warnings)
+    // If a completed habit instance is created, update the habit counters (+1 completion, +1 streak, 0 warnings, completedDates)
     if (task.isHabitInstance && task.habitId && task.isCompleted) {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = taskDate.toISOString().slice(0, 10);
       await Habit.findOneAndUpdate(
         { _id: task.habitId, userId: req.user!.id },
         {
           $inc: { totalCompletions: 1, streakDays: 1 },
           $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
+          $addToSet: { completedDates: todayStr },
         }
       );
     }
@@ -174,18 +300,20 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
 
     // Sync habit completion & streak counters (NEVER set isArchived: true!)
     if (typeof isCompleted === 'boolean' && task.isHabitInstance && task.habitId) {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const taskDateObj = task.date ? new Date(task.date) : new Date();
+      const taskDateStr = taskDateObj.toISOString().slice(0, 10);
       if (isCompleted) {
-        // Checking off: +1 completion, +1 streak, clear warnings to 0
+        // Checking off: +1 completion, +1 streak, clear warnings to 0, persist in completedDates
         await Habit.findOneAndUpdate(
           { _id: task.habitId, userId: req.user!.id },
           {
             $inc: { totalCompletions: 1, streakDays: 1 },
-            $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
+            $set: { warnings: 0, lastCompletedDate: taskDateStr, isArchived: false },
+            $addToSet: { completedDates: taskDateStr },
           }
         );
       } else {
-        // Unchecking: -1 completion, -1 streak (floor at 0)
+        // Unchecking: -1 completion, -1 streak (floor at 0), remove from completedDates
         const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
         if (linkedHabit) {
           const nextCompletions = Math.max(0, (linkedHabit.totalCompletions || 0) - 1);
@@ -199,6 +327,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
                 lastCompletedDate: null,
                 isArchived: false,
               },
+              $pull: { completedDates: taskDateStr },
             }
           );
         }

@@ -16,6 +16,7 @@ import {
   Trash2,
   AlertTriangle,
   GripVertical,
+  Snowflake,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -31,6 +32,7 @@ interface HabitFormData {
   frequency?: string;
   timeOfDay?: string;
   targetUnit?: string;
+  isStreakFrozen?: boolean;
 }
 
 const SETUP_CATEGORIES = [
@@ -76,6 +78,7 @@ const DEFAULT_FORM: HabitFormData = {
   activeDays: [0, 1, 2, 3, 4, 5, 6],
   timeOfDay: 'Morning (08:00 AM)',
   targetUnit: 'sessions',
+  isStreakFrozen: false,
 };
 
 interface TypewriterTitleProps {
@@ -150,6 +153,7 @@ export const Habits: React.FC = () => {
     restoreGuestHabit,
     deleteGuestHabit,
     reorderGuestHabits,
+    toggleFreezeGuestHabit,
   } = useTaskiyeStore();
 
   // Local UI State
@@ -202,6 +206,7 @@ export const Habits: React.FC = () => {
         activeDays?: number[];
         warnings?: number;
         lastCompletedDate?: string;
+        isStreakFrozen?: boolean;
         isArchived: boolean;
         archivedAt?: string;
         lastStreak?: number;
@@ -324,6 +329,7 @@ export const Habits: React.FC = () => {
         activeDays: h.activeDays ?? [0, 1, 2, 3, 4],
         warnings: typeof h.warnings === 'number' ? h.warnings : 0,
         lastCompletedDate: h.lastCompletedDate,
+        isStreakFrozen: Boolean(h.isStreakFrozen),
         isArchived: Boolean(h.isArchived),
         archivedAt: h.archivedAt,
         lastStreak: h.lastStreak ?? 0,
@@ -341,9 +347,25 @@ export const Habits: React.FC = () => {
       consistencyRate: typeof h.consistencyRate === 'number' ? h.consistencyRate : 100,
       warnings: typeof h.warnings === 'number' ? h.warnings : 0,
       lastCompletedDate: h.lastCompletedDate,
+      isStreakFrozen: Boolean(h.isStreakFrozen),
       isArchived: Boolean(h.isArchived),
     }));
   }, [isAuthenticated, serverHabits, guestHabits]);
+
+  // Toggle Freeze / Vacation Mode
+  const handleToggleFreeze = (id: string) => {
+    const habit = habitsList.find((h) => h.id === id);
+    if (!habit) return;
+    const nextFrozen = !habit.isStreakFrozen;
+    if (isAuthenticated) {
+      updateHabitMutation.mutate({
+        id,
+        updates: { isStreakFrozen: nextFrozen } as Partial<HabitFormData>,
+      });
+    } else {
+      toggleFreezeGuestHabit(id);
+    }
+  };
 
   // Active vs Archived Habits (optimistically reconciled to eliminate return-state flash)
   const activeHabits = useMemo(() => {
@@ -448,7 +470,7 @@ export const Habits: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (habit: GuestHabit) => {
+  const openEditModal = (habit: (typeof habitsList)[number]) => {
     setEditingHabitId(habit.id);
     const days = habit.activeDays?.length ? habit.activeDays : [0, 1, 2, 3, 4, 5, 6];
     const isDaily = days.length === 7 || (habit.frequency || '').toLowerCase().includes('daily');
@@ -460,6 +482,7 @@ export const Habits: React.FC = () => {
       activeDays: days,
       timeOfDay: habit.timeOfDay || 'Morning (08:00 AM)',
       targetUnit: habit.targetUnit || 'sessions',
+      isStreakFrozen: Boolean(habit.isStreakFrozen),
     });
     setIsModalOpen(true);
   };
@@ -553,6 +576,7 @@ export const Habits: React.FC = () => {
             category: formData.category,
             frequency: freqString,
             activeDays: formData.activeDays,
+            isStreakFrozen: formData.isStreakFrozen,
           },
         });
       } else {
@@ -561,6 +585,7 @@ export const Habits: React.FC = () => {
           category: formData.category,
           frequency: freqString,
           activeDays: formData.activeDays,
+          isStreakFrozen: formData.isStreakFrozen,
         });
       }
     } else {
@@ -574,6 +599,7 @@ export const Habits: React.FC = () => {
             timeOfDay: 'Morning (08:00 AM)',
             targetUnit: 'sessions',
             activeDays: formData.activeDays,
+            isStreakFrozen: formData.isStreakFrozen,
           },
           {
             onSuccess: (res: { data?: { _id?: string } }) => {
@@ -609,6 +635,7 @@ export const Habits: React.FC = () => {
           totalCompletions: 0,
           consistencyRate: 100,
           activeDays: formData.activeDays,
+          isStreakFrozen: formData.isStreakFrozen,
         });
         setNewlyCreatedHabitId(generatedId);
         setTimeout(() => {
@@ -1123,7 +1150,15 @@ export const Habits: React.FC = () => {
 
                   {/* Streak & Warning Badges */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {habit.warnings === 1 ? (
+                    {habit.isStreakFrozen ? (
+                      <span
+                        className="bg-[#0b2430] border border-cyan-400/50 text-cyan-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(34,211,238,0.25)]"
+                        title="Streak Frozen (Vacation Mode). Streak count and warnings are protected from penalty."
+                      >
+                        <Snowflake className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>{habit.streakDays ?? 0}d (Frozen)</span>
+                      </span>
+                    ) : habit.warnings === 1 ? (
                       <span
                         className="bg-[#2b1f09] border border-amber-500/50 text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm"
                         title="Warning 1: 1 Day Missed! Streak is frozen. Complete today to clear warning."
@@ -1147,6 +1182,14 @@ export const Habits: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Vacation Mode Banner */}
+                {habit.isStreakFrozen && (
+                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center gap-1.5 text-[11px] text-cyan-300 font-medium">
+                    <Snowflake className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                    <span>Vacation Mode Active: Streak is safely paused without penalties.</span>
+                  </div>
+                )}
 
                 {/* Warning Alert Banner (if under Warning 1 or Warning 2) */}
                 {habit.warnings === 1 && (
@@ -1267,6 +1310,25 @@ export const Habits: React.FC = () => {
                   </button>
 
                   <div className="flex items-center gap-3">
+                    {/* Streak Freeze / Vacation Mode Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFreeze(habit.id)}
+                      className={`flex items-center gap-1 transition-colors font-medium cursor-pointer ${
+                        habit.isStreakFrozen
+                          ? 'text-cyan-400 hover:text-cyan-300'
+                          : 'hover:text-cyan-300'
+                      }`}
+                      title={
+                        habit.isStreakFrozen
+                          ? 'Unfreeze streak (Resume regular daily habit tracking)'
+                          : 'Freeze streak (Vacation Mode for sick/travel days without penalty)'
+                      }
+                    >
+                      <Snowflake className="w-3.5 h-3.5" />
+                      <span>{habit.isStreakFrozen ? 'Unfreeze' : 'Freeze'}</span>
+                    </button>
+
                     {/* Option 1: Archive Button */}
                     <button
                       type="button"
@@ -1577,6 +1639,47 @@ export const Habits: React.FC = () => {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Streak Freeze / Vacation Mode Toggle */}
+              <div className="bg-[#0D1524] border border-white/10 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
+                      formData.isStreakFrozen
+                        ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-400'
+                        : 'bg-white/5 border-white/10 text-slate-400'
+                    }`}
+                  >
+                    <Snowflake className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      Streak Freeze (Vacation Mode)
+                    </span>
+                    <span className="text-[11px] text-slate-400 block leading-tight">
+                      Pause streak penalties during sick or travel days. Warnings are frozen.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, isStreakFrozen: !prev.isStreakFrozen }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 border ${
+                    formData.isStreakFrozen
+                      ? 'bg-cyan-500 border-cyan-400'
+                      : 'bg-slate-800 border-white/10'
+                  }`}
+                  role="switch"
+                  aria-checked={Boolean(formData.isStreakFrozen)}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                      formData.isStreakFrozen ? 'translate-x-5 shadow-sm' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* Action Buttons */}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Clock,
@@ -39,12 +39,15 @@ export const Dashboard: React.FC = () => {
   const {
     tasks: guestTasks,
     habits: guestHabits,
+    currentDateStr,
+    getGuestActivityMap,
     toggleGuestTask,
     addGuestTask,
     updateGuestTask,
     removeGuestTask,
     reorderGuestTasks,
     syncHabitsToTodayTasks,
+    setBaseStreakDays,
   } = useTaskiyeStore();
 
   // Quick Action form state (Task-only creation)
@@ -60,15 +63,15 @@ export const Dashboard: React.FC = () => {
 
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  // Today ISO Date string for query
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Dynamic Today ISO Date string from store (reacts immediately to midnight date rollover)
+  const todayStr = currentDateStr || new Date().toLocaleDateString('en-CA');
 
-  // Sync active due habits into today's tasks overview on initial load
+  // Sync active due habits into today's tasks overview on initial load and date rollover
   React.useEffect(() => {
     if (!isAuthenticated) {
       syncHabitsToTodayTasks();
     }
-  }, [isAuthenticated, syncHabitsToTodayTasks]);
+  }, [isAuthenticated, syncHabitsToTodayTasks, todayStr]);
 
   // TanStack Query for Authenticated Tasks
   const { data: serverTasks = [] } = useQuery({
@@ -92,6 +95,26 @@ export const Dashboard: React.FC = () => {
     enabled: isAuthenticated,
   });
 
+  // TanStack Query for Authenticated Tasks Activity Map (Heatmap Historical Activity)
+  const { data: serverActivity = {} } = useQuery({
+    queryKey: ['tasks', 'activity'],
+    queryFn: async () => {
+      const res = await fetch('/api/tasks/activity', { credentials: 'include' });
+      const json = await res.json();
+      return (json.data || {}) as Record<string, { completedCount: number; totalCount: number }>;
+    },
+    enabled: isAuthenticated,
+  });
+
+  // Unified Activity Data for Heatmap
+  const activityLogs = useMemo(() => {
+    if (isAuthenticated) {
+      return serverActivity;
+    }
+    if (!guestTasks && !guestHabits) return {};
+    return getGuestActivityMap();
+  }, [isAuthenticated, serverActivity, getGuestActivityMap, guestTasks, guestHabits]);
+
   // TanStack Query for Authenticated Habits
   const { data: serverHabits = [] } = useQuery({
     queryKey: ['habits'],
@@ -110,6 +133,7 @@ export const Dashboard: React.FC = () => {
         totalCompletions?: number;
         warnings?: number;
         lastCompletedDate?: string;
+        isStreakFrozen?: boolean;
       }>;
     },
     enabled: isAuthenticated,
@@ -252,13 +276,14 @@ export const Dashboard: React.FC = () => {
             id: t._id,
             title: t.title,
             isCompleted: Boolean(t.isCompleted),
-            category: t.category || (t.isHabitInstance ? 'Routine' : 'Work'),
+            category: t.category || linkedHabit?.category || (t.isHabitInstance ? 'Health & Fitness' : 'Work'),
             priority: t.priority || 'normal',
             timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
             isHabitInstance: Boolean(t.isHabitInstance),
             habitId: rawHabitId || linkedHabit?._id,
             streakDays: linkedHabit?.streakDays,
             warnings: linkedHabit?.warnings,
+            isStreakFrozen: Boolean(linkedHabit?.isStreakFrozen),
           };
         });
 
@@ -277,20 +302,21 @@ export const Dashboard: React.FC = () => {
             id: `server_habit_${h._id}`,
             title: h.title,
             isCompleted: false,
-            category: h.category || 'Routine',
+            category: h.category || 'Health & Fitness',
             priority: 'normal',
             timeTag: h.timeOfDay || 'Continuous',
             isHabitInstance: true,
             habitId: h._id,
             streakDays: h.streakDays ?? 0,
             warnings: h.warnings ?? 0,
+            isStreakFrozen: Boolean(h.isStreakFrozen),
           });
         }
       });
     } else {
-      const tasksToUse = [...(guestTasks ?? DEFAULT_INITIAL_TASKS)].sort(
-        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-      );
+      const tasksToUse = [...(guestTasks ?? DEFAULT_INITIAL_TASKS)]
+        .filter((t) => !t.date || t.date.startsWith(todayStr))
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       items = tasksToUse
         .filter((t) => {
           if (!t.isHabitInstance) return true;
@@ -314,13 +340,14 @@ export const Dashboard: React.FC = () => {
             id: t.id,
             title: t.title,
             isCompleted: t.isCompleted,
-            category: t.category || (t.isHabitInstance ? 'Routine' : 'Work'),
+            category: t.category || linkedHabit?.category || (t.isHabitInstance ? 'Health & Fitness' : 'Work'),
             priority: t.priority || 'normal',
             timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
             isHabitInstance: Boolean(t.isHabitInstance),
             habitId: t.habitId || linkedHabit?.id,
             streakDays: linkedHabit?.streakDays,
             warnings: linkedHabit?.warnings,
+            isStreakFrozen: Boolean(linkedHabit?.isStreakFrozen),
           };
         });
 
@@ -349,7 +376,7 @@ export const Dashboard: React.FC = () => {
             id: `guest_task_habit_${h.id}_today`,
             title: h.title,
             isCompleted: false,
-            category: h.category || 'Routine',
+            category: h.category || 'Health & Fitness',
             priority: 'normal',
             timeTag: h.timeOfDay || 'Continuous',
             isHabitInstance: true,
@@ -361,7 +388,27 @@ export const Dashboard: React.FC = () => {
       });
     }
 
-    const baseItems = items.filter((item) => !deletedTaskIds.has(item.id));
+    // Strict Deduplication Pass: Ensure each habit or task appears exactly once
+    const uniqueMap = new Map<string, ChecklistItem>();
+    for (const item of items) {
+      const key = item.habitId ? `habit_${item.habitId}` : `title_${item.title.toLowerCase().trim()}`;
+      const existing = uniqueMap.get(key);
+      if (!existing) {
+        uniqueMap.set(key, item);
+      } else {
+        // Conflict resolution:
+        // 1. Prefer completed status
+        // 2. Prefer real persistent DB task over placeholder unpersisted habit
+        const isExistingVirtual = existing.id.startsWith('server_habit_') || existing.id.startsWith('guest_task_habit_');
+        const isNewPersisted = !item.id.startsWith('server_habit_') && !item.id.startsWith('guest_task_habit_');
+        if ((!existing.isCompleted && item.isCompleted) || (isExistingVirtual && isNewPersisted && !existing.isCompleted)) {
+          uniqueMap.set(key, item);
+        }
+      }
+    }
+
+    const deduplicatedItems = Array.from(uniqueMap.values());
+    const baseItems = deduplicatedItems.filter((item) => !deletedTaskIds.has(item.id));
 
     if (customChecklistOrder.length > 0) {
       const orderMap = new Map(customChecklistOrder.map((id, index) => [id, index]));
@@ -373,7 +420,7 @@ export const Dashboard: React.FC = () => {
     }
 
     return baseItems;
-  }, [isAuthenticated, serverTasks, serverHabits, guestTasks, guestHabits, deletedTaskIds, customChecklistOrder]);
+  }, [isAuthenticated, serverTasks, serverHabits, guestTasks, guestHabits, deletedTaskIds, customChecklistOrder, todayStr]);
 
   // Derived Metrics
   const totalItemsCount = checklistItems.length;
@@ -388,6 +435,50 @@ export const Dashboard: React.FC = () => {
   const todayHabitItems = checklistItems.filter((i) => i.isHabitInstance);
   const habitsDoneCount = todayHabitItems.filter((i) => i.isCompleted).length;
   const habitsTodayTotalCount = todayHabitItems.length;
+
+  const activeHabits = isAuthenticated
+    ? serverHabits.filter((h) => !h.isArchived)
+    : guestHabits.filter((h) => !h.isArchived);
+
+  // Per-Habit Streaks are maintained individually on each habit (h.streakDays).
+  // Global Daily Streak: counts if user checked ANY task or habit on that calendar day.
+  const pastConsecutiveDailyStreak = useMemo(() => {
+    if (!activityLogs) return 0;
+    let streak = 0;
+    const d = new Date();
+    d.setDate(d.getDate() - 1); // Start checking backwards from yesterday
+
+    for (let i = 0; i < 365; i++) {
+      const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const dayRecord = activityLogs[dateStr];
+      if (dayRecord && dayRecord.completedCount > 0) {
+        streak++;
+        d.setDate(d.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [activityLogs]);
+
+  const habitsMaxStreak =
+    activeHabits.length > 0 ? Math.max(...activeHabits.map((h) => h.streakDays || 0)) : 0;
+
+  // Base daily streak prior to today (supported by past consecutive days or unbroken habit records)
+  const baseDailyStreak = Math.max(
+    pastConsecutiveDailyStreak,
+    habitsMaxStreak > 0 && completedCount === 0
+      ? habitsMaxStreak
+      : Math.max(0, habitsMaxStreak - (completedCount > 0 ? 1 : 0))
+  );
+
+  // If user completed ANY task or habit today, increment daily streak by 1
+  const isAnyItemDoneToday = completedCount > 0;
+  const globalDailyStreak = baseDailyStreak + (isAnyItemDoneToday ? 1 : 0);
+
+  useEffect(() => {
+    setBaseStreakDays(baseDailyStreak);
+  }, [baseDailyStreak, setBaseStreakDays]);
 
   const completionRate =
     totalItemsCount > 0 ? Math.round((completedCount / totalItemsCount) * 100) : 0;
@@ -839,10 +930,11 @@ export const Dashboard: React.FC = () => {
 
           {/* Activity Heatmap Matrix - Spans full 8 columns aligned with the 3 cards */}
           <HeatmapMatrix
-            streakDays={(useTaskiyeStore.getState().baseStreakDays ?? 0) + (completedCount > 0 ? 1 : 0)}
+            streakDays={globalDailyStreak}
             totalCompletedHabits={completedCount}
             todayCompletedCount={completedCount}
             todayTotalCount={totalItemsCount || 0}
+            historyLogs={activityLogs}
           />
         </div>
 

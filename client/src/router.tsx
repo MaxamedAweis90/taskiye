@@ -1,9 +1,10 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
-import { PlaceholderScreen } from './components/common/PlaceholderScreen';
 import { RouteErrorBoundary } from './components/common/RouteErrorBoundary';
 import { Dashboard } from './pages/Dashboard';
 import { Habits } from './pages/Habits';
+import { Tasks } from './pages/Tasks';
+import { Goals } from './pages/Goals';
 
 export const router = createBrowserRouter([
   {
@@ -21,21 +22,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'tasks',
-        element: (
-          <PlaceholderScreen
-            title="Daily Tasks Board"
-            subtitle="Manage one-off items, toggle completion, and reorder daily routines."
-          />
-        ),
+        element: <Tasks />,
       },
       {
         path: 'goals',
-        element: (
-          <PlaceholderScreen
-            title="Milestone Goals"
-            subtitle="Track high-level objectives with strict weekly, yearly, and custom deadlines."
-          />
-        ),
+        element: <Goals />,
       },
       {
         path: '*',

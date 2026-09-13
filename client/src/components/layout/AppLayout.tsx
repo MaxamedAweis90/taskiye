@@ -24,10 +24,11 @@ import {
   CheckCheck,
   ArrowRight,
 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
 import { useTaskiyeStore, GUEST_ITEM_LIMIT } from '../../store/useTaskiyeStore';
 import { ProfileSettingsModal } from '../profile/ProfileSettingsModal';
+import { useMidnightRollover } from '../../hooks/useMidnightRollover';
 
 interface NavItem {
   to: string;
@@ -43,6 +44,9 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export const AppLayout: React.FC = () => {
+  // Automated background midnight date rollover listener
+  useMidnightRollover();
+
   const { data: session } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
@@ -53,9 +57,34 @@ export const AppLayout: React.FC = () => {
     openAuthModal,
     todayChecklistCompletedCount,
     baseStreakDays,
+    setBaseStreakDays,
+    habits: guestHabits,
     triggerLogoutSplash,
     syncHabitsToTodayTasks,
   } = useTaskiyeStore();
+
+  const { data: serverHabits = [] } = useQuery<Array<{ streakDays?: number; isArchived?: boolean }>>({
+    queryKey: ['habits'],
+    queryFn: async () => {
+      const res = await fetch('/api/habits', { credentials: 'include' });
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+    enabled: Boolean(session?.user),
+    staleTime: 30000,
+  });
+
+  const activeHabitsMaxStreak = useMemo(() => {
+    const list = session?.user ? serverHabits : guestHabits;
+    const active = list.filter((h) => !h.isArchived);
+    return active.length > 0 ? Math.max(...active.map((h) => h.streakDays || 0)) : 0;
+  }, [session?.user, serverHabits, guestHabits]);
+
+  useEffect(() => {
+    if (activeHabitsMaxStreak > 0) {
+      setBaseStreakDays(activeHabitsMaxStreak);
+    }
+  }, [activeHabitsMaxStreak, setBaseStreakDays]);
 
   const [activeDropdown, setActiveDropdown] = useState<
     'streak' | 'notifications' | 'profile' | null
@@ -91,13 +120,37 @@ export const AppLayout: React.FC = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  // Check if a guest data migration just occurred to add to notification drawer
+  useEffect(() => {
+    try {
+      const pendingCount = sessionStorage.getItem('taskiye_migration_notification');
+      if (pendingCount) {
+        sessionStorage.removeItem('taskiye_migration_notification');
+        const count = parseInt(pendingCount, 10) || 0;
+        setNotifications((prev) => [
+          {
+            id: `notif_migration_${Date.now()}`,
+            title: 'Guest Data Migrated',
+            description: `Successfully imported ${count} habit and task item${count === 1 ? '' : 's'} to your cloud account. Local cache was safely cleared.`,
+            time: 'Just now',
+            read: false,
+            type: 'habit',
+          },
+          ...prev,
+        ]);
+      }
+    } catch (err) {
+      console.warn('Could not read migration notification from sessionStorage:', err);
+    }
+  }, []);
+
   const weekDays = useMemo(() => {
     const now = new Date();
     const currentDayOfWeek = now.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
     // Real streak: past days are only completed if the user actually had a streak covering them
-    const effectiveBaseStreak = baseStreakDays ?? 0;
+    const effectiveBaseStreak = Math.max(activeHabitsMaxStreak, baseStreakDays ?? 0);
 
     return days.map((label, index) => {
       const isPast = index < currentDayOfWeek;
@@ -121,7 +174,7 @@ export const AppLayout: React.FC = () => {
         isCompleted,
       };
     });
-  }, [isTaskDoneToday, baseStreakDays]);
+  }, [isTaskDoneToday, baseStreakDays, activeHabitsMaxStreak]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -149,9 +202,12 @@ export const AppLayout: React.FC = () => {
   const guestItemCount = getGuestItemCount();
   const usagePercentage = Math.min(100, Math.round((guestItemCount / GUEST_ITEM_LIMIT) * 100));
 
-  // Real streak: Daily streak increases by +1 when the first task/habit is done that day.
-  // If no task/habit is done today (or all are unchecked), streak stays at the base streak.
-  const maxStreak = (baseStreakDays ?? 0) + (todayChecklistCompletedCount > 0 ? 1 : 0);
+  // Global Daily Streak: Base consecutive days prior to today + (1 if active today)
+  const effectiveBase = Math.max(
+    baseStreakDays ?? 0,
+    activeHabitsMaxStreak > 0 && todayChecklistCompletedCount === 0 ? activeHabitsMaxStreak : 0
+  );
+  const maxStreak = effectiveBase + (todayChecklistCompletedCount > 0 ? 1 : 0);
 
   useEffect(() => {
     if (streakMeasureRef.current) {

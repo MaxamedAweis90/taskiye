@@ -26,6 +26,7 @@ export interface ChecklistItem {
   habitId?: string | null;
   streakDays?: number;
   warnings?: number;
+  isStreakFrozen?: boolean;
 }
 
 interface TodayChecklistProps {
@@ -477,7 +478,15 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                         Habit
                       </span>
 
-                      {typeof item.streakDays === 'number' && (
+                      {item.isStreakFrozen ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 rounded-full"
+                          title="Streak Frozen (Vacation Mode)"
+                        >
+                          <span>❄️</span>
+                          <span>{item.streakDays ?? 0}d (Frozen)</span>
+                        </span>
+                      ) : typeof item.streakDays === 'number' && (
                         <span
                           className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full"
                           title={`Active Streak: ${item.streakDays} days`}

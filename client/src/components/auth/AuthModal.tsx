@@ -6,10 +6,22 @@ import { signIn, signUp, authClient } from '../../lib/auth-client';
 type LoginMethod = 'email' | 'phone_otp';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, authModalTriggerReason, authModalInitialMode, closeAuthModal } = useTaskiyeStore();
+  const {
+    isAuthModalOpen,
+    authModalTriggerReason,
+    authModalInitialMode,
+    closeAuthModal,
+    tasks: guestTasks,
+    habits: guestHabits,
+    clearGuestData,
+    showToast,
+  } = useTaskiyeStore();
+
+  const guestItemCount = (guestTasks?.length || 0) + (guestHabits?.length || 0);
 
   const [isRegister, setIsRegister] = useState(false);
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('email');
+  const [shouldMigrateGuestData, setShouldMigrateGuestData] = useState(true);
 
   // Input states
   const [name, setName] = useState('');
@@ -33,6 +45,7 @@ export const AuthModal: React.FC = () => {
       setOtpCode('');
       setPassword('');
       setConfirmPassword('');
+      setShouldMigrateGuestData(true);
     }
   }, [isAuthModalOpen, authModalInitialMode]);
 
@@ -98,11 +111,66 @@ export const AuthModal: React.FC = () => {
 
       setIsLoading(true);
       try {
-        await signUp.email({
+        const signupRes = await signUp.email({
           email: email.trim(),
           password,
           name: name.trim() || email.split('@')[0],
         });
+
+        if (signupRes.error) {
+          setErrorMsg(signupRes.error.message || 'Registration failed. Please check credentials.');
+          setIsLoading(false);
+          return;
+        }
+
+        // Migrate guest data if opted-in and items exist
+        if (shouldMigrateGuestData && guestItemCount > 0) {
+          try {
+            const syncRes = await fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                habits: guestHabits,
+                tasks: guestTasks,
+              }),
+              credentials: 'include',
+            });
+
+            if (syncRes.ok) {
+              const syncJson = await syncRes.json();
+              const totalMigrated =
+                syncJson.data?.totalItemsMigrated ?? (guestHabits.length + guestTasks.length);
+
+              // Clear guest storage from localStorage & Zustand
+              clearGuestData();
+
+              // Queue confirmation toast for display after reload
+              try {
+                sessionStorage.setItem(
+                  'taskiye_migration_toast',
+                  JSON.stringify({
+                    title: 'Guest Data Backed Up!',
+                    description: `Successfully imported ${totalMigrated} item${totalMigrated === 1 ? '' : 's'} to your cloud account. Local cache was safely cleared.`,
+                    type: 'success',
+                  })
+                );
+                sessionStorage.setItem('taskiye_migration_notification', String(totalMigrated));
+              } catch (storageErr) {
+                console.warn('Could not persist migration toast to sessionStorage:', storageErr);
+              }
+
+              showToast(
+                'Guest Data Backed Up!',
+                `Successfully imported ${totalMigrated} item${totalMigrated === 1 ? '' : 's'} to your cloud account. Local cache was safely cleared.`,
+                'success'
+              );
+            }
+          } catch (syncErr) {
+            console.error('Failed to sync guest data:', syncErr);
+            // Do not wipe local cache if sync fails
+          }
+        }
+
         closeAuthModal();
         window.location.reload();
       } catch (err: unknown) {
@@ -487,6 +555,33 @@ export const AuthModal: React.FC = () => {
                 </>
               )}
             </>
+          )}
+
+          {/* Guest Data Migration Option Card (Only during registration when guest items exist) */}
+          {isRegister && guestItemCount > 0 && (
+            <div className="p-3.5 rounded-2xl bg-amber-400/[0.08] border border-amber-400/25 space-y-2 mt-3 mb-1">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={shouldMigrateGuestData}
+                  onChange={(e) => setShouldMigrateGuestData(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-amber-400/50 bg-[#0A101D] text-amber-400 focus:ring-amber-400/30 accent-amber-400 cursor-pointer shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-amber-300">
+                      Import & back up guest data ({guestItemCount} item{guestItemCount === 1 ? '' : 's'})
+                    </span>
+                    <span className="text-[9px] bg-amber-400/20 border border-amber-400/30 text-amber-300 font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1 leading-normal font-normal">
+                    Transfer your local habits, tasks, and streak history directly to your new cloud account. Local cache will be safely cleared once backed up.
+                  </p>
+                </div>
+              </label>
+            </div>
           )}
 
           {/* Submit Button */}

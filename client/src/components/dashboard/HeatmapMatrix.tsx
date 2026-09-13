@@ -16,6 +16,7 @@ interface HeatmapMatrixProps {
   totalCompletedHabits?: number;
   todayCompletedCount?: number;
   todayTotalCount?: number;
+  historyLogs?: Record<string, { completedCount: number; totalCount: number }>;
 }
 
 type HeatmapTimeFilter = '7d' | 'month' | 'year';
@@ -24,7 +25,8 @@ type HeatmapTimeFilter = '7d' | 'month' | 'year';
 const generateDynamicHeatmapData = (
   filter: HeatmapTimeFilter,
   todayCompleted: number,
-  todayTotal: number
+  todayTotal: number,
+  historyLogs?: Record<string, { completedCount: number; totalCount: number }>
 ): { cells: HeatmapCell[]; weekCount: number; subtitle: string; daysLogged: number } => {
   const cells: HeatmapCell[] = [];
   const now = new Date();
@@ -50,21 +52,38 @@ const generateDynamicHeatmapData = (
       cellDate.setDate(startMonday.getDate() + week * 7 + day);
 
       const isToday = cellDate.toDateString() === now.toDateString();
+      const cellDateStr = cellDate.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 
       let intensity: 0 | 1 | 2 | 3 = 0;
       let completed = 0;
-      const total = todayTotal || 5;
+      let total = 0;
+
+      const logged = historyLogs?.[cellDateStr];
 
       if (isToday) {
-        completed = todayCompleted;
-        if (total > 0 && todayCompleted >= total) intensity = 3;
-        else if (todayCompleted >= 3) intensity = 2;
-        else if (todayCompleted > 0) intensity = 1;
-        else intensity = 0;
+        completed = Math.max(todayCompleted, logged?.completedCount ?? 0);
+        total = todayTotal || (logged?.totalCount ?? (completed > 0 ? completed : 3));
       } else {
-        // Real tracking: past and future days start clean (no fake seeded data)
+        // Historical log tracking: past completions are persisted and retained!
+        completed = logged?.completedCount ?? 0;
+        total = logged?.totalCount ?? (completed > 0 ? completed : 0);
+      }
+
+      // Percentage-based intensity matching specs.md Section 2.D:
+      // 0% – 10%: Default / Gray (0)
+      // 11% – 50%: Faded Yellow (1)
+      // 51% – 99%: Medium Yellow (2)
+      // 100%: Solid Bright Yellow (3)
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      if (completionRate >= 100 && completed > 0) {
+        intensity = 3;
+      } else if (completionRate >= 51) {
+        intensity = 2;
+      } else if (completionRate >= 11) {
+        intensity = 1;
+      } else {
         intensity = 0;
-        completed = 0;
       }
 
       totalCompletedLogged += completed;
@@ -75,7 +94,7 @@ const generateDynamicHeatmapData = (
         weekIndex: week,
         intensity,
         completedCount: completed,
-        totalCount: total,
+        totalCount: total || (completed > 0 ? completed : 0),
         isToday,
       });
     }
@@ -97,31 +116,44 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
   streakDays = 0,
   todayCompletedCount = 0,
   todayTotalCount = 0,
+  historyLogs,
 }) => {
   const [timeFilter, setTimeFilter] = useState<HeatmapTimeFilter>('year');
   const { cells, weekCount, subtitle, daysLogged } = React.useMemo(
-    () => generateDynamicHeatmapData(timeFilter, todayCompletedCount, todayTotalCount),
-    [timeFilter, todayCompletedCount, todayTotalCount]
+    () => generateDynamicHeatmapData(timeFilter, todayCompletedCount, todayTotalCount, historyLogs),
+    [timeFilter, todayCompletedCount, todayTotalCount, historyLogs]
   );
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
 
   const getIntensityClass = (intensity: number, isToday?: boolean) => {
-    if (isToday) {
-      return intensity > 0
-        ? 'bg-[#FACC15] border-2 border-amber-300 ring-2 ring-amber-400/40 shadow-[0_0_12px_rgba(250,204,21,0.6)]'
-        : 'bg-[#1E2638] border-2 border-amber-400/80 ring-1 ring-amber-400/30';
-    }
+    let baseClass = '';
     switch (intensity) {
       case 3:
-        return 'bg-[#FACC15] hover:ring-2 hover:ring-amber-300';
+        baseClass = 'bg-[#FACC15] hover:ring-2 hover:ring-amber-300';
+        break;
       case 2:
-        return 'bg-[#CA8A04] hover:ring-2 hover:ring-amber-500';
+        baseClass = 'bg-[#CA8A04] hover:ring-2 hover:ring-amber-500';
+        break;
       case 1:
-        return 'bg-[#715814] hover:ring-2 hover:ring-amber-600';
+        baseClass = 'bg-[#715814] hover:ring-2 hover:ring-amber-600';
+        break;
       case 0:
       default:
-        return 'bg-[#1E2638] hover:bg-[#283248]';
+        baseClass = 'bg-[#1E2638] hover:bg-[#283248]';
+        break;
     }
+
+    if (isToday) {
+      const todayIndicator =
+        intensity === 3
+          ? 'border-2 border-amber-200 ring-2 ring-amber-400/50 shadow-[0_0_14px_rgba(250,204,21,0.65)]'
+          : intensity > 0
+          ? 'border-2 border-amber-400/80 ring-1 ring-amber-400/35 shadow-[0_0_8px_rgba(250,204,21,0.25)]'
+          : 'border-2 border-amber-400/70 ring-1 ring-amber-400/25';
+      return `${baseClass} ${todayIndicator}`;
+    }
+
+    return baseClass;
   };
 
   const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -244,17 +276,18 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
         {hoveredCell ? (
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-200">{hoveredCell.date}:</span>
-            <span className="text-amber-400 font-medium">
-              {hoveredCell.completedCount} of {hoveredCell.totalCount} completed (
-              {hoveredCell.intensity === 3
-                ? '100%'
-                : hoveredCell.intensity === 2
-                ? '60%'
-                : hoveredCell.intensity === 1
-                ? '20%'
-                : '0%'}
-              )
-            </span>
+            {hoveredCell.totalCount > 0 ? (
+              <span className="text-amber-400 font-medium">
+                {hoveredCell.completedCount} of {hoveredCell.totalCount} completed (
+                {Math.round((hoveredCell.completedCount / hoveredCell.totalCount) * 100)}%)
+              </span>
+            ) : hoveredCell.completedCount > 0 ? (
+              <span className="text-amber-400 font-medium">
+                {hoveredCell.completedCount} completed
+              </span>
+            ) : (
+              <span className="text-slate-400 font-medium">No activity recorded</span>
+            )}
             {hoveredCell.isToday && (
               <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-bold">
                 Today
