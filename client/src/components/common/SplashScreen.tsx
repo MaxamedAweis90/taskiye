@@ -16,7 +16,7 @@ export const SplashScreen: React.FC = () => {
   const [isDataReady, setIsDataReady] = useState(false);
 
   // Safety ceiling ref to avoid hanging indefinitely if network stalls
-  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 1. Initial Progress Acceleration (Stages 15% -> 85%)
   useEffect(() => {

@@ -66,7 +66,7 @@ export function useMidnightRollover() {
     checkDateTransition();
 
     // 2. Set timeout targeting the upcoming midnight (plus 1 second grace period)
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     const scheduleMidnightTimer = () => {
       const now = new Date();
       const nextMidnight = new Date(
