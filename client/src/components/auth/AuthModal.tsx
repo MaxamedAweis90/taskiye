@@ -186,10 +186,16 @@ export const AuthModal: React.FC = () => {
     setIsLoading(true);
     try {
       if (loginMethod === 'email') {
-        await signIn.email({
+        const res = await signIn.email({
           email: email.trim(),
           password,
         });
+
+        if (res?.error) {
+          setErrorMsg(res.error.message || 'Invalid email or password. Please verify credentials.');
+          setIsLoading(false);
+          return;
+        }
       } else if (loginMethod === 'phone_otp') {
         if (!otpSent) {
           await handleSendPhoneOtp();
