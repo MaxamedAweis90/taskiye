@@ -1603,7 +1603,7 @@ export const Habits: React.FC = () => {
           onClick={closeModal}
         >
           <div
-            className="bg-[#141C2B] border border-white/10 rounded-2xl sm:rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] flex flex-col gap-5 relative animate-in zoom-in-95 duration-150"
+            className="bg-[#141C2B] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full max-h-[90dvh] overflow-y-auto custom-scrollbar shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] flex flex-col gap-5 relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}

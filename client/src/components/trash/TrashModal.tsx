@@ -251,25 +251,25 @@ export const TrashModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[10000] bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-hidden animate-in fade-in duration-200">
       {/* Top Bar with Profile Settings style top-left X button */}
-      <div className="w-full flex items-center justify-between px-6 sm:px-10 py-4 border-b border-white/[0.08] bg-[#080E1E]/80 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-4">
+      <div className="w-full flex items-center justify-between px-4 sm:px-10 py-3.5 sm:py-4 border-b border-white/[0.08] bg-[#080E1E]/80 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-4">
           <button
             type="button"
             onClick={() => setIsTrashOpen(false)}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer"
             title="Close Trash"
           >
-            <X className="w-6 h-6 stroke-[2.5]" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
           </button>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
               <Trash2 className="w-4 h-4 stroke-[2.2]" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-2">
-                <span>Taskiye Drive</span>
-                <span className="text-slate-600">/</span>
+              <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5 sm:gap-2">
+                <span className="hidden xs:inline">Taskiye Drive</span>
+                <span className="hidden xs:inline text-slate-600">/</span>
                 <span className="text-slate-200 font-bold">Trash & Recovery</span>
               </div>
             </div>
@@ -299,8 +299,8 @@ export const TrashModal: React.FC = () => {
 
       {/* Main Layout: Google Drive Style (Left Folder Navigation + Right File View) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Google Drive Folders */}
-        <aside className="w-64 sm:w-72 shrink-0 border-r border-white/[0.08] bg-[#070E1C]/90 flex flex-col justify-between p-4 sm:p-5">
+        {/* Left Sidebar: Google Drive Folders (Desktop only) */}
+        <aside className="hidden md:flex w-64 sm:w-72 shrink-0 border-r border-white/[0.08] bg-[#070E1C]/90 flex-col justify-between p-4 sm:p-5">
           <div className="flex flex-col gap-5">
             {/* Section Header */}
             <div>
@@ -422,20 +422,71 @@ export const TrashModal: React.FC = () => {
 
         {/* Right Main Content Area: Google Drive File Browser */}
         <main className="flex-1 flex flex-col overflow-hidden bg-[#0B132B]">
+          {/* Mobile Folder Selector Tabs (< md) */}
+          <div className="flex md:hidden items-center gap-2 px-4 py-3 bg-[#0A1124]/70 border-b border-white/[0.06]">
+            <div className="grid grid-cols-2 gap-2 w-full p-1 bg-[#070E1C] rounded-xl border border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('tasks');
+                  setSearchQuery('');
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  activeTab === 'tasks'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Tasks</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeTab === 'tasks' ? 'bg-slate-950/20 text-slate-950' : 'bg-white/10 text-slate-300'
+                  }`}
+                >
+                  {trashedTasks.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('habits');
+                  setSearchQuery('');
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  activeTab === 'habits'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Repeat className="w-3.5 h-3.5" />
+                <span>Habits</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeTab === 'habits' ? 'bg-slate-950/20 text-slate-950' : 'bg-white/10 text-slate-300'
+                  }`}
+                >
+                  {trashedHabits.length}
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Top Folder Header & Search Filter */}
-          <div className="px-6 sm:px-8 py-4 border-b border-white/[0.06] bg-[#0A1124]/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-4 sm:px-8 py-3.5 sm:py-4 border-b border-white/[0.06] bg-[#0A1124]/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400">
-                {activeTab === 'tasks' ? <CheckSquare className="w-5 h-5" /> : <Repeat className="w-5 h-5" />}
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
+                {activeTab === 'tasks' ? <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> : <Repeat className="w-4 h-4 sm:w-5 sm:h-5" />}
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <h2 className="text-sm sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
                   <span>{activeTab === 'tasks' ? 'Tasks Folder' : 'Habits Folder'}</span>
                   <span className="text-xs font-medium text-slate-400">
                     ({activeTab === 'tasks' ? filteredTasks.length : filteredHabits.length} items)
                   </span>
                 </h2>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[10.5px] sm:text-[11px] text-slate-400 hidden xs:block">
                   Select items to restore them back to active workflows or delete permanently
                 </p>
               </div>
@@ -455,15 +506,15 @@ export const TrashModal: React.FC = () => {
           </div>
 
           {/* Files List / Grid Header */}
-          <div className="px-6 sm:px-8 py-2.5 border-b border-white/[0.06] bg-[#080E1C]/40 text-[10.5px] font-bold text-slate-400 uppercase tracking-wider grid grid-cols-12 gap-4 shrink-0">
-            <div className="col-span-6 sm:col-span-5">Name</div>
+          <div className="px-4 sm:px-8 py-2.5 border-b border-white/[0.06] bg-[#080E1C]/40 text-[10.5px] font-bold text-slate-400 uppercase tracking-wider grid grid-cols-12 gap-2 sm:gap-4 shrink-0">
+            <div className="col-span-7 sm:col-span-5">Name</div>
             <div className="col-span-3 sm:col-span-3 hidden sm:block">Category / Routine</div>
-            <div className="col-span-3 sm:col-span-2">Retention</div>
-            <div className="col-span-3 sm:col-span-2 text-right">Actions</div>
+            <div className="col-span-2 hidden xs:block sm:col-span-2">Retention</div>
+            <div className="col-span-5 xs:col-span-3 sm:col-span-2 text-right">Actions</div>
           </div>
 
           {/* Files List Container */}
-          <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-3 space-y-2">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-3 space-y-2">
             {!isAuthenticated ? (
               <div className="py-20 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                 <HardDrive className="w-10 h-10 opacity-30 text-amber-400 mb-1" />
@@ -498,10 +549,10 @@ export const TrashModal: React.FC = () => {
                   return (
                     <div
                       key={task._id}
-                      className="p-3 sm:px-4 rounded-2xl bg-[#121C2E] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#152238] transition-all grid grid-cols-12 gap-4 items-center group"
+                      className="p-3 sm:px-4 rounded-2xl bg-[#121C2E] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#152238] transition-all grid grid-cols-12 gap-2 sm:gap-4 items-center group"
                     >
                       {/* Name Column */}
-                      <div className="col-span-6 sm:col-span-5 flex items-center gap-3 min-w-0">
+                      <div className="col-span-7 xs:col-span-7 sm:col-span-5 flex items-center gap-2.5 sm:gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-xl bg-slate-800 border border-white/[0.08] flex items-center justify-center text-slate-400 shrink-0 group-hover:text-amber-300 group-hover:bg-amber-400/10 transition-colors">
                           <CheckSquare className="w-4 h-4" />
                         </div>
@@ -509,12 +560,17 @@ export const TrashModal: React.FC = () => {
                           <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-amber-200 transition-colors">
                             {task.title}
                           </h4>
-                          {task.date && (
-                            <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
-                              <Calendar className="w-3 h-3" />
-                              <span>{new Date(task.date).toLocaleDateString()}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {task.date && (
+                              <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                <span>{new Date(task.date).toLocaleDateString()}</span>
+                              </span>
+                            )}
+                            <span className="xs:hidden text-[10px] text-amber-300/90 font-medium">
+                              {daysLeft}d left
                             </span>
-                          )}
+                          </div>
                         </div>
                       </div>
 
@@ -530,7 +586,7 @@ export const TrashModal: React.FC = () => {
                       </div>
 
                       {/* Retention Column */}
-                      <div className="col-span-3 sm:col-span-2 flex items-center">
+                      <div className="col-span-2 hidden xs:flex items-center">
                         <span
                           className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1.5 ${
                             daysLeft <= 5
@@ -539,17 +595,17 @@ export const TrashModal: React.FC = () => {
                           }`}
                         >
                           <Clock className="w-3 h-3" />
-                          <span>{daysLeft} {daysLeft === 1 ? 'day' : 'days'} left</span>
+                          <span>{daysLeft}d left</span>
                         </span>
                       </div>
 
                       {/* Actions Column */}
-                      <div className="col-span-3 sm:col-span-2 flex items-center justify-end gap-1.5">
+                      <div className="col-span-5 xs:col-span-3 sm:col-span-2 flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           onClick={() => restoreTaskMutation.mutate(task._id)}
                           disabled={restoreTaskMutation.isPending}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95"
+                          className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95 shrink-0"
                           title="Restore task to active checklist"
                         >
                           <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -595,10 +651,10 @@ export const TrashModal: React.FC = () => {
                 return (
                   <div
                     key={habit._id}
-                    className="p-3 sm:px-4 rounded-2xl bg-[#121C2E] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#152238] transition-all grid grid-cols-12 gap-4 items-center group"
+                    className="p-3 sm:px-4 rounded-2xl bg-[#121C2E] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#152238] transition-all grid grid-cols-12 gap-2 sm:gap-4 items-center group"
                   >
                     {/* Name Column */}
-                    <div className="col-span-6 sm:col-span-5 flex items-center gap-3 min-w-0">
+                    <div className="col-span-7 xs:col-span-7 sm:col-span-5 flex items-center gap-2.5 sm:gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-300 shrink-0 group-hover:text-amber-300 group-hover:bg-amber-400/10 transition-colors">
                         <Repeat className="w-4 h-4" />
                       </div>
@@ -606,12 +662,17 @@ export const TrashModal: React.FC = () => {
                         <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-amber-200 transition-colors">
                           {habit.title}
                         </h4>
-                        {typeof habit.streakDays === 'number' && habit.streakDays > 0 && (
-                          <span className="text-[10px] text-amber-300 font-bold flex items-center gap-1 mt-0.5">
-                            <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
-                            <span>{habit.streakDays}d streak preserved</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {typeof habit.streakDays === 'number' && habit.streakDays > 0 && (
+                            <span className="text-[10px] text-amber-300 font-bold flex items-center gap-1">
+                              <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
+                              <span>{habit.streakDays}d streak</span>
+                            </span>
+                          )}
+                          <span className="xs:hidden text-[10px] text-amber-300/90 font-medium">
+                            {daysLeft}d left
                           </span>
-                        )}
+                        </div>
                       </div>
                     </div>
 
@@ -627,7 +688,7 @@ export const TrashModal: React.FC = () => {
                     </div>
 
                     {/* Retention Column */}
-                    <div className="col-span-3 sm:col-span-2 flex items-center">
+                    <div className="col-span-2 hidden xs:flex items-center">
                       <span
                         className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1.5 ${
                           daysLeft <= 5
@@ -636,17 +697,17 @@ export const TrashModal: React.FC = () => {
                         }`}
                       >
                         <Clock className="w-3 h-3" />
-                        <span>{daysLeft} {daysLeft === 1 ? 'day' : 'days'} left</span>
+                        <span>{daysLeft}d left</span>
                       </span>
                     </div>
 
                     {/* Actions Column */}
-                    <div className="col-span-3 sm:col-span-2 flex items-center justify-end gap-1.5">
+                    <div className="col-span-5 xs:col-span-3 sm:col-span-2 flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         onClick={() => restoreHabitMutation.mutate(habit._id)}
                         disabled={restoreHabitMutation.isPending}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95"
+                        className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95 shrink-0"
                         title="Restore habit and resume streak tracking"
                       >
                         <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />

@@ -9,6 +9,7 @@ import {
   Sparkles,
   TrendingUp,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -62,6 +63,7 @@ export const Dashboard: React.FC = () => {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [deletedTaskIds, setDeletedTaskIds] = useState<Set<string>>(new Set());
   const [customChecklistOrder, setCustomChecklistOrder] = useState<string[]>([]);
+  const [isQuickActionModalOpen, setIsQuickActionModalOpen] = useState(false);
 
   // 1. Immediately unsuppress task when restored from TrashModal or Undo toast
   React.useEffect(() => {
@@ -79,6 +81,7 @@ export const Dashboard: React.FC = () => {
 
 
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const modalTitleInputRef = useRef<HTMLInputElement>(null);
 
   // Dynamic Today ISO Date string from store (reacts immediately to midnight date rollover)
   const todayStr = currentDateStr || new Date().toLocaleDateString('en-CA');
@@ -605,14 +608,20 @@ export const Dashboard: React.FC = () => {
 
     setPriority(item.priority || 'normal');
 
-    titleInputRef.current?.focus();
-    titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsQuickActionModalOpen(true);
+      setTimeout(() => modalTitleInputRef.current?.focus(), 80);
+    } else {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   const handleCancelEdit = () => {
     setEditingTask(null);
     setItemTitle('');
     setPriority('normal');
+    setIsQuickActionModalOpen(false);
   };
 
   // Delete task handler (Habits cannot be deleted here)
@@ -803,6 +812,7 @@ export const Dashboard: React.FC = () => {
       setEditingTask(null);
       setItemTitle('');
       setPriority('normal');
+      setIsQuickActionModalOpen(false);
       return;
     }
 
@@ -812,6 +822,7 @@ export const Dashboard: React.FC = () => {
 
     // Release focus from the input/button at top so browser doesn't anchor viewport to top
     titleInputRef.current?.blur();
+    modalTitleInputRef.current?.blur();
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -876,30 +887,57 @@ export const Dashboard: React.FC = () => {
 
     setItemTitle('');
     setPriority('normal');
+    setIsQuickActionModalOpen(false);
   };
 
   const focusQuickAction = () => {
-    titleInputRef.current?.focus();
-    titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setEditingTask(null);
+      setItemTitle('');
+      setPriority('normal');
+      setIsQuickActionModalOpen(true);
+      setTimeout(() => modalTitleInputRef.current?.focus(), 80);
+    } else {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-6">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-6 w-full min-w-0 overflow-x-hidden">
       {/* 1. Hero Header Row */}
-      <div className="flex flex-wrap items-end justify-between gap-4 pt-1">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-1">
-            Total Habit & Task Completion
-          </span>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-white tracking-tight leading-none">
-              {completionRate}%
-            </h1>
-            <div className="inline-flex items-center gap-1 bg-[#092B21] border border-emerald-500/30 text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>{completedCount} completed today</span>
+      <div className="flex flex-wrap items-end justify-between gap-4 pt-1 w-full min-w-0">
+        <div className="flex items-start sm:items-end justify-between gap-3 w-full sm:w-auto">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-1">
+              Total Habit & Task Completion
+            </span>
+            <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+              <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-white tracking-tight leading-none">
+                {completionRate}%
+              </h1>
+              <div className="inline-flex items-center gap-1 bg-[#092B21] border border-emerald-500/30 text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>{completedCount} completed today</span>
+              </div>
             </div>
           </div>
+
+          {/* Mobile "+ Add Task" button next to Total Habit & Task Completion */}
+          <button
+            type="button"
+            onClick={() => {
+              setEditingTask(null);
+              setItemTitle('');
+              setPriority('normal');
+              setIsQuickActionModalOpen(true);
+              setTimeout(() => modalTitleInputRef.current?.focus(), 80);
+            }}
+            className="flex lg:hidden items-center gap-1.5 bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.25)] active:scale-95 transition-all cursor-pointer shrink-0 select-none mt-1"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Add Task</span>
+          </button>
         </div>
 
         {/* Right Active Sprint Tag */}
@@ -909,138 +947,198 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Top Two-Column Grid:
-          - Left Column (8 cols): 3 Stat Cards spanning exact width of Heatmap + HeatmapMatrix
-          - Right Column (4 cols): Quick Action at the top + Active Goals
+      {/* 2. Main Grid:
+          - On Mobile (< lg):
+              1. 3 Stat Cards (Order 1 - compact single row)
+              2. Today's Checklist (Order 2 - moved directly beneath stat cards!)
+              3. Heatmap Matrix (Order 3)
+              4. Quick Action + Active Routines (Order 4)
+          - On Desktop (lg:):
+              - Left Column (8 cols, Order 1): 3 Stat Cards + HeatmapMatrix
+              - Right Column (4 cols, Order 2): Quick Action + Active Routines
+              - Bottom Row (12 cols, Order 3): Today's Checklist spanning full width
       */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: 3 Stat Cards + Heatmap Matrix */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          {/* 3 Stat Cards Row - Perfectly squeezes to the exact width of the Heatmap Matrix */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:gap-6 items-start w-full min-w-0">
+        {/* Left Column on Desktop / CSS Contents on Mobile so children follow flex order */}
+        <div className="contents lg:flex lg:flex-col lg:col-span-8 lg:gap-6 lg:order-1">
+          {/* 3 Stat Cards Row - 1 line on mobile (grid-cols-3), 3-col on desktop */}
+          <div className="order-1 grid grid-cols-3 gap-1.5 xs:gap-2 sm:gap-4 w-full min-w-0">
             {/* Card 1: Today's Completion Rate */}
-            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
-                  <Clock className="w-4 h-4 stroke-[2.2]" />
+            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden">
+              {/* Mobile View (< sm) */}
+              <div className="flex sm:hidden flex-col items-center text-center gap-0.5">
+                <div className="flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[9.5px] font-bold text-amber-300 uppercase tracking-wider">Today</span>
                 </div>
-                <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Today
-                </span>
-              </div>
-
-              <div className="mt-3">
-                <span className="text-xs text-slate-400 font-medium block">
-                  Today's Completion
-                </span>
-                <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5">
+                <div className="text-base xs:text-lg font-black text-white tracking-tight leading-none mt-0.5">
                   {completionRate}%
                 </div>
+                <span className="text-[9.5px] text-slate-400 font-medium truncate w-full">
+                  {completedCount}/{totalItemsCount} Done
+                </span>
               </div>
 
-              <div className="flex items-center justify-between text-xs mt-3 pt-2.5 border-t border-white/[0.04]">
-                <span className="text-slate-400 font-medium">
-                  {completedCount} of {totalItemsCount} items
-                </span>
-                <span className="text-emerald-400 font-bold">
-                  {totalItemsCount > 0 && completedCount === totalItemsCount ? 'Complete' : `${totalItemsCount - completedCount} left`}
-                </span>
+              {/* Desktop / Tablet View (sm:) */}
+              <div className="hidden sm:flex sm:flex-col justify-between h-full">
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
+                    <Clock className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Today
+                  </span>
+                </div>
+
+                <div className="mt-3">
+                  <span className="text-xs text-slate-400 font-medium block">
+                    Today's Completion
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5">
+                    {completionRate}%
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs mt-3 pt-2.5 border-t border-white/[0.04]">
+                  <span className="text-slate-400 font-medium">
+                    {completedCount} of {totalItemsCount} items
+                  </span>
+                  <span className="text-emerald-400 font-bold">
+                    {totalItemsCount > 0 && completedCount === totalItemsCount ? 'Complete' : `${totalItemsCount - completedCount} left`}
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Card 2: Daily Habits */}
-            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4 stroke-[2.2]" />
+            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden">
+              {/* Mobile View (< sm) */}
+              <div className="flex sm:hidden flex-col items-center text-center gap-0.5">
+                <div className="flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-[9.5px] font-bold text-emerald-300 uppercase tracking-wider">Routines</span>
                 </div>
-                <span className="bg-emerald-400/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Routines
+                <div className="text-base xs:text-lg font-black text-white tracking-tight leading-none mt-0.5">
+                  {habitsDoneCount}/{habitsTodayTotalCount}
+                </div>
+                <span className="text-[9.5px] text-slate-400 font-medium truncate w-full">
+                  {habitsTodayTotalCount > 0 ? `${Math.round((habitsDoneCount / habitsTodayTotalCount) * 100)}% Done` : '0 Routines'}
                 </span>
               </div>
 
-              <div className="mt-3">
-                <span className="text-xs text-slate-400 font-medium block">
-                  Daily Habits
-                </span>
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    {habitsDoneCount}
-                  </span>
-                  <span className="text-slate-400 font-semibold text-base">
-                    / {habitsTodayTotalCount} Done
+              {/* Desktop / Tablet View (sm:) */}
+              <div className="hidden sm:flex sm:flex-col justify-between h-full">
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <span className="bg-emerald-400/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Routines
                   </span>
                 </div>
-              </div>
 
-              <div className="mt-3">
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-400 rounded-full transition-all duration-300"
-                    style={{ width: `${habitsTodayTotalCount > 0 ? Math.round((habitsDoneCount / habitsTodayTotalCount) * 100) : 0}%` }}
-                  />
+                <div className="mt-3">
+                  <span className="text-xs text-slate-400 font-medium block">
+                    Daily Habits
+                  </span>
+                  <div className="flex items-baseline gap-1 mt-0.5">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                      {habitsDoneCount}
+                    </span>
+                    <span className="text-slate-400 font-semibold text-base">
+                      / {habitsTodayTotalCount} Done
+                    </span>
+                  </div>
                 </div>
-                <span className="text-xs text-slate-400 mt-2 block font-medium">
-                  {habitsTodayTotalCount > 0 ? `${Math.round((habitsDoneCount / habitsTodayTotalCount) * 100)}% consistency rate today` : 'No routines scheduled'}
-                </span>
+
+                <div className="mt-3">
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                      style={{ width: `${habitsTodayTotalCount > 0 ? Math.round((habitsDoneCount / habitsTodayTotalCount) * 100) : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400 mt-2 block font-medium">
+                    {habitsTodayTotalCount > 0 ? `${Math.round((habitsDoneCount / habitsTodayTotalCount) * 100)}% consistency rate today` : 'No routines scheduled'}
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Card 3: Tasks Left */}
-            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all">
-              <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
-                  <AlertCircle className="w-4 h-4 stroke-[2.2]" />
+            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden">
+              {/* Mobile View (< sm) */}
+              <div className="flex sm:hidden flex-col items-center text-center gap-0.5">
+                <div className="flex items-center justify-center gap-1">
+                  <AlertCircle className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[9.5px] font-bold text-amber-300 uppercase tracking-wider">Pending</span>
                 </div>
-                <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Pending
+                <div className="text-base xs:text-lg font-black text-amber-400 tracking-tight leading-none mt-0.5">
+                  {pendingTasksCount}
+                </div>
+                <span className="text-[9.5px] text-slate-400 font-medium truncate w-full">
+                  {highPriorityPendingCount > 0 ? `${highPriorityPendingCount} High` : `${pendingTasksCount} Left`}
                 </span>
               </div>
 
-              <div className="mt-3">
-                <span className="text-xs text-slate-400 font-medium block">Tasks Left</span>
-                <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                    {pendingTasksCount}
-                  </span>
-                  <span className="text-amber-400 font-bold text-base sm:text-lg">
+              {/* Desktop / Tablet View (sm:) */}
+              <div className="hidden sm:flex sm:flex-col justify-between h-full">
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
+                    <AlertCircle className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Pending
                   </span>
                 </div>
-              </div>
 
-              <div className="mt-3 pt-2 border-t border-white/[0.04]">
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-300 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
-                    <span>{highPriorityPendingCount} High Priority</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
-                    <span>{normalPriorityPendingCount} Normal</span>
+                <div className="mt-3">
+                  <span className="text-xs text-slate-400 font-medium block">Tasks Left</span>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                      {pendingTasksCount}
+                    </span>
+                    <span className="text-amber-400 font-bold text-base sm:text-lg">
+                      Pending
+                    </span>
                   </div>
                 </div>
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  {pendingTasksCount === 0 ? 'All caught up!' : `${pendingTasksCount} item${pendingTasksCount === 1 ? '' : 's'} remaining`}
-                </span>
+
+                <div className="mt-3 pt-2 border-t border-white/[0.04]">
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-300 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                      <span>{highPriorityPendingCount} High Priority</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
+                      <span>{normalPriorityPendingCount} Normal</span>
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    {pendingTasksCount === 0 ? 'All caught up!' : `${pendingTasksCount} item${pendingTasksCount === 1 ? '' : 's'} remaining`}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Activity Heatmap Matrix - Spans full 8 columns aligned with the 3 cards */}
-          <HeatmapMatrix
-            streakDays={globalDailyStreak}
-            totalCompletedHabits={completedCount}
-            todayCompletedCount={completedCount}
-            todayTotalCount={totalItemsCount || 0}
-            historyLogs={activityLogs}
-          />
+          {/* Activity Heatmap Matrix - Order 3 on mobile (after checklist) */}
+          <div className="order-3 w-full min-w-0">
+            <HeatmapMatrix
+              streakDays={globalDailyStreak}
+              totalCompletedHabits={completedCount}
+              todayCompletedCount={completedCount}
+              todayTotalCount={totalItemsCount || 0}
+              historyLogs={activityLogs}
+            />
+          </div>
         </div>
 
-        {/* Right Column (4 cols): Quick Action at top + Active Goals */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          {/* Widget 1: QUICK ACTION */}
-          <div className="bg-[#162032] border border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-white/[0.1]">
+        {/* Right Column (4 cols on Desktop, Order 4 on Mobile): Quick Action at top + Active Goals */}
+        <div className="order-4 lg:order-2 lg:col-span-4 flex flex-col gap-6 w-full min-w-0">
+          {/* Widget 1: QUICK ACTION (Visible on desktop, hidden on mobile) */}
+          <div className="hidden lg:block bg-[#162032] border border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-white/[0.1]">
             {/* Header with Task Indicator or Editing Indicator */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -1255,25 +1353,153 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Today's Focus & Routine Checklist - Order 2 on mobile (directly after Cards!), Full width bottom row on desktop */}
+        <div className="order-2 lg:order-3 w-full min-w-0 lg:col-span-12">
+          <TodayChecklist
+            items={checklistItems}
+            onToggle={handleToggleItem}
+            onReorder={handleReorderChecklist}
+            onQuickTaskClick={focusQuickAction}
+            onEdit={handleEditItem}
+            onDelete={handleDeleteItem}
+            updatingTaskId={updatingTaskId}
+            creatingTaskId={creatingTaskId}
+            highlightedTaskId={highlightedTaskId}
+            onCreationAnimationComplete={handleCreationAnimationComplete}
+          />
+        </div>
       </div>
 
-      {/* 3. Bottom Full-Width Section: Today's Focus & Routine Checklist
-          - Spans 100% of container width filling both sides perfectly
-      */}
-      <div className="w-full">
-        <TodayChecklist
-          items={checklistItems}
-          onToggle={handleToggleItem}
-          onReorder={handleReorderChecklist}
-          onQuickTaskClick={focusQuickAction}
-          onEdit={handleEditItem}
-          onDelete={handleDeleteItem}
-          updatingTaskId={updatingTaskId}
-          creatingTaskId={creatingTaskId}
-          highlightedTaskId={highlightedTaskId}
-          onCreationAnimationComplete={handleCreationAnimationComplete}
-        />
-      </div>
+      {/* 3. Mobile Quick Action Modal Popup (Visible on Mobile/Tablet, Hidden on Desktop) */}
+      {isQuickActionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+            onClick={() => {
+              setIsQuickActionModalOpen(false);
+              if (editingTask) handleCancelEdit();
+            }}
+          />
+
+          {/* Modal Content Box */}
+          <div className="relative bg-[#162032] border border-white/10 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl w-full sm:max-w-md z-10 animate-in slide-in-from-bottom-6 duration-200">
+            {/* Mobile Sheet Handle */}
+            <div className="w-10 h-1 bg-slate-700/80 rounded-full mx-auto mb-4 sm:hidden" />
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-bold tracking-wider text-slate-100 uppercase">
+                  {editingTask ? 'Edit Task' : 'Quick Action'}
+                </h3>
+                {editingTask ? (
+                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    Editing
+                  </span>
+                ) : (
+                  <span className="bg-amber-400/10 border border-amber-400/25 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase">
+                    Task
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {editingTask && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors cursor-pointer underline mr-1"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQuickActionModalOpen(false);
+                    if (editingTask) handleCancelEdit();
+                  }}
+                  className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  aria-label="Close modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Action Form (Exact replica of desktop widget) */}
+            <form onSubmit={handleAddItem} className="flex flex-col gap-3.5">
+              <div>
+                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                  Title
+                </label>
+                <input
+                  ref={modalTitleInputRef}
+                  type="text"
+                  value={itemTitle}
+                  onChange={(e) => setItemTitle(e.target.value)}
+                  placeholder="e.g. Review Q3 Roadmap"
+                  className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40 transition-all"
+                  autoFocus
+                />
+              </div>
+
+              {/* 2-Column Selects: Category & Priority */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                    Category
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Focus / Work">⚡ Focus / Work</option>
+                    <option value="Health / Routine">🌿 Health / Routine</option>
+                    <option value="Mind / Reading">🧠 Mind / Reading</option>
+                    <option value="Personal Goal">🚀 Personal Goal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                    Priority
+                  </label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as 'normal' | 'high')}
+                    className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="high">High Priority</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Submit CTA Button */}
+              <button
+                type="submit"
+                className="w-full bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-sm py-3 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-2 cursor-pointer"
+              >
+                {editingTask ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Save Edit</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 stroke-[3]" />
+                    <span>+ Add Task</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

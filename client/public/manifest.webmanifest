@@ -11,19 +11,19 @@
   "categories": ["productivity", "lifestyle"],
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logo.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logo.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -35,14 +35,14 @@
       "short_name": "Checklist",
       "description": "View and manage today's daily checklist tasks",
       "url": "/",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Habit Tracker",
       "short_name": "Habits",
       "description": "View your routines, streaks, and habits",
       "url": "/habits",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

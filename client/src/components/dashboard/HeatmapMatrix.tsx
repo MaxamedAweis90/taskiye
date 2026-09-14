@@ -159,9 +159,9 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
   const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div className="bg-[#162032] border border-white/[0.06] rounded-2xl p-5 sm:p-6 transition-all hover:border-white/[0.1] relative flex flex-col justify-between">
+    <div className="bg-[#162032] border border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-white/[0.1] relative flex flex-col justify-between w-full max-w-full min-w-0 overflow-hidden">
       {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4 w-full">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center shrink-0">
             <Calendar className="w-4 h-4 stroke-[2.2]" />
@@ -177,7 +177,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
         </div>
 
         {/* Right Filter Pills, Stats & Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2.5 sm:gap-3 text-xs w-full sm:w-auto">
           {/* Filter Pills: Last 7 Days, Month, Year */}
           <div className="flex items-center p-0.5 rounded-xl bg-[#0A101D] border border-white/[0.08]">
             <button
@@ -231,7 +231,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
       </div>
 
       {/* 7 Days Grid with Weekday Labels */}
-      <div className="overflow-x-auto pb-1 scrollbar-none">
+      <div className="overflow-x-auto pb-1 scrollbar-none w-full max-w-full overscroll-x-contain touch-pan-x">
         <div className={weekCount === 1 ? 'max-w-[240px]' : weekCount === 5 ? 'max-w-[380px]' : 'min-w-[560px]'}>
           <div
             className="grid gap-2"

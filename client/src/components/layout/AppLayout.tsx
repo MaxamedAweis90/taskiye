@@ -148,6 +148,15 @@ export const AppLayout: React.FC = () => {
   const [streakPillWidth, setStreakPillWidth] = useState<number>(64);
   const bellMeasureRef = useRef<HTMLDivElement>(null);
   const [bellPillWidth, setBellPillWidth] = useState<number>(64);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const isTaskDoneToday = useMemo(() => {
     return todayChecklistCompletedCount > 0 || (activityLogs[todayStr]?.completedCount || 0) > 0;
@@ -310,9 +319,9 @@ export const AppLayout: React.FC = () => {
   const avatarSrc = user?.avatarUrl || user?.image || defaultAvatar;
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-[#070D19] text-slate-100 flex font-sans antialiased selection:bg-amber-400/30 selection:text-amber-200">
-      {/* 1. Left Sidebar Navigation - Seamlessly merged into the dark canvas with NO border separation */}
-      <aside className="w-[84px] sm:w-[92px] shrink-0 flex flex-col items-center py-4 sm:py-5 justify-between z-20">
+    <div className="w-full max-w-full h-screen h-[100dvh] overflow-hidden bg-[#070D19] text-slate-100 flex flex-col md:flex-row font-sans antialiased selection:bg-amber-400/30 selection:text-amber-200">
+      {/* 1. Left Sidebar Navigation - Desktop only */}
+      <aside className="hidden md:flex w-[84px] sm:w-[92px] shrink-0 flex-col items-center py-4 sm:py-5 justify-between z-20">
         {/* Top: Taskiye Brand Logo (Standalone with no circled round box) */}
         <div className="h-12 flex items-center justify-center">
           <NavLink
@@ -420,11 +429,29 @@ export const AppLayout: React.FC = () => {
       </aside>
 
       {/* 2. Right Side: Topbar + Main Elevated Workspace */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full h-full overflow-hidden">
         {/* Topbar - Harmonized padding aligning searchbar with main workspace content */}
-        <header className="h-16 sm:h-20 shrink-0 px-6 sm:px-8 pr-6 sm:pr-8 flex items-center justify-between gap-4 z-30">
-          {/* Search Input matching design tokens and content alignment */}
-          <div className="w-full max-w-sm sm:max-w-md relative">
+        <header className="h-16 sm:h-20 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-30 w-full max-w-full">
+          {/* Mobile Brand Logo (< md) */}
+          <div className="flex md:hidden items-center gap-2 shrink-0">
+            <NavLink to="/" className="flex items-center gap-2 group">
+              <img
+                src="/logo.png"
+                alt="Taskiye Logo"
+                className="w-8 h-8 sm:w-9 sm:h-9 object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                }}
+              />
+              <span className="text-base font-extrabold text-white tracking-tight">
+                Task<span className="text-amber-400">iye</span>
+              </span>
+            </NavLink>
+          </div>
+
+          {/* Search Input - Desktop & Tablet */}
+          <div className="w-full max-w-sm sm:max-w-md relative hidden sm:block">
             <div className="relative flex items-center">
               <Search className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
               <input
@@ -441,11 +468,10 @@ export const AppLayout: React.FC = () => {
             <div
               className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
               style={{
-                width:
-                  activeDropdown === 'streak'
-                    ? typeof window !== 'undefined' && window.innerWidth < 640
-                      ? 288
-                      : 320
+                width: isMobile
+                  ? 52
+                  : activeDropdown === 'streak'
+                    ? 320
                     : streakPillWidth,
                 height: 40,
               }}
@@ -459,14 +485,47 @@ export const AppLayout: React.FC = () => {
                 <span className="text-xs font-semibold">{maxStreak}</span>
               </div>
 
+              {/* Mobile Fixed Trigger in Topbar (Never moves, always in place) */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveDropdown((prev) => (prev === 'streak' ? null : 'streak'));
+                }}
+                className={`sm:hidden absolute left-0 top-0 w-full h-10 rounded-full border px-2 flex items-center justify-center select-none cursor-pointer transition-all ${
+                  activeDropdown === 'streak'
+                    ? 'bg-[#151D33] border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.3)] ring-1 ring-amber-400/50'
+                    : isTaskDoneToday
+                      ? 'bg-[#151D33] border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
+                      : 'bg-[#10192D] border-white/[0.08]'
+                }`}
+                title={`Streak: ${maxStreak}`}
+              >
+                <Flame
+                  className={`w-4 h-4 transition-all duration-300 shrink-0 ${
+                    isTaskDoneToday || activeDropdown === 'streak'
+                      ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]'
+                      : 'text-slate-500 fill-slate-500/20 opacity-50'
+                  }`}
+                />
+                <span
+                  className={`text-xs ml-1.5 transition-all duration-300 ${
+                    isTaskDoneToday || activeDropdown === 'streak'
+                      ? 'text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                      : 'text-slate-400 font-semibold'
+                  }`}
+                >
+                  {maxStreak}
+                </span>
+              </div>
+
               <div
                 onClick={
                   activeDropdown !== 'streak' ? () => setActiveDropdown('streak') : undefined
                 }
-                className={`absolute left-0 top-0 transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
+                className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'streak'
-                    ? 'w-72 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
-                    : `w-full h-10 rounded-full border px-3 sm:px-3.5 flex items-center justify-center select-none transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    ? 'fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    : `hidden sm:flex absolute left-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         isTaskDoneToday
                           ? 'bg-[#151D33] border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400/70'
                           : 'bg-[#10192D] border-white/[0.08] hover:border-white/[0.2]'
@@ -620,11 +679,10 @@ export const AppLayout: React.FC = () => {
             <div
               className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
               style={{
-                width:
-                  activeDropdown === 'notifications'
-                    ? typeof window !== 'undefined' && window.innerWidth < 640
-                      ? 288
-                      : 320
+                width: isMobile
+                  ? 48
+                  : activeDropdown === 'notifications'
+                    ? 320
                     : bellPillWidth,
                 height: 40,
               }}
@@ -638,16 +696,47 @@ export const AppLayout: React.FC = () => {
                 <span className="text-xs font-semibold">{unreadCount}</span>
               </div>
 
+              {/* Mobile Fixed Trigger in Topbar (Never moves, always in place) */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveDropdown((prev) => (prev === 'notifications' ? null : 'notifications'));
+                }}
+                className={`sm:hidden absolute right-0 top-0 w-full h-10 rounded-full border px-2 flex items-center justify-center select-none cursor-pointer transition-all ${
+                  activeDropdown === 'notifications'
+                    ? 'bg-[#151D33] border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.25)] ring-1 ring-amber-400/50'
+                    : 'bg-[#10192D] border-white/[0.08]'
+                }`}
+                title={`Notifications (${unreadCount} unread)`}
+              >
+                <Bell
+                  className={`w-4 h-4 transition-all duration-300 shrink-0 ${
+                    unreadCount > 0 || activeDropdown === 'notifications'
+                      ? 'text-amber-400 fill-amber-400/20'
+                      : 'text-slate-500 fill-slate-500/20 opacity-50'
+                  }`}
+                />
+                <span
+                  className={`text-xs ml-1.5 transition-all duration-300 ${
+                    unreadCount > 0 || activeDropdown === 'notifications'
+                      ? 'text-[#FACC15] font-semibold'
+                      : 'text-slate-400 font-semibold'
+                  }`}
+                >
+                  {unreadCount}
+                </span>
+              </div>
+
               <div
                 onClick={
                   activeDropdown !== 'notifications'
                     ? () => setActiveDropdown('notifications')
                     : undefined
                 }
-                className={`absolute right-0 top-0 transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
+                className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'notifications'
-                    ? 'w-72 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
-                    : 'w-full h-10 rounded-full border px-3 sm:px-3.5 flex items-center justify-center select-none bg-[#10192D] border-white/[0.08] hover:border-white/[0.2] transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)]'
+                    ? 'fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    : 'hidden sm:flex absolute right-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none bg-[#10192D] border-white/[0.08] hover:border-white/[0.2] transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)]'
                 }`}
               >
                 {/* Trigger Row */}
@@ -774,91 +863,126 @@ export const AppLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openAuthModal('manual', 'signup')}
-                className="group h-10 rounded-full bg-[#10192D] border border-white/[0.08] hover:border-amber-400/50 shadow-sm px-3.5 sm:px-4 flex items-center gap-2 sm:gap-2.5 transition-all hover:bg-[#141F33] hover:shadow-[0_0_20px_rgba(250,204,21,0.18)] cursor-pointer select-none shrink-0"
-                title="Create a free account or sign in to sync habits and tasks"
+                className="group h-10 rounded-full bg-[#10192D] border border-white/[0.08] hover:border-amber-400/50 shadow-sm px-3 sm:px-4 flex items-center gap-2 transition-all hover:bg-[#141F33] hover:shadow-[0_0_20px_rgba(250,204,21,0.18)] cursor-pointer select-none shrink-0"
+                title={`Guest mode: ${guestItemCount}/${GUEST_ITEM_LIMIT} items stored. Click to sign in and save progress.`}
               >
+                <div className="w-5 h-5 rounded-full bg-amber-400/15 flex items-center justify-center text-amber-400 shrink-0">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                </div>
                 <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
-                  Save your progress <span className="text-[#FACC15] font-bold">Register</span>
+                  <span className="hidden xs:inline">Save progress </span><span className="text-[#FACC15] font-bold">Sign In</span>
                 </span>
-                <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                <span className="text-[10px] font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 rounded-full shrink-0">
+                  {guestItemCount}/{GUEST_ITEM_LIMIT}
+                </span>
               </button>
             ) : (
-              <div
-                className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
-                style={{
-                  width:
+              <>
+                {/* Mobile Only: Standalone Circular Avatar (Fixed in place, never moves or shifts) */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveDropdown((prev) => (prev === 'profile' ? null : 'profile'));
+                  }}
+                  className={`sm:hidden relative w-10 h-10 rounded-full focus:outline-none transition-all active:scale-95 cursor-pointer shrink-0 ${
                     activeDropdown === 'profile'
-                      ? typeof window !== 'undefined' && window.innerWidth < 640
-                        ? 288
-                        : 320
-                      : pillWidth,
-                  height: 40,
-                }}
-              >
-                {/* Offscreen invisible element to accurately track natural pill width */}
-                <div
-                  ref={pillMeasureRef}
-                  className="absolute opacity-0 pointer-events-none invisible whitespace-nowrap px-3.5 sm:px-4 py-1.5 flex items-center gap-2.5 border border-transparent"
-                >
-                  <span className="text-xs font-semibold">
-                    {getGreeting()}, <span className="font-bold">{firstName}</span> 👏
-                  </span>
-                  <div className="w-7 h-7" />
-                  <div className="w-5 h-5" />
-                </div>
-
-                {/* Unified Morphing Border Card */}
-                <div
-                  onClick={
-                    activeDropdown !== 'profile' ? () => setActiveDropdown('profile') : undefined
-                  }
-                  className={`absolute right-0 top-0 w-full bg-[#10192D]/98 backdrop-blur-xl border transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
-                    activeDropdown === 'profile'
-                      ? 'rounded-3xl border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
-                      : 'h-10 rounded-full border-white/[0.08] hover:border-white/[0.2] shadow-sm px-3.5 sm:px-4 flex items-center hover:bg-[#141F33]'
+                      ? 'ring-2 ring-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.35)]'
+                      : ''
                   }`}
+                  title={`${displayName} (${email})`}
                 >
-                  {/* Top Bar Trigger Row */}
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveDropdown((prev) => (prev === 'profile' ? null : 'profile'));
+                  <img
+                    src={avatarSrc}
+                    alt={displayName}
+                    className="w-full h-full rounded-full object-cover border border-white/15 hover:border-amber-400 transition-colors shadow-sm"
+                    onError={(e) => {
+                      e.currentTarget.src = defaultAvatar;
                     }}
-                    className="flex items-center justify-between gap-2.5 cursor-pointer select-none group w-full h-full"
+                  />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
+                </button>
+
+                {/* Desktop Morphing Pill (sm:block) & Opened Dropdown Card on Mobile/Desktop */}
+                <div
+                  className={`relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 ${
+                    activeDropdown === 'profile'
+                      ? isMobile ? 'contents' : 'block'
+                      : 'hidden sm:block'
+                  }`}
+                  style={{
+                    width: isMobile
+                      ? undefined
+                      : activeDropdown === 'profile'
+                        ? 320
+                        : pillWidth,
+                    height: isMobile ? undefined : 40,
+                  }}
+                >
+                  {/* Offscreen invisible element to accurately track natural pill width */}
+                  <div
+                    ref={pillMeasureRef}
+                    className="absolute opacity-0 pointer-events-none invisible whitespace-nowrap px-3.5 sm:px-4 py-1.5 flex items-center gap-2.5 border border-transparent"
                   >
-                    <span className="text-xs font-semibold text-slate-200 hidden sm:inline whitespace-nowrap">
-                      {getGreeting()}, <span className="text-[#FACC15] font-bold">{firstName}</span>{' '}
-                      👏
+                    <span className="text-xs font-semibold">
+                      {getGreeting()}, <span className="font-bold">{firstName}</span> 👏
                     </span>
+                    <div className="w-7 h-7" />
+                    <div className="w-5 h-5" />
+                  </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="relative">
-                        <img
-                          src={avatarSrc}
-                          alt={displayName}
-                          className="w-7 h-7 rounded-full object-cover border border-white/10"
-                          onError={(e) => {
-                            e.currentTarget.src = defaultAvatar;
-                          }}
-                        />
-                        <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
-                      </div>
+                  {/* Unified Morphing Border Card */}
+                  <div
+                    onClick={
+                      activeDropdown !== 'profile' ? () => setActiveDropdown('profile') : undefined
+                    }
+                    className={`bg-[#10192D]/98 backdrop-blur-xl border transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
+                      activeDropdown === 'profile'
+                        ? 'fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                        : 'absolute right-0 top-0 w-full h-10 rounded-full border-white/[0.08] hover:border-white/[0.2] shadow-sm px-4 flex items-center justify-between hover:bg-[#141F33]'
+                    }`}
+                  >
+                    {/* Top Bar Trigger Row */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDropdown((prev) => (prev === 'profile' ? null : 'profile'));
+                      }}
+                      className="flex items-center justify-between gap-2.5 cursor-pointer select-none group w-full h-full"
+                    >
+                      <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
+                        {getGreeting()}, <span className="text-[#FACC15] font-bold">{firstName}</span>{' '}
+                        👏
+                      </span>
 
-                      <div
-                        className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 ${
-                          activeDropdown === 'profile'
-                            ? 'bg-amber-400/15 text-[#FACC15]'
-                            : 'text-slate-400 group-hover:text-[#FACC15]'
-                        }`}
-                      >
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 stroke-[2.5] transition-transform duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                            activeDropdown === 'profile' ? 'rotate-180' : 'rotate-0'
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="relative">
+                          <img
+                            src={avatarSrc}
+                            alt={displayName}
+                            className="w-7 h-7 rounded-full object-cover border border-white/10"
+                            onError={(e) => {
+                              e.currentTarget.src = defaultAvatar;
+                            }}
+                          />
+                          <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
+                        </div>
+
+                        <div
+                          className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 ${
+                            activeDropdown === 'profile'
+                              ? 'bg-amber-400/15 text-[#FACC15]'
+                              : 'text-slate-400 group-hover:text-[#FACC15]'
                           }`}
-                        />
+                        >
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 stroke-[2.5] transition-transform duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              activeDropdown === 'profile' ? 'rotate-180' : 'rotate-0'
+                            }`}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
                   {/* Morphing Dropdown Body (smoothly unfurls using CSS Grid row expansion) */}
                   <div
@@ -1040,18 +1164,63 @@ export const AppLayout: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+            </>
+          )}
           </div>
         </header>
 
         {/* 3. Main Workspace Container - Full height touching bottom 0 aligned with topbar */}
         <main
           id="main-workspace"
-          className="flex-1 bg-[#0E1628] border-t border-l border-white/[0.06] rounded-tl-3xl sm:rounded-tl-[2.5rem] overflow-y-auto px-6 sm:px-8 py-6 relative custom-scrollbar"
+          className="flex-1 bg-[#0E1628] border-t md:border-l border-white/[0.06] rounded-t-3xl md:rounded-tr-none md:rounded-tl-3xl sm:md:rounded-tl-[2.5rem] overflow-y-auto overflow-x-hidden w-full max-w-full min-w-0 px-3 sm:px-8 py-4 sm:py-6 pb-24 md:pb-6 relative custom-scrollbar"
         >
           <Outlet />
         </main>
       </div>
+
+      {/* Invisible click-outside backdrop for open dropdowns without blur */}
+      {activeDropdown && (
+        <div
+          className="fixed inset-0 z-40 bg-transparent cursor-pointer"
+          onClick={() => setActiveDropdown(null)}
+        />
+      )}
+
+      {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
+      <nav className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B132B]/95 backdrop-blur-xl border-t border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive =
+            item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to);
+
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
+                isActive ? 'text-[#FACC15]' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                  isActive
+                    ? 'bg-[#232115] border border-[#544310] shadow-[0_0_12px_rgba(250,204,21,0.2)]'
+                    : 'hover:bg-white/[0.04]'
+                }`}
+              >
+                <Icon
+                  className={`w-5 h-5 transition-transform ${
+                    isActive ? 'text-[#FACC15] stroke-[2.2]' : 'stroke-[1.8]'
+                  }`}
+                />
+              </div>
+              <span className="text-[9px] tracking-wider font-extrabold mt-1 uppercase">
+                {item.label}
+              </span>
+            </NavLink>
+          );
+        })}
+      </nav>
 
       {/* User Profile Settings Modal */}
       <ProfileSettingsModal

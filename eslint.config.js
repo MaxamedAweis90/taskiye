@@ -60,5 +60,15 @@ export default tseslint.config(
     rules: {
       'no-empty': 'off',
     },
+  },
+  {
+    files: ['client/public/sw.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: {
+        ...globals.serviceworker,
+        ...globals.browser,
+      },
+    },
   }
 );

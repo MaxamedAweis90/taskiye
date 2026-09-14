@@ -70,12 +70,24 @@ body {
   background-color: var(--canvas-base);
   color: var(--on-surface);
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* iOS Safe Area Helper Utilities */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* Custom Sleek Dark Scrollbar System */
