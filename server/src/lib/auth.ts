@@ -15,8 +15,10 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET || 'taskiye_dev_auth_secret_minimum_32_characters_long',
   baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:5000',
   trustedOrigins: [
-    process.env.CLIENT_URL || 'http://localhost:5173',
+    'http://localhost:5173',
     'http://localhost:5000',
+    'https://taskiye.vercel.app',
+    ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((u) => u.trim()) : []),
   ],
   emailAndPassword: {
     enabled: true,

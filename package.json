@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.js",
+    "start": "pnpm --filter @taskiye/server start",
     "build": "pnpm run build:client && pnpm run build:server",
     "build:client": "pnpm --filter @taskiye/client build",
     "build:server": "pnpm --filter @taskiye/server build",

@@ -15,12 +15,27 @@ dotenv.config({ path: '../.env' });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5000',
+  'https://taskiye.vercel.app',
+  ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((url) => url.trim()) : []),
+];
 
-// 1. CORS Configuration (Allows cookies and sessions from Vite client)
+// 1. CORS Configuration (Allows cookies and sessions from Vite client & Vercel deployments)
 app.use(
   cors({
-    origin: CLIENT_URL,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile, curl, Postman, server-to-server)
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, origin);
+    },
     credentials: true,
   })
 );
