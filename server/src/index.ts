@@ -40,14 +40,24 @@ app.use(
   })
 );
 
-// 2. Mount Better Auth catch-all route BEFORE express.json() to prevent stream locking
+// 2. Ensure Database Connection for Serverless Invocations
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 3. Mount Better Auth catch-all route BEFORE express.json() to prevent stream locking
 app.all('/api/auth/*', toNodeHandler(auth));
 
-// 3. Body parsing for remaining application endpoints
+// 4. Body parsing for remaining application endpoints
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 4. Health Check Endpoint
+// 5. Health Check Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
@@ -56,18 +66,18 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// 5. Feature Routes
+// 6. Feature Routes
 app.use('/api/habits', habitsRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/sync', syncRouter);
 
-// 6. Initialize Database and start Express Listener
+// 7. Initialize Database and start Express Listener (skipped in Vercel serverless)
 async function startServer() {
   await connectDB();
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     app.listen(PORT, () => {
       console.log(`[Taskiye Server] Running on http://localhost:${PORT}`);
     });
