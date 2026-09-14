@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "build": {
+    "commands": [
+      "...",
+      "pnpm --filter @taskiye/server build"
+    ]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @taskiye/server start"
+  }
+}
