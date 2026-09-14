@@ -1,0 +1,48 @@
+{
+  "name": "Taskiye - Daily Habits, Tasks & Heatmap Tracker",
+  "short_name": "Taskiye",
+  "description": "Track your daily habits, checklist tasks, and consistency streaks offline and in the cloud.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0A0F1D",
+  "background_color": "#070B14",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's Checklist",
+      "short_name": "Checklist",
+      "description": "View and manage today's daily checklist tasks",
+      "url": "/",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Habit Tracker",
+      "short_name": "Habits",
+      "description": "View your routines, streaks, and habits",
+      "url": "/habits",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}

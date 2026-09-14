@@ -24,3 +24,18 @@ if (rootElement) {
     </React.StrictMode>
   );
 }
+
+// Register PWA Service Worker for offline capability in production
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        console.log('[Taskiye PWA] Service Worker active, scope:', reg.scope);
+      })
+      .catch((err) => {
+        console.warn('[Taskiye PWA] Service Worker registration failed:', err);
+      });
+  });
+}
+
