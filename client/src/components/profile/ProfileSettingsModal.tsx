@@ -392,9 +392,9 @@ function compressAvatarImage(file: File): Promise<Blob> {
   const isSaveDisabled = !hasChanges || isSaving || !name.trim();
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom,0px))] animate-in fade-in duration-200">
       {/* Top Bar with Duolingo-style top-left X button */}
-      <div className="w-full flex items-center justify-between p-6 sm:px-10">
+      <div className="w-full flex items-center justify-between p-6 sm:px-10 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <button
           type="button"
           onClick={handleAttemptClose}

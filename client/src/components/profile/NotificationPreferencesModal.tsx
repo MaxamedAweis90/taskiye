@@ -163,7 +163,7 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
   return (
     <div className="fixed inset-0 z-50 bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-y-auto animate-in fade-in duration-200">
       {/* Top Bar matching ProfileSettingsModal */}
-      <div className="w-full flex items-center justify-between p-6 sm:px-10">
+      <div className="w-full flex items-center justify-between p-6 sm:px-10 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <button
           type="button"
           onClick={onClose}
@@ -345,7 +345,7 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       </div>
 
       {/* Bottom Sticky Action Bar matching ProfileSettingsModal */}
-      <div className="w-full border-t border-white/[0.08] p-4 sm:p-6 bg-[#0B132B]/80 backdrop-blur-xl">
+      <div className="w-full border-t border-white/[0.08] p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-[#0B132B]/80 backdrop-blur-xl">
         <div className="w-full max-w-md mx-auto flex items-center justify-between gap-4">
           <button
             type="button"

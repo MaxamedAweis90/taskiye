@@ -431,8 +431,8 @@ export const AppLayout: React.FC = () => {
 
       {/* 2. Right Side: Topbar + Main Elevated Workspace */}
       <div className="flex-1 flex flex-col min-w-0 w-full max-w-full h-full overflow-hidden">
-        {/* Topbar - Harmonized padding aligning searchbar with main workspace content */}
-        <header className="relative h-16 sm:h-20 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-50 w-full max-w-full">
+        {/* Topbar - Respects iOS notch/status bar with safe-area-inset-top */}
+        <header className="relative h-[calc(4rem+env(safe-area-inset-top,0px))] sm:h-20 pt-[env(safe-area-inset-top,0px)] sm:pt-0 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-50 w-full max-w-full">
           {/* Mobile Brand Logo (< md) */}
           <div className="flex md:hidden items-center gap-2 shrink-0">
             <NavLink to="/" className="flex items-center gap-2 group">
@@ -525,7 +525,7 @@ export const AppLayout: React.FC = () => {
                 }
                 className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'streak'
-                    ? 'fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
                     : `hidden sm:flex absolute left-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         isTaskDoneToday
                           ? 'bg-[#151D33] border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400/70'
@@ -736,7 +736,7 @@ export const AppLayout: React.FC = () => {
                 }
                 className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'notifications'
-                    ? 'fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
                     : 'hidden sm:flex absolute right-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none bg-[#10192D] border-white/[0.08] hover:border-white/[0.2] transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)]'
                 }`}
               >
@@ -939,7 +939,7 @@ export const AppLayout: React.FC = () => {
                     }
                     className={`bg-[#10192D]/98 backdrop-blur-xl border transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                       activeDropdown === 'profile'
-                        ? 'fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                        ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
                         : 'absolute right-0 top-0 w-full h-10 rounded-full border-white/[0.08] hover:border-white/[0.2] shadow-sm px-4 flex items-center justify-between hover:bg-[#141F33]'
                     }`}
                   >
