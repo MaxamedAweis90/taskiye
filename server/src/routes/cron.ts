@@ -27,10 +27,19 @@ router.get('/reminders', async (req: Request, res: Response) => {
   try {
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = req.headers.authorization;
+    const queryKey = (req.query.key as string | undefined) || (req.query.secret as string | undefined);
+    const customHeader = req.headers['x-cron-secret'];
 
     // Secure endpoint when CRON_SECRET is configured in production
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return sendError(res, 'Unauthorized cron invocation', 401);
+    if (cronSecret) {
+      const isAuthorized =
+        authHeader === `Bearer ${cronSecret}` ||
+        queryKey === cronSecret ||
+        customHeader === cronSecret;
+
+      if (!isAuthorized) {
+        return sendError(res, 'Unauthorized cron invocation', 401);
+      }
     }
 
     const subscriptions = await PushSubscription.find({});
