@@ -9,6 +9,8 @@ import tasksRouter from './routes/tasks.js';
 import goalsRouter from './routes/goals.js';
 import usersRouter from './routes/users.js';
 import syncRouter from './routes/sync.js';
+import notificationsRouter from './routes/notifications.js';
+import cronRouter from './routes/cron.js';
 
 dotenv.config();
 dotenv.config({ path: '../.env' });
@@ -72,6 +74,8 @@ app.use('/api/tasks', tasksRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/sync', syncRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/cron', cronRouter);
 
 // 7. Initialize Database and start Express Listener (skipped in Vercel serverless)
 async function startServer() {

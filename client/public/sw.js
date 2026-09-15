@@ -128,3 +128,60 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// 4. Push Event - Display incoming native OS push notifications
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'Taskiye Alert',
+    body: 'You have a new update in Taskiye.',
+    icon: '/logo.png',
+    badge: '/logo.png',
+    data: { url: '/' },
+  };
+
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || '/logo.png',
+    badge: data.badge || '/logo.png',
+    tag: data.tag || 'taskiye-notification',
+    renotify: true,
+    data: data.data || { url: '/' },
+    vibrate: [100, 50, 100],
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+// 5. Notification Click Event - Focus or navigate to target route
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a window is already open, focus it and navigate
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client && client.url !== targetUrl) {
+            client.navigate(targetUrl);
+          }
+          return;
+        }
+      }
+      // If no window is open, open a new browser window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

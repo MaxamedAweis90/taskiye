@@ -14,10 +14,6 @@ import {
   MessageSquare,
   ChevronDown,
   Moon,
-  ShieldCheck,
-  Keyboard,
-  ArrowLeftRight,
-  Sliders,
   Flame,
   Check,
   Snowflake,
@@ -29,6 +25,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
 import { useTaskiyeStore, GUEST_ITEM_LIMIT } from '../../store/useTaskiyeStore';
 import { ProfileSettingsModal } from '../profile/ProfileSettingsModal';
+import { NotificationPreferencesModal } from '../profile/NotificationPreferencesModal';
+import { PwaInstallOnboarding } from '../pwa/PwaInstallOnboarding';
 import { useMidnightRollover } from '../../hooks/useMidnightRollover';
 
 interface NavItem {
@@ -141,6 +139,7 @@ export const AppLayout: React.FC = () => {
     'streak' | 'notifications' | 'profile' | null
   >(null);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
   const pillMeasureRef = useRef<HTMLDivElement>(null);
   const [pillWidth, setPillWidth] = useState<number>(215);
@@ -1025,7 +1024,7 @@ export const AppLayout: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Section 1 */}
+                      {/* Section 1: Main Profile Actions */}
                       <div className="flex flex-col gap-0.5">
                         <button
                           type="button"
@@ -1063,7 +1062,10 @@ export const AppLayout: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => setActiveDropdown(null)}
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            setIsNotificationModalOpen(true);
+                          }}
                           className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
                         >
                           <div className="flex items-center gap-2.5">
@@ -1071,26 +1073,12 @@ export const AppLayout: React.FC = () => {
                             <span>Notification Preferences</span>
                           </div>
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdown(null);
-                            navigate('/habits');
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Sliders className="w-4 h-4 text-slate-400" />
-                            <span>Habit & Goal Cadence</span>
-                          </div>
-                        </button>
                       </div>
 
                       {/* Divider */}
                       <div className="border-t border-white/[0.06]" />
 
-                      {/* Section 2 */}
+                      {/* Section 2: Appearance & Preferences */}
                       <div className="flex flex-col gap-0.5">
                         <button
                           type="button"
@@ -1103,51 +1091,13 @@ export const AppLayout: React.FC = () => {
                           </div>
                           <span className="text-xs font-semibold text-amber-400">Dark Slate</span>
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setActiveDropdown(null)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <ShieldCheck className="w-4 h-4 text-slate-400" />
-                            <span>Immutable Backup</span>
-                          </div>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setActiveDropdown(null)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Keyboard className="w-4 h-4 text-slate-400" />
-                            <span>Shortcuts</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
-                            ?
-                          </span>
-                        </button>
                       </div>
 
                       {/* Divider */}
                       <div className="border-t border-white/[0.06]" />
 
-                      {/* Section 3 */}
+                      {/* Section 3: Session Actions */}
                       <div className="flex flex-col gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setActiveDropdown(null)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-                            <span>Switch Workspace</span>
-                          </div>
-                          <span className="text-xs font-medium text-slate-400">Personal</span>
-                        </button>
-
                         <button
                           type="button"
                           onClick={() => {
@@ -1221,6 +1171,15 @@ export const AppLayout: React.FC = () => {
         isOpen={isProfileSettingsOpen}
         onClose={() => setIsProfileSettingsOpen(false)}
       />
+
+      {/* Notification Preferences Modal */}
+      <NotificationPreferencesModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+      />
+
+      {/* Smart Mobile PWA Installation Onboarding */}
+      <PwaInstallOnboarding />
     </div>
   );
 };
