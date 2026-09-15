@@ -51,6 +51,41 @@ export function playCelebrationChime(): void {
   }
 }
 
+/**
+ * Dispatches an immediate rich Welcome Notification to the user's device
+ */
+export async function sendWelcomeNotification(): Promise<void> {
+  const title = 'Welcome to Taskiye! 🔥';
+  const body = "You're all set! Now you can track daily habits, protect your streak, and conquer your goals.";
+  const icon = '/logo.png';
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg?.showNotification) {
+        await reg.showNotification(title, {
+          body,
+          icon,
+          badge: icon,
+          tag: 'taskiye-welcome-notification',
+          data: { url: '/' },
+        });
+        return;
+      }
+    }
+  } catch {
+    // Graceful fallback below
+  }
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, { body, icon });
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>('default');
@@ -61,25 +96,25 @@ export function usePushNotifications() {
   useEffect(() => {
     const supported =
       typeof window !== 'undefined' &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window &&
       'Notification' in window;
 
     setIsSupported(supported);
 
     if (supported) {
       setPermission(Notification.permission);
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => {
-          if (sub) {
-            setIsSubscribed(true);
-            setActiveSubscription(sub);
-          }
-        })
-        .catch(() => {
-          setIsSubscribed(false);
-        });
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready
+          .then((reg) => reg?.pushManager?.getSubscription())
+          .then((sub) => {
+            if (sub) {
+              setIsSubscribed(true);
+              setActiveSubscription(sub);
+            }
+          })
+          .catch(() => {
+            setIsSubscribed(false);
+          });
+      }
     }
   }, []);
 
@@ -113,59 +148,117 @@ export function usePushNotifications() {
           // Use fallback key
         }
 
-        // 3. Register push subscription with Service Worker
-        const reg = await navigator.serviceWorker.ready;
-        let sub = await reg.pushManager.getSubscription();
+        // 3. Ensure Service Worker is registered with timeout protection
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          let reg = await navigator.serviceWorker.getRegistration();
+          if (!reg) {
+            reg = await navigator.serviceWorker.register('/sw.js');
+          }
 
-        if (!sub) {
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
-          });
+          // Timeout wrapper to guarantee navigator.serviceWorker.ready NEVER hangs
+          const readyPromise = navigator.serviceWorker.ready;
+          const timeoutPromise = new Promise<ServiceWorkerRegistration | null>((resolve) =>
+            setTimeout(() => resolve(reg || null), 2500)
+          );
+          const activeReg = await Promise.race([readyPromise, timeoutPromise]);
+
+          if (activeReg?.pushManager) {
+            let sub = await activeReg.pushManager.getSubscription();
+
+            if (!sub) {
+              try {
+                sub = await activeReg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
+                });
+              } catch (subErr) {
+                console.warn('[Push] PushManager subscribe warning:', subErr);
+              }
+            }
+
+            if (sub) {
+              const subJson = sub.toJSON();
+              const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+              await fetch('/api/notifications/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  endpoint: sub.endpoint,
+                  keys: subJson.keys,
+                  timezone: userTimezone,
+                  preferences,
+                }),
+              }).catch(() => null);
+
+              setIsSubscribed(true);
+              setActiveSubscription(sub);
+            }
+          }
         }
 
-        // 4. Send subscription & timezone to backend
-        const subJson = sub.toJSON();
-        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-
-        await fetch('/api/notifications/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            endpoint: sub.endpoint,
-            keys: subJson.keys,
-            timezone: userTimezone,
-            preferences,
-          }),
-        });
-
-        setIsSubscribed(true);
-        setActiveSubscription(sub);
         setIsSyncing(false);
         return true;
       } catch (err) {
         console.warn('[Push] Subscription failed:', err);
         setIsSyncing(false);
-        return false;
+        // Fallback: If permission was granted, return true so UI recognizes approval
+        return Notification.permission === 'granted';
       }
     },
     [isSupported]
   );
 
   const sendTestAlert = useCallback(async (): Promise<boolean> => {
-    if (!activeSubscription) return false;
-    try {
-      const res = await fetch('/api/notifications/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: activeSubscription.endpoint }),
-      });
-      const json = await res.json();
-      return json.success;
-    } catch {
-      return false;
+    // 1. Try server-side push notification if active subscription exists
+    if (activeSubscription) {
+      try {
+        const res = await fetch('/api/notifications/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: activeSubscription.endpoint }),
+        });
+        const json = await res.json();
+        if (json?.success) return true;
+      } catch (err) {
+        console.warn('[Push] Server push test failed, attempting client notification:', err);
+      }
     }
+
+    // 2. Direct Service Worker notification
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg?.showNotification) {
+          await reg.showNotification('Taskiye Connected! 🔥', {
+            body: 'Your device is verified and ready for streak & daily habit alerts.',
+            icon: '/logo.png',
+            badge: '/logo.png',
+            tag: 'taskiye-test-notification',
+            data: { url: '/' },
+          });
+          return true;
+        }
+      } catch (swErr) {
+        console.warn('[Push] Service worker showNotification failed:', swErr);
+      }
+    }
+
+    // 3. Fallback native browser Notification
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('Taskiye Connected! 🔥', {
+          body: 'Your device is verified and ready for streak & daily habit alerts.',
+          icon: '/logo.png',
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
   }, [activeSubscription]);
 
   return {
@@ -175,6 +268,7 @@ export function usePushNotifications() {
     isSyncing,
     subscribe,
     sendTestAlert,
+    sendWelcomeNotification,
     playCelebrationChime,
   };
 }

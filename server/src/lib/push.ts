@@ -1,14 +1,19 @@
 import webpush from 'web-push';
 import { PushSubscription, IPushSubscription } from '../models/PushSubscription.js';
 
-// Standard VAPID configuration with production env overrides
-const VAPID_PUBLIC_KEY =
-  process.env.VAPID_PUBLIC_KEY ||
-  process.env.VITE_VAPID_PUBLIC_KEY ||
-  'BN8p6E37W3QeE_7fL3JqJ1Yc0Y4k1nB3A5_h8Z3z8b4J5X7g8V4p2_X6w0P1o9E4t3_x7Y1n8m5K4p2_X6w0P1o';
+// Standard VAPID configuration with auto-generated fallback
+let activeVapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '',
+  privateKey: process.env.VAPID_PRIVATE_KEY || '',
+};
 
-const VAPID_PRIVATE_KEY =
-  process.env.VAPID_PRIVATE_KEY || 'k7_Y1n8m5K4p2X6w0P1o9E4t3x7Y1n8m5K4p2X6w0P0';
+if (!activeVapidKeys.publicKey || !activeVapidKeys.privateKey) {
+  try {
+    activeVapidKeys = webpush.generateVAPIDKeys();
+  } catch (err) {
+    console.warn('[WebPush] Default VAPID key generation warning:', err);
+  }
+}
 
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@taskiye.com';
 
@@ -17,8 +22,8 @@ let isConfigured = false;
 export function configureWebPush(): boolean {
   if (isConfigured) return true;
   try {
-    if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-      webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    if (activeVapidKeys.publicKey && activeVapidKeys.privateKey) {
+      webpush.setVapidDetails(VAPID_SUBJECT, activeVapidKeys.publicKey, activeVapidKeys.privateKey);
       isConfigured = true;
       return true;
     }
@@ -26,6 +31,10 @@ export function configureWebPush(): boolean {
     console.warn('[WebPush] VAPID initialization warning:', err);
   }
   return false;
+}
+
+export function getVapidPublicKey(): string {
+  return activeVapidKeys.publicKey;
 }
 
 export interface PushNotificationPayload {
@@ -79,4 +88,4 @@ export async function sendPushNotification(
   }
 }
 
-export { VAPID_PUBLIC_KEY };
+export const VAPID_PUBLIC_KEY = activeVapidKeys.publicKey;

@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { PushSubscription } from '../models/PushSubscription.js';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
-import { sendPushNotification, VAPID_PUBLIC_KEY, configureWebPush } from '../lib/push.js';
+import { sendPushNotification, getVapidPublicKey, configureWebPush } from '../lib/push.js';
 
 const router = Router();
 
@@ -14,7 +14,7 @@ configureWebPush();
  * Returns the public key required for the browser to subscribe via PushManager
  */
 router.get('/vapid-public-key', (_req, res: Response) => {
-  return sendSuccess(res, { publicKey: VAPID_PUBLIC_KEY });
+  return sendSuccess(res, { publicKey: getVapidPublicKey() });
 });
 
 /**

@@ -27,6 +27,7 @@ import { useTaskiyeStore, GUEST_ITEM_LIMIT } from '../../store/useTaskiyeStore';
 import { ProfileSettingsModal } from '../profile/ProfileSettingsModal';
 import { NotificationPreferencesModal } from '../profile/NotificationPreferencesModal';
 import { PwaInstallOnboarding } from '../pwa/PwaInstallOnboarding';
+import { PwaPermissionPrompt } from '../pwa/PwaPermissionPrompt';
 import { useMidnightRollover } from '../../hooks/useMidnightRollover';
 
 interface NavItem {
@@ -1180,6 +1181,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Smart Mobile PWA Installation Onboarding */}
       <PwaInstallOnboarding />
+
+      {/* Post-Install Native Notification Permission Onboarding */}
+      <PwaPermissionPrompt />
     </div>
   );
 };

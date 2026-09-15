@@ -25,8 +25,8 @@ if (rootElement) {
   );
 }
 
-// Register PWA Service Worker for offline capability in production
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// Register PWA Service Worker for offline capability and push notifications
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
