@@ -234,16 +234,18 @@ export const AppLayout: React.FC = () => {
   }, [isTaskDoneToday, effectiveBaseStreak]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (controlsRef.current && !controlsRef.current.contains(event.target as Node)) {
         setActiveDropdown(null);
       }
     };
     if (activeDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [activeDropdown]);
 
@@ -431,7 +433,7 @@ export const AppLayout: React.FC = () => {
       {/* 2. Right Side: Topbar + Main Elevated Workspace */}
       <div className="flex-1 flex flex-col min-w-0 w-full max-w-full h-full overflow-hidden">
         {/* Topbar - Harmonized padding aligning searchbar with main workspace content */}
-        <header className="h-16 sm:h-20 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-30 w-full max-w-full">
+        <header className="relative h-16 sm:h-20 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-50 w-full max-w-full">
           {/* Mobile Brand Logo (< md) */}
           <div className="flex md:hidden items-center gap-2 shrink-0">
             <NavLink to="/" className="flex items-center gap-2 group">
@@ -907,16 +909,16 @@ export const AppLayout: React.FC = () => {
                 <div
                   className={`relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 ${
                     activeDropdown === 'profile'
-                      ? isMobile ? 'contents' : 'block'
+                      ? isMobile ? 'static' : 'block'
                       : 'hidden sm:block'
                   }`}
                   style={{
                     width: isMobile
-                      ? undefined
+                      ? 0
                       : activeDropdown === 'profile'
                         ? 320
                         : pillWidth,
-                    height: isMobile ? undefined : 40,
+                    height: isMobile ? 0 : 40,
                   }}
                 >
                   {/* Offscreen invisible element to accurately track natural pill width */}
@@ -1177,14 +1179,6 @@ export const AppLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
-
-      {/* Invisible click-outside backdrop for open dropdowns without blur */}
-      {activeDropdown && (
-        <div
-          className="fixed inset-0 z-40 bg-transparent cursor-pointer"
-          onClick={() => setActiveDropdown(null)}
-        />
-      )}
 
       {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
       <nav className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B132B]/95 backdrop-blur-xl border-t border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none">
