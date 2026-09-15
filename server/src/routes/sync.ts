@@ -4,6 +4,9 @@ import { Habit } from '../models/Habit.js';
 import { Task } from '../models/Task.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { PushSubscription } from '../models/PushSubscription.js';
+import { sendPushNotification } from '../lib/push.js';
+import { renderTemplate, pickRandomTemplate, GUEST_MIGRATION_TEMPLATES } from '../lib/notificationTemplates.js';
 
 const router = Router();
 
@@ -150,6 +153,26 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           existingTask.habitId = new Types.ObjectId(resolvedHabitId);
         }
         await existingTask.save();
+      }
+    }
+
+    // Send account migration push notification if items were migrated
+    if (createdHabits.length > 0 || createdTasks.length > 0) {
+      try {
+        const sub = await PushSubscription.findOne({ userId });
+        if (sub) {
+          const firstName = req.user?.name?.trim()?.split(' ')[0] || req.user?.username || 'Champion';
+          const copy = renderTemplate(pickRandomTemplate(GUEST_MIGRATION_TEMPLATES), { firstName });
+          sendPushNotification(sub, {
+            title: copy.title,
+            body: copy.body,
+            icon: '/logo.png',
+            tag: `migration-welcome-${userId}`,
+            data: { url: '/' },
+          }).catch(() => null);
+        }
+      } catch (notifErr) {
+        console.warn('[Sync] Migration notification warning:', notifErr);
       }
     }
 
