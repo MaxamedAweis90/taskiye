@@ -249,28 +249,28 @@ export const TrashModal: React.FC = () => {
   const currentFolderCount = activeTab === 'tasks' ? trashedTasks.length : trashedHabits.length;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-hidden animate-in fade-in duration-200">
-      {/* Top Bar with Profile Settings style top-left X button */}
-      <div className="w-full flex items-center justify-between px-4 sm:px-10 py-3.5 sm:py-4 border-b border-white/[0.08] bg-[#080E1E]/80 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-2.5 sm:gap-4">
+    <div className="fixed inset-0 z-[10000] bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-hidden pb-[env(safe-area-inset-bottom,0px)] animate-in fade-in duration-200">
+      {/* Top Bar with Profile Settings style top-left X button and iOS notch/island safe area */}
+      <div className="w-full flex items-center justify-between px-4 sm:px-10 pt-[calc(0.875rem+env(safe-area-inset-top,0px))] pb-3.5 sm:py-4 border-b border-white/[0.08] bg-[#080E1E]/95 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
           <button
             type="button"
             onClick={() => setIsTrashOpen(false)}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer shrink-0"
             title="Close Trash"
           >
             <X className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
           </button>
 
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.15)] shrink-0">
               <Trash2 className="w-4 h-4 stroke-[2.2]" />
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5 sm:gap-2">
-                <span className="hidden xs:inline">Taskiye Drive</span>
-                <span className="hidden xs:inline text-slate-600">/</span>
-                <span className="text-slate-200 font-bold">Trash & Recovery</span>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5 sm:gap-2 truncate">
+                <span className="hidden sm:inline">Taskiye Drive</span>
+                <span className="hidden sm:inline text-slate-600">/</span>
+                <span className="text-slate-200 font-bold truncate">Trash & Recovery</span>
               </div>
             </div>
           </div>
