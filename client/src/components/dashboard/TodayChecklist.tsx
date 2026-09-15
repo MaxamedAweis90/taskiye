@@ -118,9 +118,14 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   const [itemToDelete, setItemToDelete] = useState<ChecklistItem | null>(null);
   const [swipingOutTaskId, setSwipingOutTaskId] = useState<string | null>(null);
 
-  // Drag to reorder state
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+
+  // Collapsible completed section state
+  const [isCompletedOpen, setIsCompletedOpen] = useState(false);
+
+  // Grace period IDs during completion check animation to prevent sudden jumps
+  const [completingIds, setCompletingIds] = useState<Record<string, boolean>>({});
 
   // Expandable item state for mobile and desktop reading
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -203,11 +208,32 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
         : item?.isCompleted ?? false;
     const nextCompleted = !currentlyCompleted;
 
-    // Flip immediately in UI
+    // Flip immediately in UI for instant 0ms tactile feedback
     setOptimisticOverrides((prev) => ({
       ...prev,
       [id]: nextCompleted,
     }));
+
+    if (nextCompleted) {
+      // Keep in active list for 350ms with completed checkmark so user sees completion before moving
+      setCompletingIds((prev) => ({ ...prev, [id]: true }));
+      setTimeout(() => {
+        setCompletingIds((prev) => {
+          if (!prev[id]) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }, 350);
+    } else {
+      // If unchecking, return to active immediately without delay
+      setCompletingIds((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
 
     onToggle(id);
   };
@@ -263,11 +289,21 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
     setDragOverItemId(null);
   };
 
-  const filteredItems = localItems.filter((item) => {
+  // Active and Completed partitioning
+  const activeItems = localItems.filter((item) => {
+    if (filterMode === 'completed') return false;
+    if (filterMode === 'active') return !isItemCompleted(item);
     const completed = isItemCompleted(item);
-    if (filterMode === 'active') return !completed;
-    if (filterMode === 'completed') return completed;
-    return true;
+    const isGracePeriod = Boolean(completingIds[item.id]);
+    return !completed || isGracePeriod;
+  });
+
+  const completedItems = localItems.filter((item) => {
+    if (filterMode === 'active') return false;
+    if (filterMode === 'completed') return isItemCompleted(item);
+    const completed = isItemCompleted(item);
+    const isGracePeriod = Boolean(completingIds[item.id]);
+    return completed && !isGracePeriod;
   });
 
   const getCategoryBadgeClass = (category?: string) => {
@@ -285,6 +321,355 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
       return 'bg-blue-500/15 border-blue-500/30 text-blue-300';
     }
     return 'bg-slate-700/40 border-slate-600/40 text-slate-300';
+  };
+
+  const renderItemRow = (item: ChecklistItem) => {
+    const isCreating = creatingTaskId === item.id;
+    const isUpdating = updatingTaskId === item.id;
+    const isHighlighted = highlightedTaskId === item.id;
+    const isCompleted = isItemCompleted(item);
+
+    const isHabit = Boolean(item.isHabitInstance);
+    const isSwipingOut = swipingOutTaskId === item.id;
+    const isDragging = draggedItemId === item.id;
+    const isDragOver = dragOverItemId === item.id;
+    const isExpanded = expandedItemId === item.id;
+
+    return (
+      <div
+        key={item.id}
+        id={`task-item-${item.id}`}
+        draggable
+        onDragStart={(e) => handleDragStart(e, item.id)}
+        onDragOver={(e) => handleDragOver(e, item.id)}
+        onDrop={(e) => handleDrop(e, item.id)}
+        onDragEnd={handleDragEnd}
+        className={`group rounded-2xl transition-all duration-300 relative overflow-hidden flex flex-col w-full min-w-0 ${
+          isDragging
+            ? 'opacity-40 scale-[0.98] border-dashed border-amber-400/80 bg-[#162238]'
+            : isDragOver
+            ? 'border-2 border-amber-400 bg-amber-400/10 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+            : isSwipingOut
+            ? 'animate-task-swipe-left z-20'
+            : isCompleted
+            ? 'opacity-75'
+            : ''
+        } ${
+          isCreating
+            ? 'bg-[#111A2E] border border-amber-400/80 shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
+            : isUpdating
+            ? 'blur-[2px] opacity-40 scale-[0.99] border border-amber-400/40 pointer-events-none'
+            : isHighlighted
+            ? 'bg-[#111A2E] border border-amber-400/50 shadow-[0_0_14px_rgba(250,204,21,0.15)]'
+            : isHabit
+            ? 'bg-[#121a30] hover:bg-[#16223e] border border-violet-500/25 hover:border-violet-500/40 shadow-[0_2px_12px_rgba(139,92,246,0.06)]'
+            : 'bg-[#111A2E] hover:bg-[#15223C] border border-white/[0.06] hover:border-white/[0.12]'
+        }`}
+      >
+        {/* Left Accent Indicator Bar */}
+        <div
+          className={`absolute left-0 top-0 bottom-0 rounded-l-2xl transition-all duration-300 ${
+            isHabit
+              ? 'w-1 bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]'
+              : item.priority === 'high'
+              ? 'w-1 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+              : isCreating
+              ? 'w-1.5 bg-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.7)]'
+              : isHighlighted
+              ? 'w-1.5 bg-amber-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
+              : 'w-1 bg-amber-400/80'
+          }`}
+        />
+
+        {/* Creation luminous gradient tint overlay */}
+        {isCreating && (
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-400/[0.07] via-amber-400/[0.02] to-transparent pointer-events-none" />
+        )}
+        {/* Loading overlay when updating */}
+        {isUpdating && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-[1px] rounded-2xl z-10 pointer-events-none">
+            <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Main Row */}
+        <div
+          onClick={() => setExpandedItemId((prev) => (prev === item.id ? null : item.id))}
+          className="p-2.5 sm:p-3 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 cursor-pointer w-full select-none min-w-0"
+        >
+          {/* Left: Drag Handle, Checkbox, Type Badge & Title */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div
+              className="hidden sm:block text-slate-600 group-hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors shrink-0 p-1 -ml-1 rounded hover:bg-white/[0.04]"
+              title="Drag to reorder"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+
+            {/* Distinct Checkbox: Circular for Habits, Squircle for Tasks */}
+            <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+              {isCreating ? (
+                <div className="w-6 h-6 rounded-lg border border-amber-400/60 bg-amber-400/20 flex items-center justify-center shrink-0">
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                </div>
+              ) : isHabit ? (
+                <button
+                  type="button"
+                  onClick={() => handleToggle(item.id)}
+                  title={isCompleted ? 'Mark habit as pending today' : 'Mark habit as completed today'}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-100 cursor-pointer ${
+                    isCompleted
+                      ? 'bg-gradient-to-tr from-violet-500 to-indigo-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.5)] scale-100'
+                      : 'border-2 border-violet-400/50 hover:border-violet-400 bg-violet-500/5 hover:bg-violet-500/15'
+                  }`}
+                >
+                  {isCompleted && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleToggle(item.id)}
+                  title={isCompleted ? 'Mark task as incomplete' : 'Mark task as complete'}
+                  className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all duration-75 cursor-pointer ${
+                    isCompleted
+                      ? 'bg-[#FACC15] text-slate-950 shadow-[0_0_14px_rgba(250,204,21,0.45)]'
+                      : item.priority === 'high'
+                      ? 'border border-amber-400/50 hover:border-amber-400 bg-transparent'
+                      : 'border border-slate-600 hover:border-amber-400/70 bg-transparent'
+                  }`}
+                >
+                  {isCompleted && <Check className="w-4 h-4 stroke-[3]" />}
+                </button>
+              )}
+            </div>
+
+            {/* Type Badge: Habit vs Task */}
+            {isHabit ? (
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 border border-violet-500/30 text-violet-300 shadow-[0_0_8px_rgba(167,139,250,0.12)]">
+                  <Sparkles className="w-2.5 h-2.5 text-violet-400" />
+                  Habit
+                </span>
+
+                {item.isStreakFrozen ? (
+                  <span
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-1.5 sm:px-2 py-0.5 rounded-full"
+                    title="Streak Frozen (Vacation Mode)"
+                  >
+                    <span>❄️</span>
+                    <span className="hidden xs:inline">{item.streakDays ?? 0}d</span>
+                  </span>
+                ) : typeof item.streakDays === 'number' && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 sm:px-2 py-0.5 rounded-full"
+                    title={`Active Streak: ${item.streakDays} days`}
+                  >
+                    <span>🔥</span>
+                    <span>{item.streakDays}d</span>
+                  </span>
+                )}
+
+                {!isCompleted && item.warnings === 1 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
+                    title="Missed 1 day! Streak is frozen. Complete today to clear warning."
+                  >
+                    <span>⚠️</span>
+                    <span className="hidden xs:inline">At risk</span>
+                  </span>
+                )}
+
+                {!isCompleted && item.warnings === 2 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-300 bg-rose-500/20 border border-rose-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
+                    title="Missed 2 days! Final notice before streak resets to 0. Complete today to save streak!"
+                  >
+                    <span>🚨</span>
+                    <span className="hidden xs:inline">Imminent</span>
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-300 shrink-0">
+                Task
+              </span>
+            )}
+
+            {/* Title with Typewriter and High Priority Badge */}
+            <div className="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 flex-1">
+              <TypewriterTitle
+                text={item.title}
+                isWriting={isCreating}
+                onFinish={() => onCreationAnimationComplete?.(item.id)}
+                className={`text-sm select-none transition-colors duration-75 truncate ${
+                  isCompleted
+                    ? 'line-through text-slate-400 font-normal'
+                    : isCreating
+                    ? 'text-amber-200 font-bold'
+                    : isHabit
+                    ? 'text-slate-100 font-semibold'
+                    : 'text-slate-100 font-medium'
+                }`}
+              />
+
+              {isCreating && (
+                <span className="bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse shrink-0">
+                  Writing...
+                </span>
+              )}
+
+              {item.priority === 'high' && !isCompleted && !isCreating && (
+                <span className="bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0">
+                  HIGH
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Category Badge, Time Tag, Actions (Desktop), and Expand Chevron */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <span
+              className={`text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 rounded-full border hidden sm:inline-block ${getCategoryBadgeClass(
+                item.category
+              )}`}
+            >
+              {item.category}
+            </span>
+
+            {item.timeTag && (
+              <span className="text-xs text-slate-400 font-medium min-w-[55px] text-right hidden sm:inline-block">
+                {item.timeTag}
+              </span>
+            )}
+
+            {/* Desktop Actions: Habit retains Habit Manager link; Tasks have Edit and Delete buttons */}
+            {isHabit ? (
+              <div className="hidden sm:flex items-center border-l border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
+                <Link
+                  to="/habits"
+                  title="Habits are managed in the Habit Manager. Click to view or edit in Habit Manager."
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-violet-300 hover:bg-violet-500/10 border border-white/[0.05] hover:border-violet-500/30 transition-all cursor-pointer group/habit"
+                >
+                  <Repeat className="w-3.5 h-3.5 text-violet-400 group-hover/habit:rotate-180 transition-transform duration-300" />
+                  <span className="hidden md:inline">Habits</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1 border-l border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit?.(item);
+                  }}
+                  title="Edit task"
+                  aria-label={`Edit ${item.title}`}
+                  className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemToDelete(item);
+                  }}
+                  title="Remove task"
+                  aria-label={`Remove ${item.title}`}
+                  className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Expand/Collapse Chevron Indicator - Always visible on task/habit for both mobile and desktop */}
+            <div className="p-1 text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+              <ChevronDown
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 ${
+                  isExpanded ? 'rotate-180 text-amber-400' : ''
+                }`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Expandable Content Drawer (revealed on tap/click) */}
+        {isExpanded && (
+          <div className="px-3.5 sm:px-5 pb-3.5 pt-2 border-t border-white/[0.06] bg-[#0A1124]/75 flex flex-col gap-2.5 animate-in slide-in-from-top-2 duration-150">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                {isHabit ? 'Routine & Commitment:' : 'Full Task Content:'}
+              </span>
+              <p className="text-sm font-semibold text-white whitespace-normal leading-relaxed break-words select-text">
+                {item.title}
+              </p>
+            </div>
+
+            {/* Detail Badges */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full border ${getCategoryBadgeClass(item.category)}`}>
+                📁 {item.category}
+              </span>
+              {item.priority === 'high' && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  🚨 High Priority
+                </span>
+              )}
+              {item.timeTag && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span>{item.timeTag}</span>
+                </span>
+              )}
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-400/15 text-amber-300 border border-amber-400/30'}`}>
+                {isCompleted ? '✓ Completed Today' : '⏳ Pending Today'}
+              </span>
+            </div>
+
+            {/* Drawer Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
+              {isHabit ? (
+                <Link
+                  to="/habits"
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-violet-300 bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Repeat className="w-3.5 h-3.5" />
+                  <span>Manage in Habit Library</span>
+                </Link>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit?.(item);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Edit Task</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setItemToDelete(item);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Move to Trash</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -367,357 +752,60 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
         </div>
       </div>
 
-      {/* Checklist Items */}
-      <div className="flex flex-col gap-2.5 overflow-hidden">
-        {filteredItems.length === 0 ? (
+      {/* Active Checklist Items */}
+      <div className="flex flex-col gap-2.5 overflow-hidden transition-all duration-300">
+        {filterMode === 'completed' ? null : activeItems.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
-            No items in this view. Use the Quick Action widget to add one!
+            {completedItems.length > 0
+              ? '✨ All tasks and habits completed for today! Awesome job!'
+              : 'No items in this view. Use the Quick Action widget to add one!'}
           </div>
         ) : (
-          filteredItems.map((item) => {
-            const isCreating = creatingTaskId === item.id;
-            const isUpdating = updatingTaskId === item.id;
-            const isHighlighted = highlightedTaskId === item.id;
-            const isCompleted = isItemCompleted(item);
+          activeItems.map(renderItemRow)
+        )}
+      </div>
 
-            const isHabit = Boolean(item.isHabitInstance);
-            const isSwipingOut = swipingOutTaskId === item.id;
-            const isDragging = draggedItemId === item.id;
-            const isDragOver = dragOverItemId === item.id;
-            const isExpanded = expandedItemId === item.id;
-
-            return (
-              <div
-                key={item.id}
-                id={`task-item-${item.id}`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, item.id)}
-                onDragOver={(e) => handleDragOver(e, item.id)}
-                onDrop={(e) => handleDrop(e, item.id)}
-                onDragEnd={handleDragEnd}
-                className={`group rounded-2xl transition-all duration-200 relative overflow-hidden flex flex-col w-full min-w-0 ${
-                  isDragging
-                    ? 'opacity-40 scale-[0.98] border-dashed border-amber-400/80 bg-[#162238]'
-                    : isDragOver
-                    ? 'border-2 border-amber-400 bg-amber-400/10 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
-                    : isSwipingOut
-                    ? 'animate-task-swipe-left z-20'
-                    : isCompleted
-                    ? 'opacity-85'
-                    : ''
-                } ${
-                  isCreating
-                    ? 'bg-[#111A2E] border border-amber-400/80 shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
-                    : isUpdating
-                    ? 'blur-[2px] opacity-40 scale-[0.99] border border-amber-400/40 pointer-events-none'
-                    : isHighlighted
-                    ? 'bg-[#111A2E] border border-amber-400/50 shadow-[0_0_14px_rgba(250,204,21,0.15)]'
-                    : isHabit
-                    ? 'bg-[#121a30] hover:bg-[#16223e] border border-violet-500/25 hover:border-violet-500/40 shadow-[0_2px_12px_rgba(139,92,246,0.06)]'
-                    : 'bg-[#111A2E] hover:bg-[#15223C] border border-white/[0.06] hover:border-white/[0.12]'
+      {/* Completed Section (Collapsible) */}
+      {(completedItems.length > 0 || filterMode === 'completed') && (
+        <div className="mt-4 pt-3.5 border-t border-white/[0.08] flex flex-col gap-2.5 transition-all duration-300">
+          <button
+            type="button"
+            onClick={() => setIsCompletedOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] text-slate-400 hover:text-slate-200 transition-all cursor-pointer group select-none"
+          >
+            <div className="flex items-center gap-2">
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 group-hover:text-amber-400 transition-transform duration-200 ${
+                  isCompletedOpen || filterMode === 'completed' ? 'rotate-0' : '-rotate-90'
                 }`}
-              >
-                {/* Left Accent Indicator Bar (Clean, flush, zero corner distortion) */}
-                <div
-                  className={`absolute left-0 top-0 bottom-0 rounded-l-2xl transition-all duration-300 ${
-                    isHabit
-                      ? 'w-1 bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]'
-                      : item.priority === 'high'
-                      ? 'w-1 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
-                      : isCreating
-                      ? 'w-1.5 bg-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.7)]'
-                      : isHighlighted
-                      ? 'w-1.5 bg-amber-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
-                      : 'w-1 bg-amber-400/80'
-                  }`}
-                />
+              />
+              <span className="text-xs font-bold text-slate-200 tracking-wider uppercase">
+                Completed
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-300 border border-amber-400/25">
+                {completedItems.length}
+              </span>
+            </div>
 
-                {/* Creation luminous gradient tint overlay */}
-                {isCreating && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-amber-400/[0.07] via-amber-400/[0.02] to-transparent pointer-events-none" />
-                )}
-                {/* Loading overlay when updating */}
-                {isUpdating && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-[1px] rounded-2xl z-10 pointer-events-none">
-                    <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-                  </div>
-                )}
+            <span className="text-[11px] font-semibold text-slate-400 group-hover:text-slate-200 transition-colors">
+              {isCompletedOpen || filterMode === 'completed' ? 'Hide' : 'Show'}
+            </span>
+          </button>
 
-                {/* Main Row: Clicking anywhere expands/collapses the item to see full task */}
-                <div
-                  onClick={() => setExpandedItemId((prev) => (prev === item.id ? null : item.id))}
-                  className="p-2.5 sm:p-3 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 cursor-pointer w-full select-none min-w-0"
-                >
-                  {/* Left: Drag Handle, Checkbox, Type Badge & Title */}
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <div
-                      className="hidden sm:block text-slate-600 group-hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors shrink-0 p-1 -ml-1 rounded hover:bg-white/[0.04]"
-                      title="Drag to reorder"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <GripVertical className="w-4 h-4" />
-                    </div>
-
-                    {/* Distinct Checkbox: Circular for Habits, Squircle for Tasks */}
-                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-                      {isCreating ? (
-                        <div className="w-6 h-6 rounded-lg border border-amber-400/60 bg-amber-400/20 flex items-center justify-center shrink-0">
-                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                        </div>
-                      ) : isHabit ? (
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(item.id)}
-                          title={isCompleted ? 'Mark habit as pending today' : 'Mark habit as completed today'}
-                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-100 cursor-pointer ${
-                            isCompleted
-                              ? 'bg-gradient-to-tr from-violet-500 to-indigo-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.5)] scale-100'
-                              : 'border-2 border-violet-400/50 hover:border-violet-400 bg-violet-500/5 hover:bg-violet-500/15'
-                          }`}
-                        >
-                          {isCompleted && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(item.id)}
-                          title={isCompleted ? 'Mark task as incomplete' : 'Mark task as complete'}
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all duration-75 cursor-pointer ${
-                            isCompleted
-                              ? 'bg-[#FACC15] text-slate-950 shadow-[0_0_14px_rgba(250,204,21,0.45)]'
-                              : item.priority === 'high'
-                              ? 'border border-amber-400/50 hover:border-amber-400 bg-transparent'
-                              : 'border border-slate-600 hover:border-amber-400/70 bg-transparent'
-                          }`}
-                        >
-                          {isCompleted && <Check className="w-4 h-4 stroke-[3]" />}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Type Badge: Habit vs Task */}
-                    {isHabit ? (
-                      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                        <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 border border-violet-500/30 text-violet-300 shadow-[0_0_8px_rgba(167,139,250,0.12)]">
-                          <Sparkles className="w-2.5 h-2.5 text-violet-400" />
-                          Habit
-                        </span>
-
-                        {item.isStreakFrozen ? (
-                          <span
-                            className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-1.5 sm:px-2 py-0.5 rounded-full"
-                            title="Streak Frozen (Vacation Mode)"
-                          >
-                            <span>❄️</span>
-                            <span className="hidden xs:inline">{item.streakDays ?? 0}d</span>
-                          </span>
-                        ) : typeof item.streakDays === 'number' && (
-                          <span
-                            className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 sm:px-2 py-0.5 rounded-full"
-                            title={`Active Streak: ${item.streakDays} days`}
-                          >
-                            <span>🔥</span>
-                            <span>{item.streakDays}d</span>
-                          </span>
-                        )}
-
-                        {!isCompleted && item.warnings === 1 && (
-                          <span
-                            className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
-                            title="Missed 1 day! Streak is frozen. Complete today to clear warning."
-                          >
-                            <span>⚠️</span>
-                            <span className="hidden xs:inline">At risk</span>
-                          </span>
-                        )}
-
-                        {!isCompleted && item.warnings === 2 && (
-                          <span
-                            className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-300 bg-rose-500/20 border border-rose-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
-                            title="Missed 2 days! Final notice before streak resets to 0. Complete today to save streak!"
-                          >
-                            <span>🚨</span>
-                            <span className="hidden xs:inline">Imminent</span>
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-300 shrink-0">
-                        Task
-                      </span>
-                    )}
-
-                    {/* Title with Typewriter and High Priority Badge */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 truncate min-w-0 flex-1">
-                      <TypewriterTitle
-                        text={item.title}
-                        isWriting={isCreating}
-                        onFinish={() => onCreationAnimationComplete?.(item.id)}
-                        className={`text-sm select-none transition-colors duration-75 truncate ${
-                          isCompleted
-                            ? 'line-through text-slate-400 font-normal'
-                            : isCreating
-                            ? 'text-amber-200 font-bold'
-                            : isHabit
-                            ? 'text-slate-100 font-semibold'
-                            : 'text-slate-100 font-medium'
-                        }`}
-                      />
-
-                      {isCreating && (
-                        <span className="bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse shrink-0">
-                          Writing...
-                        </span>
-                      )}
-
-                      {item.priority === 'high' && !isCompleted && !isCreating && (
-                        <span className="bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0">
-                          HIGH
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right: Category Badge, Time Tag, Actions, and Expand Chevron */}
-                  <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                    <span
-                      className={`text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 rounded-full border hidden sm:inline-block ${getCategoryBadgeClass(
-                        item.category
-                      )}`}
-                    >
-                      {item.category}
-                    </span>
-
-                    {item.timeTag && (
-                      <span className="text-xs text-slate-400 font-medium min-w-[55px] text-right hidden sm:inline-block">
-                        {item.timeTag}
-                      </span>
-                    )}
-
-                    {/* Actions: Desktop inline buttons */}
-                    {isHabit ? (
-                      <div className="hidden xs:flex items-center border-l border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
-                        <Link
-                          to="/habits"
-                          title="Habits are managed in the Habit Manager. Click to view or edit in Habit Manager."
-                          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-violet-300 hover:bg-violet-500/10 border border-white/[0.05] hover:border-violet-500/30 transition-all cursor-pointer group/habit"
-                        >
-                          <Repeat className="w-3.5 h-3.5 text-violet-400 group-hover/habit:rotate-180 transition-transform duration-300" />
-                          <span className="hidden sm:inline">Habits</span>
-                        </Link>
-                      </div>
-                    ) : (
-                      <div className="hidden xs:flex items-center gap-1 border-l border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => onEdit?.(item)}
-                          title="Edit task"
-                          aria-label={`Edit ${item.title}`}
-                          className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-all active:scale-95 cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setItemToDelete(item)}
-                          title="Remove task"
-                          aria-label={`Remove ${item.title}`}
-                          className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 transition-all active:scale-95 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Expand/Collapse Chevron Indicator */}
-                    <div className="p-1 text-slate-400 group-hover:text-amber-400 transition-colors">
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 ${
-                          isExpanded ? 'rotate-180 text-amber-400' : ''
-                        }`}
-                      />
-                    </div>
-                  </div>
+          {/* Completed Items Drawer */}
+          {(isCompletedOpen || filterMode === 'completed') && (
+            <div className="flex flex-col gap-2.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              {completedItems.length === 0 ? (
+                <div className="py-4 text-center text-slate-500 text-xs">
+                  No completed items yet today.
                 </div>
-
-                {/* Expandable Content Drawer (revealed on tap/click) */}
-                {isExpanded && (
-                  <div className="px-3.5 sm:px-5 pb-3.5 pt-2 border-t border-white/[0.06] bg-[#0A1124]/75 flex flex-col gap-2.5 animate-in slide-in-from-top-2 duration-150">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {isHabit ? 'Routine & Commitment:' : 'Full Task Content:'}
-                      </span>
-                      <p className="text-sm font-semibold text-white whitespace-normal leading-relaxed break-words select-text">
-                        {item.title}
-                      </p>
-                    </div>
-
-                    {/* Detail Badges */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                      <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full border ${getCategoryBadgeClass(item.category)}`}>
-                        📁 {item.category}
-                      </span>
-                      {item.priority === 'high' && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                          🚨 High Priority
-                        </span>
-                      )}
-                      {item.timeTag && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{item.timeTag}</span>
-                        </span>
-                      )}
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-400/15 text-amber-300 border border-amber-400/30'}`}>
-                        {isCompleted ? '✓ Completed Today' : '⏳ Pending Today'}
-                      </span>
-                    </div>
-
-                    {/* Drawer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
-                      {isHabit ? (
-                        <Link
-                          to="/habits"
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-violet-300 bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Repeat className="w-3.5 h-3.5" />
-                          <span>Manage in Habit Library</span>
-                        </Link>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEdit?.(item);
-                            }}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            <span>Edit Task</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setItemToDelete(item);
-                            }}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Move to Trash</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-        })
+              ) : (
+                completedItems.map(renderItemRow)
+              )}
+            </div>
+          )}
+        </div>
       )}
-    </div>
 
       {/* Move to Trash Confirmation Modal */}
       {itemToDelete && (
@@ -778,6 +866,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                   setSwipingOutTaskId(targetId);
 
                   setTimeout(() => {
+                    setLocalItems((prev) => prev.filter((i) => i.id !== targetId));
                     onDelete?.(targetId);
                     setSwipingOutTaskId((curr) => (curr === targetId ? null : curr));
                   }, 380);

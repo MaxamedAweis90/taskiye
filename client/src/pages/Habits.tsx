@@ -234,24 +234,6 @@ export const Habits: React.FC = () => {
     enabled: isAuthenticated,
   });
 
-  // 2. Auto-reconcile: If serverHabits has any habit currently in deletedHabitIds, unsuppress it immediately
-  React.useEffect(() => {
-    if (serverHabits.length > 0 && deletedHabitIds.size > 0) {
-      const activeServerIds = new Set(serverHabits.map((h) => h._id));
-      setDeletedHabitIds((prev) => {
-        let changed = false;
-        const next = new Set(prev);
-        for (const id of prev) {
-          if (activeServerIds.has(id)) {
-            next.delete(id);
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }
-  }, [serverHabits, deletedHabitIds.size]);
-
   // TanStack Mutation: Create Habit
   const createHabitMutation = useMutation({
     mutationFn: async (newHabit: HabitFormData) => {
@@ -707,6 +689,11 @@ export const Habits: React.FC = () => {
 
       // 2. Perform actual deletion in database or guest store
       if (isAuthenticated) {
+        queryClient.setQueryData<Array<{ _id: string }>>(['habits'], (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.filter((h) => h._id !== targetId);
+        });
+
         deleteHabitMutation.mutate(targetId, {
           onSuccess: () => {
             showToast(

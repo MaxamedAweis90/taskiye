@@ -115,24 +115,6 @@ export const Dashboard: React.FC = () => {
     enabled: isAuthenticated,
   });
 
-  // 2. Auto-reconcile: If serverTasks has any task currently in deletedTaskIds, unsuppress it immediately
-  React.useEffect(() => {
-    if (serverTasks.length > 0 && deletedTaskIds.size > 0) {
-      const activeServerIds = new Set(serverTasks.map((t) => t._id));
-      setDeletedTaskIds((prev) => {
-        let changed = false;
-        const next = new Set(prev);
-        for (const id of prev) {
-          if (activeServerIds.has(id)) {
-            next.delete(id);
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }
-  }, [serverTasks, deletedTaskIds.size]);
-
   // TanStack Query for Authenticated Tasks Activity Map (Heatmap Historical Activity)
   const { data: serverActivity = {} } = useQuery({
     queryKey: ['tasks', 'activity'],
@@ -640,6 +622,11 @@ export const Dashboard: React.FC = () => {
     setDeletedTaskIds((prev) => new Set(prev).add(id));
 
     if (isAuthenticated) {
+      queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((t) => t._id !== id);
+      });
+
       deleteTaskMutation.mutate(id, {
         onSuccess: () => {
           showToast(
