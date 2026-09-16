@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutGrid,
@@ -29,6 +29,31 @@ import { NotificationPreferencesModal } from '../profile/NotificationPreferences
 import { PwaInstallOnboarding } from '../pwa/PwaInstallOnboarding';
 import { PwaPermissionPrompt } from '../pwa/PwaPermissionPrompt';
 import { useMidnightRollover } from '../../hooks/useMidnightRollover';
+
+interface InAppNotificationItem {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  read: boolean;
+  type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system' | 'habit' | 'goal';
+  url?: string;
+  createdAt?: string;
+}
+
+function formatNotificationTime(dateStr?: string): string {
+  if (!dateStr) return 'Just now';
+  const time = new Date(dateStr).getTime();
+  if (isNaN(time)) return 'Just now';
+  const diffSec = Math.floor((Date.now() - time) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDays = Math.floor(diffHour / 24);
+  return `${diffDays}d ago`;
+}
 
 interface NavItem {
   to: string;
@@ -166,22 +191,178 @@ export const AppLayout: React.FC = () => {
     return todayChecklistCompletedCount > 0 || (activityLogs[todayStr]?.completedCount || 0) > 0;
   }, [todayChecklistCompletedCount, activityLogs, todayStr]);
 
-  const [notifications, setNotifications] = useState<
-    Array<{
-      id: string;
-      title: string;
-      description: string;
-      time: string;
-      read: boolean;
-      type: 'streak' | 'habit' | 'goal';
-    }>
-  >([]);
+  const [notifications, setNotifications] = useState<InAppNotificationItem[]>(() => {
+    try {
+      const cached = localStorage.getItem('taskiye_notifications_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const hasUnreadNotifications = useMemo(() => notifications.some((n) => !n.read), [notifications]);
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  // Sync with /api/notifications when user is logged in or when window focuses
+  const fetchNotifications = useCallback(async () => {
+    try {
+      let endpoint = '';
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub?.endpoint) {
+          endpoint = sub.endpoint;
+        }
+      }
+
+      const queryUrl = endpoint
+        ? `/api/notifications?endpoint=${encodeURIComponent(endpoint)}`
+        : '/api/notifications';
+
+      const res = await fetch(queryUrl, { credentials: 'include' });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json?.data?.notifications) {
+        interface RawNotificationDoc {
+          _id?: string;
+          id?: string;
+          title?: string;
+          body?: string;
+          isRead?: boolean;
+          type?: string;
+          data?: { url?: string };
+          createdAt?: string;
+        }
+        const serverItems: InAppNotificationItem[] = json.data.notifications.map((n: RawNotificationDoc) => ({
+          id: n._id || n.id || `notif_${Date.now()}`,
+          title: n.title || 'Notification',
+          description: n.body || '',
+          time: formatNotificationTime(n.createdAt),
+          read: Boolean(n.isRead),
+          type: (n.type as InAppNotificationItem['type']) || 'system',
+          url: n.data?.url || '/',
+          createdAt: n.createdAt,
+        }));
+
+        setNotifications((prev) => {
+          // Merge server items with any existing local migration/guest items
+          const map = new Map<string, InAppNotificationItem>();
+          serverItems.forEach((item) => map.set(item.id, item));
+          prev.forEach((item) => {
+            if (!map.has(item.id)) map.set(item.id, item);
+          });
+          const merged = Array.from(map.values()).slice(0, 30);
+          try {
+            localStorage.setItem('taskiye_notifications_cache', JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+          return merged;
+        });
+      }
+    } catch {
+      // Network failure, use cache
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const onFocus = () => fetchNotifications();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchNotifications, session?.user]);
+
+  // Listen for live Service Worker push broadcasts
+  useEffect(() => {
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NOTIFICATION_RECEIVED') {
+        const payload = event.data.payload;
+        const newItem: InAppNotificationItem = {
+          id: payload.tag || `notif_${Date.now()}`,
+          title: payload.title,
+          description: payload.body,
+          time: 'Just now',
+          read: false,
+          type: payload.type || 'system',
+          url: payload.url || '/',
+          createdAt: new Date().toISOString(),
+        };
+
+        setNotifications((prev) => {
+          const filtered = prev.filter((item) => item.id !== newItem.id);
+          const updated = [newItem, ...filtered].slice(0, 30);
+          try {
+            localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
+          } catch {
+            // ignore
+          }
+          return updated;
+        });
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      };
+    }
+  }, []);
+
+  const markAllNotificationsRead = async () => {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, read: true }));
+      try {
+        localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    try {
+      let endpoint = '';
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub?.endpoint) endpoint = sub.endpoint;
+      }
+
+      await fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ endpoint }),
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleNotificationClick = (item: InAppNotificationItem) => {
+    // 1. Mark as read
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === item.id ? { ...n, read: true } : n));
+      try {
+        localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    if (item.id && !item.id.startsWith('notif_migration_')) {
+      fetch(`/api/notifications/${item.id}/read`, {
+        method: 'PATCH',
+        credentials: 'include',
+      }).catch(() => null);
+    }
+
+    // 2. Navigate and close dropdown
+    setActiveDropdown(null);
+    if (item.url) {
+      navigate(item.url);
+    }
   };
 
   // Check if a guest data migration just occurred to add to notification drawer
@@ -199,6 +380,7 @@ export const AppLayout: React.FC = () => {
             time: 'Just now',
             read: false,
             type: 'habit',
+            url: '/habits',
           },
           ...prev,
         ]);
@@ -836,24 +1018,42 @@ export const AppLayout: React.FC = () => {
                         notifications.map((n) => (
                           <div
                             key={n.id}
-                            className={`p-2.5 rounded-xl border transition-colors ${
+                            onClick={() => handleNotificationClick(n)}
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
                               n.read
-                                ? 'bg-white/[0.02] border-white/[0.05] text-slate-400'
-                                : 'bg-amber-400/[0.06] border-amber-400/20 text-slate-200'
+                                ? 'bg-white/[0.02] border-white/[0.05] text-slate-400 hover:bg-white/[0.05]'
+                                : 'bg-amber-400/[0.07] border-amber-400/25 text-slate-200 hover:bg-amber-400/[0.12] shadow-[0_0_12px_rgba(250,204,21,0.08)]'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs">
-                                  {n.type === 'streak' ? '🔥' : n.type === 'habit' ? '⏰' : '🎯'}
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-xs shrink-0">
+                                  {n.type === 'planning'
+                                    ? '🎯'
+                                    : n.type === 'morning'
+                                    ? '☀️'
+                                    : n.type === 'streak'
+                                    ? '🔥'
+                                    : n.type === 'achievement'
+                                    ? '🏆'
+                                    : n.type === 'trash'
+                                    ? '🗑️'
+                                    : n.type === 'habit'
+                                    ? '⏰'
+                                    : '🔔'}
                                 </span>
-                                <span className="text-xs font-bold text-white">{n.title}</span>
+                                <span className="text-xs font-bold text-white truncate">
+                                  {n.title}
+                                </span>
+                                {!n.read && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                )}
                               </div>
                               <span className="text-[10px] text-slate-500 font-mono shrink-0">
                                 {n.time}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1 leading-normal">
+                            <p className="text-[11px] text-slate-300 mt-1 leading-normal pl-5">
                               {n.description}
                             </p>
                           </div>

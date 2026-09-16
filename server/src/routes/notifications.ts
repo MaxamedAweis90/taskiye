@@ -1,13 +1,110 @@
 import { Router, Response } from 'express';
 import { PushSubscription } from '../models/PushSubscription.js';
+import { InAppNotification } from '../models/InAppNotification.js';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
-import { sendPushNotification, getVapidPublicKey, configureWebPush } from '../lib/push.js';
+import {
+  dispatchUnifiedNotification,
+  getVapidPublicKey,
+  configureWebPush,
+} from '../lib/push.js';
 
 const router = Router();
 
 // Initialize VAPID
 configureWebPush();
+
+/**
+ * GET /api/notifications
+ * Retrieves unread count and latest 30 in-app notifications
+ */
+router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || null;
+    const endpoint = (req.query.endpoint as string | undefined) || null;
+
+    if (!userId && !endpoint) {
+      return sendSuccess(res, { notifications: [], unreadCount: 0 });
+    }
+
+    const filter = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      : { endpoint };
+
+    const [notifications, unreadCount] = await Promise.all([
+      InAppNotification.find(filter).sort({ createdAt: -1 }).limit(30),
+      InAppNotification.countDocuments({ ...filter, isRead: false }),
+    ]);
+
+    return sendSuccess(res, { notifications, unreadCount });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('[Notifications] Fetch failed:', err);
+    return sendError(res, err?.message || 'Failed to fetch notifications', 500);
+  }
+});
+
+/**
+ * PATCH /api/notifications/:id/read
+ * Marks a single notification as read
+ */
+router.patch('/:id/read', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updated = await InAppNotification.findByIdAndUpdate(
+      id,
+      { isRead: true },
+      { new: true }
+    );
+    if (!updated) {
+      return sendError(res, 'Notification not found', 404);
+    }
+    return sendSuccess(res, updated, 'Notification marked as read');
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to update notification', 500);
+  }
+});
+
+/**
+ * POST /api/notifications/mark-all-read
+ * Marks all notifications for user or endpoint as read
+ */
+router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || null;
+    const endpoint = (req.body.endpoint as string | undefined) || null;
+
+    if (!userId && !endpoint) {
+      return sendSuccess(res, { modifiedCount: 0 });
+    }
+
+    const filter = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])], isRead: false }
+      : { endpoint, isRead: false };
+
+    const result = await InAppNotification.updateMany(filter, { isRead: true });
+    return sendSuccess(res, { modifiedCount: result.modifiedCount }, 'All notifications marked as read');
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to mark all as read', 500);
+  }
+});
+
+/**
+ * DELETE /api/notifications/:id
+ * Removes a notification item
+ */
+router.delete('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await InAppNotification.findByIdAndDelete(id);
+    return sendSuccess(res, null, 'Notification removed');
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to delete notification', 500);
+  }
+});
 
 /**
  * GET /api/notifications/vapid-public-key
@@ -33,8 +130,12 @@ router.post('/subscribe', optionalAuth, async (req: AuthenticatedRequest, res: R
     const safeTimezone = timezone || 'UTC';
     const safePrefs = {
       dailyReminders: preferences?.dailyReminders ?? true,
+      morningReminderTime: preferences?.morningReminderTime || '08:00',
+      taskPlanningReminder: preferences?.taskPlanningReminder ?? true,
+      taskPlanningTime: preferences?.taskPlanningTime || '09:00',
       streakAlerts: preferences?.streakAlerts ?? true,
       dailyCadenceDigest: preferences?.dailyCadenceDigest ?? true,
+      completionChimes: preferences?.completionChimes ?? true,
     };
 
     const updatedSub = await PushSubscription.findOneAndUpdate(
@@ -79,9 +180,9 @@ router.post('/unsubscribe', async (req, res: Response) => {
 
 /**
  * POST /api/notifications/test
- * Sends an immediate test notification to the requester's device
+ * Sends an immediate test notification to the requester's device and stores in-app notification
  */
-router.post('/test', async (req, res: Response) => {
+router.post('/test', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { endpoint } = req.body;
     if (!endpoint) {
@@ -89,27 +190,24 @@ router.post('/test', async (req, res: Response) => {
     }
 
     const sub = await PushSubscription.findOne({ endpoint });
-    if (!sub) {
-      return sendError(res, 'No active subscription found for this device', 404);
-    }
+    const userId = req.user?.id || sub?.userId || null;
 
-    const dispatched = await sendPushNotification(sub, {
+    const result = await dispatchUnifiedNotification({
+      sub,
+      userId,
+      endpoint,
       title: 'Taskiye Connected! 🔥',
-      body: 'Your device is verified and ready for streak & daily habit alerts.',
-      icon: '/logo.png',
-      badge: '/logo.png',
+      body: 'Your device is verified and ready for daily task planning & streak alerts.',
+      type: 'system',
       tag: 'taskiye-test-notification',
-      data: {
-        url: '/',
-        type: 'test',
-      },
+      url: '/',
     });
 
-    if (dispatched) {
-      return sendSuccess(res, { dispatched: true }, 'Test notification sent to device');
-    } else {
-      return sendError(res, 'Could not deliver notification. Check device permissions.', 502);
-    }
+    return sendSuccess(
+      res,
+      { dispatched: result.pushSent, inAppSaved: result.inAppSaved },
+      'Test notification processed'
+    );
   } catch (error: unknown) {
     const err = error as Error;
     console.error('[Notifications] Test alert failed:', err);

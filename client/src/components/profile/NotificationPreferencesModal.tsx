@@ -10,6 +10,7 @@ import {
   ShieldAlert,
   Send,
   Sparkles,
+  Target,
 } from 'lucide-react';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -21,13 +22,19 @@ interface NotificationPreferencesModalProps {
 
 interface NotificationPrefs {
   dailyReminders: boolean;
+  morningReminderTime: string;
+  taskPlanningReminder: boolean;
+  taskPlanningTime: string;
   streakAlerts: boolean;
   dailyCadenceDigest: boolean;
   completionChimes: boolean;
 }
 
-const DEFAULT_PREFS: NotificationPrefs = {
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   dailyReminders: true,
+  morningReminderTime: '08:00',
+  taskPlanningReminder: true,
+  taskPlanningTime: '09:00',
   streakAlerts: true,
   dailyCadenceDigest: true,
   completionChimes: true,
@@ -49,8 +56,8 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
     playCelebrationChime,
   } = usePushNotifications();
 
-  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
-  const [initialPrefs, setInitialPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [initialPrefs, setInitialPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -62,15 +69,19 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        setPrefs(parsed);
-        setInitialPrefs(parsed);
+        const merged: NotificationPrefs = {
+          ...DEFAULT_NOTIFICATION_PREFS,
+          ...parsed,
+        };
+        setPrefs(merged);
+        setInitialPrefs(merged);
       } else {
-        setPrefs(DEFAULT_PREFS);
-        setInitialPrefs(DEFAULT_PREFS);
+        setPrefs(DEFAULT_NOTIFICATION_PREFS);
+        setInitialPrefs(DEFAULT_NOTIFICATION_PREFS);
       }
     } catch {
-      setPrefs(DEFAULT_PREFS);
-      setInitialPrefs(DEFAULT_PREFS);
+      setPrefs(DEFAULT_NOTIFICATION_PREFS);
+      setInitialPrefs(DEFAULT_NOTIFICATION_PREFS);
     }
   }, [isOpen]);
 
@@ -88,6 +99,10 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
     }
   };
 
+  const handleTimeChange = (key: 'morningReminderTime' | 'taskPlanningTime', value: string) => {
+    setPrefs((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setSuccessMsg('');
@@ -98,17 +113,30 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       setInitialPrefs(prefs);
 
       // 2. If any push alert is active and push is supported, ensure device is registered
-      const hasAnyPush = prefs.dailyReminders || prefs.streakAlerts || prefs.dailyCadenceDigest;
+      const hasAnyPush =
+        prefs.dailyReminders ||
+        prefs.taskPlanningReminder ||
+        prefs.streakAlerts ||
+        prefs.dailyCadenceDigest;
+
       if (hasAnyPush && isSupported) {
         await subscribe({
           dailyReminders: prefs.dailyReminders,
+          morningReminderTime: prefs.morningReminderTime,
+          taskPlanningReminder: prefs.taskPlanningReminder,
+          taskPlanningTime: prefs.taskPlanningTime,
           streakAlerts: prefs.streakAlerts,
           dailyCadenceDigest: prefs.dailyCadenceDigest,
+          completionChimes: prefs.completionChimes,
         });
       }
 
       setSuccessMsg('Notification preferences updated and synced!');
-      showToast('Preferences Saved', 'Your alert preferences and push subscription have been saved.', 'success');
+      showToast(
+        'Preferences Saved',
+        'Your alert preferences and push subscription have been saved.',
+        'success'
+      );
 
       setTimeout(() => {
         setIsSaving(false);
@@ -128,8 +156,12 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       if (!isSubscribed) {
         const ok = await subscribe({
           dailyReminders: prefs.dailyReminders,
+          morningReminderTime: prefs.morningReminderTime,
+          taskPlanningReminder: prefs.taskPlanningReminder,
+          taskPlanningTime: prefs.taskPlanningTime,
           streakAlerts: prefs.streakAlerts,
           dailyCadenceDigest: prefs.dailyCadenceDigest,
+          completionChimes: prefs.completionChimes,
         });
         if (!ok) {
           showToast('Permission Needed', 'Please allow notifications in your browser prompt.', 'info');
@@ -140,13 +172,13 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
 
       const delivered = await sendTestAlert();
       if (delivered) {
-        showToast('Alert Sent! 🔥', 'Check your device lock screen or notification center.', 'success');
+        showToast('Alert Sent! 🔥', 'Check your device lock screen and in-app notification bell.', 'success');
       } else {
         // Fallback local notification
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Taskiye Connected! 🔥', {
             body: 'Push notifications are active on this device.',
-            icon: '/logo.png',
+            icon: '/logo-tight.png',
           });
           showToast('Alert Sent! 🔥', 'Check your device notification center.', 'success');
         } else {
@@ -201,36 +233,120 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
 
         {/* Preference Settings Cards */}
         <div className="w-full flex flex-col gap-3">
-          {/* Setting 1: Daily Habit Reminders */}
-          <div className="p-4 rounded-2xl bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] transition-all flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
-                <Clock className="w-4 h-4" />
+          {/* Setting 1: Plan Today's Priorities (NEW - User Requested) */}
+          <div className="p-4 rounded-2xl bg-[#10192D] border border-amber-400/30 hover:border-amber-400/50 transition-all flex flex-col gap-3 shadow-[0_0_16px_rgba(250,204,21,0.06)]">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shrink-0 mt-0.5 shadow-sm">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white">Plan Today's Priorities</span>
+                    <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase">
+                      New
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-400 mt-0.5">
+                    Timely reminder to plan and organize your daily focus tasks
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-white">Daily Habit Reminders</span>
-                <span className="text-xs text-slate-400 mt-0.5">
-                  Morning alerts for habits scheduled on today's cadence
-                </span>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => handleToggle('taskPlanningReminder')}
+                className={`w-12 h-7 rounded-full transition-colors relative cursor-pointer p-0.5 shrink-0 ${
+                  prefs.taskPlanningReminder ? 'bg-[#FACC15]' : 'bg-slate-700'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full bg-slate-950 transition-transform ${
+                    prefs.taskPlanningReminder ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleToggle('dailyReminders')}
-              className={`w-12 h-7 rounded-full transition-colors relative cursor-pointer p-0.5 shrink-0 ${
-                prefs.dailyReminders ? 'bg-[#FACC15]' : 'bg-slate-700'
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-full bg-slate-950 transition-transform ${
-                  prefs.dailyReminders ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
+            {/* Time Selector Dropdown */}
+            {prefs.taskPlanningReminder && (
+              <div className="pt-2.5 border-t border-white/[0.08] flex items-center justify-between">
+                <span className="text-xs text-slate-300 flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  Preferred Reminder Time
+                </span>
+                <select
+                  value={prefs.taskPlanningTime}
+                  onChange={(e) => handleTimeChange('taskPlanningTime', e.target.value)}
+                  className="bg-[#151D33] border border-white/[0.12] hover:border-amber-400/50 focus:border-amber-400 rounded-xl px-2.5 py-1 text-xs font-semibold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                >
+                  <option value="07:00">07:00 AM</option>
+                  <option value="08:00">08:00 AM</option>
+                  <option value="09:00">09:00 AM (Recommended)</option>
+                  <option value="10:00">10:00 AM</option>
+                  <option value="11:00">11:00 AM</option>
+                  <option value="12:00">12:00 PM</option>
+                  <option value="13:00">01:00 PM</option>
+                  <option value="18:00">06:00 PM (Tomorrow prep)</option>
+                  <option value="20:00">08:00 PM</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Setting 2: Streak Protection Warning */}
+          {/* Setting 2: Daily Habit Reminders */}
+          <div className="p-4 rounded-2xl bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] transition-all flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-white">Daily Habit Reminders</span>
+                  <span className="text-xs text-slate-400 mt-0.5">
+                    Morning alerts for habits scheduled on today's cadence
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleToggle('dailyReminders')}
+                className={`w-12 h-7 rounded-full transition-colors relative cursor-pointer p-0.5 shrink-0 ${
+                  prefs.dailyReminders ? 'bg-[#FACC15]' : 'bg-slate-700'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full bg-slate-950 transition-transform ${
+                    prefs.dailyReminders ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Time Selector Dropdown */}
+            {prefs.dailyReminders && (
+              <div className="pt-2.5 border-t border-white/[0.08] flex items-center justify-between">
+                <span className="text-xs text-slate-300 flex items-center gap-1.5 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  Morning Cadence Time
+                </span>
+                <select
+                  value={prefs.morningReminderTime}
+                  onChange={(e) => handleTimeChange('morningReminderTime', e.target.value)}
+                  className="bg-[#151D33] border border-white/[0.12] hover:border-amber-400/50 focus:border-amber-400 rounded-xl px-2.5 py-1 text-xs font-semibold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                >
+                  <option value="06:00">06:00 AM (Early bird)</option>
+                  <option value="07:00">07:00 AM</option>
+                  <option value="08:00">08:00 AM (Default)</option>
+                  <option value="09:00">09:00 AM</option>
+                  <option value="10:00">10:00 AM</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Setting 3: Streak Protection Warning */}
           <div className="p-4 rounded-2xl bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] transition-all flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
@@ -259,7 +375,7 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
             </button>
           </div>
 
-          {/* Setting 3: Evening Cadence Digest */}
+          {/* Setting 4: Evening Cadence Digest */}
           <div className="p-4 rounded-2xl bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] transition-all flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
@@ -288,7 +404,7 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
             </button>
           </div>
 
-          {/* Setting 4: Audio Completion Chimes */}
+          {/* Setting 5: Audio Completion Chimes */}
           <div className="p-4 rounded-2xl bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] transition-all flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">

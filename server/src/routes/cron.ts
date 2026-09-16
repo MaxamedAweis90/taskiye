@@ -4,12 +4,13 @@ import { PushSubscription } from '../models/PushSubscription.js';
 import { Habit } from '../models/Habit.js';
 import { Task } from '../models/Task.js';
 import { mongoDb } from '../db/connection.js';
-import { sendPushNotification } from '../lib/push.js';
+import { dispatchUnifiedNotification } from '../lib/push.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import {
   renderTemplate,
   pickRandomTemplate,
   MORNING_CADENCE_TEMPLATES,
+  TASK_PLANNING_TEMPLATES,
   ALL_COMPLETED_TEMPLATES,
   STREAK_AT_RISK_TEMPLATES,
   STREAK_FREEZE_MELTED_TEMPLATES,
@@ -21,7 +22,8 @@ const router = Router();
 
 /**
  * GET /api/cron/reminders
- * Evaluates subscribers hourly, personalizes Duolingo-style copy, and sends targeted push alerts.
+ * Evaluates subscribers, personalizes Duolingo-style copy, sends Web Push,
+ * and saves In-App Notifications for the topbar bell counter.
  */
 router.get('/reminders', async (req: Request, res: Response) => {
   try {
@@ -66,10 +68,26 @@ router.get('/reminders', async (req: Request, res: Response) => {
         const localHour = parseInt(hourFormatter.format(now), 10);
         const localDate = dateFormatter.format(now);
 
-        // Prevent duplicate alerts on the same calendar day for this subscriber
-        if (sub.lastNotifiedDate === localDate) {
-          continue;
-        }
+        // Helper to check and record alert history per category
+        const alertHistory = sub.lastAlertsSent instanceof Map
+          ? Object.fromEntries(sub.lastAlertsSent)
+          : (sub.lastAlertsSent || {});
+
+        const hasSentToday = (category: string): boolean => {
+          return alertHistory[category] === localDate;
+        };
+
+        const recordSent = (category: string) => {
+          if (!sub.lastAlertsSent) {
+            sub.lastAlertsSent = {};
+          }
+          if (sub.lastAlertsSent instanceof Map) {
+            sub.lastAlertsSent.set(category, localDate);
+          } else {
+            sub.lastAlertsSent[category] = localDate;
+          }
+          sub.lastNotifiedDate = localDate;
+        };
 
         // 2. Fetch User Profile Info (First Name)
         let firstName = 'Champion';
@@ -122,122 +140,198 @@ router.get('/reminders', async (req: Request, res: Response) => {
         const pendingTasksCount = todaysTasks.filter((t) => !t.isCompleted).length;
         const totalItemsCount = todaysTasks.length + activeHabits.length;
 
-        // 4. Scenario A: Check for Trash items near 30-day TTL expiration (Days 27, 28, 29, 30)
-        const trashedTasks = await Task.find({
-          ...userFilter,
-          deletedAt: { $ne: null },
-        }).sort({ deletedAt: 1 }).limit(1);
+        // ====================================================================
+        // Scenario A: Trash items near 30-day TTL expiration
+        // ====================================================================
+        if (!hasSentToday('trashAlert')) {
+          const trashedTasks = await Task.find({
+            ...userFilter,
+            deletedAt: { $ne: null },
+          }).sort({ deletedAt: 1 }).limit(1);
 
-        const trashedHabits = await Habit.find({
-          ...userFilter,
-          deletedAt: { $ne: null },
-        }).sort({ deletedAt: 1 }).limit(1);
+          const trashedHabits = await Habit.find({
+            ...userFilter,
+            deletedAt: { $ne: null },
+          }).sort({ deletedAt: 1 }).limit(1);
 
-        const oldestTrashItem = trashedTasks[0] || trashedHabits[0];
+          const oldestTrashItem = trashedTasks[0] || trashedHabits[0];
 
-        if (oldestTrashItem?.deletedAt) {
-          const deletedTime = new Date(oldestTrashItem.deletedAt).getTime();
-          const daysInTrash = Math.floor((now.getTime() - deletedTime) / (1000 * 60 * 60 * 24));
+          if (oldestTrashItem?.deletedAt) {
+            const deletedTime = new Date(oldestTrashItem.deletedAt).getTime();
+            const daysInTrash = Math.floor((now.getTime() - deletedTime) / (1000 * 60 * 60 * 24));
 
-          if (daysInTrash >= 27 && daysInTrash <= 29) {
-            const daysLeft = 30 - daysInTrash;
-            const copy = renderTemplate(pickRandomTemplate(TRASH_EXPIRING_TEMPLATES), {
-              firstName,
-              itemName: oldestTrashItem.title,
-              daysLeft,
-            });
+            if (daysInTrash >= 27 && daysInTrash <= 29) {
+              const daysLeft = 30 - daysInTrash;
+              const copy = renderTemplate(pickRandomTemplate(TRASH_EXPIRING_TEMPLATES), {
+                firstName,
+                itemName: oldestTrashItem.title,
+                daysLeft,
+              });
 
-            const sent = await sendPushNotification(sub, {
-              title: copy.title,
-              body: copy.body,
-              icon: '/logo.png',
-              tag: `trash-warning-${oldestTrashItem._id}-${localDate}`,
-              data: { url: '/' },
-            });
+              const result = await dispatchUnifiedNotification({
+                sub,
+                userId: sub.userId,
+                endpoint: sub.endpoint,
+                title: copy.title,
+                body: copy.body,
+                type: 'trash',
+                tag: `trash-warning-${oldestTrashItem._id}-${localDate}`,
+                url: '/',
+              });
 
-            if (sent) {
-              sentCount++;
-              sub.lastNotifiedDate = localDate;
-              await sub.save();
-              continue;
+              if (result.pushSent || result.inAppSaved) {
+                sentCount++;
+                recordSent('trashAlert');
+                await sub.save();
+                continue;
+              }
+            } else if (daysInTrash >= 30) {
+              const copy = renderTemplate(pickRandomTemplate(TRASH_PURGED_TEMPLATES), {
+                firstName,
+                itemName: oldestTrashItem.title,
+              });
+
+              const result = await dispatchUnifiedNotification({
+                sub,
+                userId: sub.userId,
+                endpoint: sub.endpoint,
+                title: copy.title,
+                body: copy.body,
+                type: 'trash',
+                tag: `trash-purged-${oldestTrashItem._id}-${localDate}`,
+                url: '/',
+              });
+
+              if (result.pushSent || result.inAppSaved) {
+                sentCount++;
+                recordSent('trashAlert');
+                await sub.save();
+                continue;
+              }
             }
-          } else if (daysInTrash >= 30) {
-            const copy = renderTemplate(pickRandomTemplate(TRASH_PURGED_TEMPLATES), {
+          }
+        }
+
+        // ====================================================================
+        // Scenario B: Streak Freeze Worn Off (Next Day Notice)
+        // ====================================================================
+        if (!hasSentToday('freezeMelted')) {
+          const frozenHabit = activeHabits.find((h) => h.isStreakFrozen);
+          if (frozenHabit && frozenHabit.lastCompletedDate && frozenHabit.lastCompletedDate !== localDate) {
+            const copy = renderTemplate(pickRandomTemplate(STREAK_FREEZE_MELTED_TEMPLATES), {
               firstName,
-              itemName: oldestTrashItem.title,
+              streakDays: maxStreak,
             });
 
-            const sent = await sendPushNotification(sub, {
+            const result = await dispatchUnifiedNotification({
+              sub,
+              userId: sub.userId,
+              endpoint: sub.endpoint,
               title: copy.title,
               body: copy.body,
-              icon: '/logo.png',
-              tag: `trash-purged-${oldestTrashItem._id}-${localDate}`,
-              data: { url: '/' },
+              type: 'streak',
+              tag: `freeze-melted-${localDate}`,
+              url: '/habits',
             });
 
-            if (sent) {
+            if (result.pushSent || result.inAppSaved) {
               sentCount++;
-              sub.lastNotifiedDate = localDate;
+              recordSent('freezeMelted');
               await sub.save();
               continue;
             }
           }
         }
 
-        // 5. Scenario B: Streak Freeze Worn Off (Next Day Notice)
-        const frozenHabit = activeHabits.find((h) => h.isStreakFrozen);
-        if (frozenHabit && frozenHabit.lastCompletedDate && frozenHabit.lastCompletedDate !== localDate) {
-          const copy = renderTemplate(pickRandomTemplate(STREAK_FREEZE_MELTED_TEMPLATES), {
-            firstName,
-            streakDays: maxStreak,
-          });
+        // ====================================================================
+        // Scenario C: 100% Clearance Celebration (User finished all tasks & habits)
+        // ====================================================================
+        if (!hasSentToday('allCompleted')) {
+          if (
+            totalItemsCount > 0 &&
+            pendingTasksCount === 0 &&
+            completedTasksCount > 0 &&
+            localHour >= 12
+          ) {
+            const copy = renderTemplate(pickRandomTemplate(ALL_COMPLETED_TEMPLATES), {
+              firstName,
+              streakDays: maxStreak,
+            });
 
-          const sent = await sendPushNotification(sub, {
-            title: copy.title,
-            body: copy.body,
-            icon: '/logo.png',
-            tag: `freeze-melted-${localDate}`,
-            data: { url: '/habits' },
-          });
+            const result = await dispatchUnifiedNotification({
+              sub,
+              userId: sub.userId,
+              endpoint: sub.endpoint,
+              title: copy.title,
+              body: copy.body,
+              type: 'achievement',
+              tag: `all-completed-${localDate}`,
+              url: '/',
+            });
 
-          if (sent) {
-            sentCount++;
-            sub.lastNotifiedDate = localDate;
-            await sub.save();
-            continue;
+            if (result.pushSent || result.inAppSaved) {
+              sentCount++;
+              recordSent('allCompleted');
+              await sub.save();
+              continue;
+            }
           }
         }
 
-        // 6. Scenario C: 100% Clearance Celebration (User finished all tasks/habits today)
+        // ====================================================================
+        // Scenario D: Daily Task Planning Reminder ("Plan Today's Priorities")
+        // User-selected preferred hour (default: 09:00 AM)
+        // ====================================================================
+        const isPlanningEnabled = sub.preferences?.taskPlanningReminder !== false;
+        const planningTimeStr = sub.preferences?.taskPlanningTime || '09:00';
+        const targetPlanningHour = parseInt(planningTimeStr.split(':')[0] || '9', 10) || 9;
+
         if (
-          totalItemsCount > 0 &&
-          pendingTasksCount === 0 &&
-          completedTasksCount > 0 &&
-          localHour >= 12
+          isPlanningEnabled &&
+          !hasSentToday('taskPlanning') &&
+          localHour >= targetPlanningHour &&
+          localHour <= targetPlanningHour + 2
         ) {
-          const copy = renderTemplate(pickRandomTemplate(ALL_COMPLETED_TEMPLATES), {
+          // Remind user if they haven't planned tasks or have pending items to tackle
+          const count = pendingTasksCount || 3;
+          const copy = renderTemplate(pickRandomTemplate(TASK_PLANNING_TEMPLATES), {
             firstName,
+            pendingCount: count,
             streakDays: maxStreak,
           });
 
-          const sent = await sendPushNotification(sub, {
+          const result = await dispatchUnifiedNotification({
+            sub,
+            userId: sub.userId,
+            endpoint: sub.endpoint,
             title: copy.title,
             body: copy.body,
-            icon: '/logo.png',
-            tag: `all-completed-${localDate}`,
-            data: { url: '/' },
+            type: 'planning',
+            tag: `task-planning-${localDate}`,
+            url: '/',
           });
 
-          if (sent) {
+          if (result.pushSent || result.inAppSaved) {
             sentCount++;
-            sub.lastNotifiedDate = localDate;
+            recordSent('taskPlanning');
             await sub.save();
             continue;
           }
         }
 
-        // 7. Scenario D: Morning Cadence Kickoff (8:00 AM - 9:59 AM)
-        if (localHour >= 8 && localHour <= 9 && sub.preferences?.dailyReminders) {
+        // ====================================================================
+        // Scenario E: Morning Cadence Kickoff (Default: 08:00 AM)
+        // ====================================================================
+        const isMorningEnabled = sub.preferences?.dailyReminders !== false;
+        const morningTimeStr = sub.preferences?.morningReminderTime || '08:00';
+        const targetMorningHour = parseInt(morningTimeStr.split(':')[0] || '8', 10) || 8;
+
+        if (
+          isMorningEnabled &&
+          !hasSentToday('morningCadence') &&
+          localHour >= targetMorningHour &&
+          localHour <= targetMorningHour + 2
+        ) {
           const count = pendingTasksCount || activeHabits.length || 1;
           const copy = renderTemplate(pickRandomTemplate(MORNING_CADENCE_TEMPLATES), {
             firstName,
@@ -245,24 +339,35 @@ router.get('/reminders', async (req: Request, res: Response) => {
             streakDays: maxStreak,
           });
 
-          const sent = await sendPushNotification(sub, {
+          const result = await dispatchUnifiedNotification({
+            sub,
+            userId: sub.userId,
+            endpoint: sub.endpoint,
             title: copy.title,
             body: copy.body,
-            icon: '/logo.png',
+            type: 'morning',
             tag: `cadence-morning-${localDate}`,
-            data: { url: '/habits' },
+            url: '/habits',
           });
 
-          if (sent) {
+          if (result.pushSent || result.inAppSaved) {
             sentCount++;
-            sub.lastNotifiedDate = localDate;
+            recordSent('morningCadence');
             await sub.save();
             continue;
           }
         }
 
-        // 8. Scenario E: Evening Streak at Risk / Duolingo-Style Urgency (8:00 PM - 10:30 PM)
-        if (localHour >= 20 && localHour <= 22 && sub.preferences?.dailyCadenceDigest) {
+        // ====================================================================
+        // Scenario F: Evening Streak at Risk / Duolingo-Style Urgency (8:00 PM - 10:30 PM)
+        // ====================================================================
+        const isEveningEnabled = sub.preferences?.dailyCadenceDigest !== false;
+        if (
+          isEveningEnabled &&
+          !hasSentToday('streakRisk') &&
+          localHour >= 20 &&
+          localHour <= 22
+        ) {
           const count = pendingTasksCount || 1;
           const copy = renderTemplate(pickRandomTemplate(STREAK_AT_RISK_TEMPLATES), {
             firstName,
@@ -270,17 +375,20 @@ router.get('/reminders', async (req: Request, res: Response) => {
             pendingCount: count,
           });
 
-          const sent = await sendPushNotification(sub, {
+          const result = await dispatchUnifiedNotification({
+            sub,
+            userId: sub.userId,
+            endpoint: sub.endpoint,
             title: copy.title,
             body: copy.body,
-            icon: '/logo.png',
+            type: 'streak',
             tag: `streak-risk-${localDate}`,
-            data: { url: '/' },
+            url: '/',
           });
 
-          if (sent) {
+          if (result.pushSent || result.inAppSaved) {
             sentCount++;
-            sub.lastNotifiedDate = localDate;
+            recordSent('streakRisk');
             await sub.save();
             continue;
           }

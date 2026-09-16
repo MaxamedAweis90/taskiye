@@ -129,13 +129,13 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// 4. Push Event - Display incoming native OS push notifications
+// 4. Push Event - Display incoming native OS push notifications & sync in-app bell
 self.addEventListener('push', (event) => {
   let data = {
     title: 'Taskiye Alert',
     body: 'You have a new update in Taskiye.',
-    icon: '/logo.png',
-    badge: '/logo.png',
+    icon: '/logo-tight.png',
+    badge: '/logo-tight.png',
     data: { url: '/' },
   };
 
@@ -149,15 +149,37 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/logo.png',
-    badge: data.badge || '/logo.png',
-    tag: data.tag || 'taskiye-notification',
+    icon: data.icon || '/logo-tight.png',
+    badge: data.badge || '/logo-tight.png',
+    tag: data.tag || `taskiye-notification-${Date.now()}`,
     renotify: true,
     data: data.data || { url: '/' },
     vibrate: [100, 50, 100],
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  const notifyPromise = self.registration.showNotification(data.title, options);
+
+  // Broadcast to all active client windows so the in-app notification bell updates in real-time
+  const broadcastPromise = self.clients
+    .matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clientList) => {
+      clientList.forEach((client) => {
+        client.postMessage({
+          type: 'PUSH_NOTIFICATION_RECEIVED',
+          payload: {
+            title: data.title,
+            body: data.body,
+            type: data.data?.type || 'system',
+            url: data.data?.url || '/',
+            tag: options.tag,
+            createdAt: new Date().toISOString(),
+          },
+        });
+      });
+    })
+    .catch(() => null);
+
+  event.waitUntil(Promise.all([notifyPromise, broadcastPromise]));
 });
 
 // 5. Notification Click Event - Focus or navigate to target route

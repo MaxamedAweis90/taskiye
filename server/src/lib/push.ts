@@ -1,19 +1,17 @@
 import webpush from 'web-push';
 import { PushSubscription, IPushSubscription } from '../models/PushSubscription.js';
+import { InAppNotification } from '../models/InAppNotification.js';
 
-// Standard VAPID configuration with auto-generated fallback
-let activeVapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '',
-  privateKey: process.env.VAPID_PRIVATE_KEY || '',
+// Deterministic VAPID keypair fallback ensures serverless cold starts never diverge
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BPqiFDbamgJZPy7vVjylHU2Tjyi0CuBXEX2QBtbendOCwA8x1GZv3XkIALf9gQKBo4AQN3y0SPWNGxjApAvZB0o';
+const DEFAULT_VAPID_PRIVATE_KEY =
+  's6yeP5Gnv79idVx-jR3kZaJvHDlHPCD4JBms7h_dUqw';
+
+const activeVapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY,
+  privateKey: process.env.VAPID_PRIVATE_KEY || DEFAULT_VAPID_PRIVATE_KEY,
 };
-
-if (!activeVapidKeys.publicKey || !activeVapidKeys.privateKey) {
-  try {
-    activeVapidKeys = webpush.generateVAPIDKeys();
-  } catch (err) {
-    console.warn('[WebPush] Default VAPID key generation warning:', err);
-  }
-}
 
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@taskiye.com';
 
@@ -68,8 +66,14 @@ export async function sendPushNotification(
     },
   };
 
+  const finalPayload = {
+    ...payload,
+    icon: payload.icon || '/logo-tight.png',
+    badge: payload.badge || '/logo-tight.png',
+  };
+
   try {
-    await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
+    await webpush.sendNotification(pushSubscription, JSON.stringify(finalPayload));
     return true;
   } catch (error: unknown) {
     const err = error as { statusCode?: number; message?: string };
@@ -86,6 +90,67 @@ export async function sendPushNotification(
     }
     return false;
   }
+}
+
+/**
+ * Dispatches a dual notification:
+ * 1. Creates an InAppNotification document in MongoDB (for the bell icon & activity feed)
+ * 2. If a push subscription is provided, sends the native Web Push alert
+ */
+export async function dispatchUnifiedNotification(params: {
+  sub?: IPushSubscription | null;
+  userId?: string | null;
+  endpoint?: string | null;
+  title: string;
+  body: string;
+  type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system';
+  tag?: string;
+  url?: string;
+  data?: Record<string, unknown>;
+}): Promise<{ pushSent: boolean; inAppSaved: boolean }> {
+  let pushSent = false;
+  let inAppSaved = false;
+
+  const targetUserId = params.userId || params.sub?.userId || null;
+  const targetEndpoint = params.endpoint || params.sub?.endpoint || null;
+
+  // 1. Create InAppNotification in database
+  try {
+    await InAppNotification.create({
+      userId: targetUserId,
+      endpoint: targetEndpoint,
+      title: params.title,
+      body: params.body,
+      type: params.type,
+      data: {
+        url: params.url || '/',
+        tag: params.tag || `notif-${Date.now()}`,
+        ...(params.data || {}),
+      },
+      isRead: false,
+    });
+    inAppSaved = true;
+  } catch (err) {
+    console.warn('[Notifications] Failed to save in-app notification:', err);
+  }
+
+  // 2. If sub provided, dispatch web push
+  if (params.sub) {
+    pushSent = await sendPushNotification(params.sub, {
+      title: params.title,
+      body: params.body,
+      icon: '/logo-tight.png',
+      badge: '/logo-tight.png',
+      tag: params.tag || `notif-${Date.now()}`,
+      data: {
+        url: params.url || '/',
+        type: params.type,
+        ...(params.data || {}),
+      },
+    });
+  }
+
+  return { pushSent, inAppSaved };
 }
 
 export const VAPID_PUBLIC_KEY = activeVapidKeys.publicKey;

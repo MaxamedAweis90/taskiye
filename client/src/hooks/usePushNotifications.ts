@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const FALLBACK_VAPID_KEY =
-  'BN8p6E37W3QeE_7fL3JqJ1Yc0Y4k1nB3A5_h8Z3z8b4J5X7g8V4p2_X6w0P1o9E4t3_x7Y1n8m5K4p2_X6w0P1o';
+  'BPqiFDbamgJZPy7vVjylHU2Tjyi0CuBXEX2QBtbendOCwA8x1GZv3XkIALf9gQKBo4AQN3y0SPWNGxjAvZB0o';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -57,7 +57,7 @@ export function playCelebrationChime(): void {
 export async function sendWelcomeNotification(): Promise<void> {
   const title = 'Welcome to Taskiye! 🔥';
   const body = "You're all set! Now you can track daily habits, protect your streak, and conquer your goals.";
-  const icon = '/logo.png';
+  const icon = '/logo-tight.png';
 
   try {
     if ('serviceWorker' in navigator) {
@@ -121,8 +121,12 @@ export function usePushNotifications() {
   const subscribe = useCallback(
     async (preferences: {
       dailyReminders: boolean;
+      morningReminderTime?: string;
+      taskPlanningReminder?: boolean;
+      taskPlanningTime?: string;
       streakAlerts: boolean;
       dailyCadenceDigest: boolean;
+      completionChimes?: boolean;
     }): Promise<boolean> => {
       if (!isSupported) return false;
 
@@ -233,8 +237,8 @@ export function usePushNotifications() {
         if (reg?.showNotification) {
           await reg.showNotification('Taskiye Connected! 🔥', {
             body: 'Your device is verified and ready for streak & daily habit alerts.',
-            icon: '/logo.png',
-            badge: '/logo.png',
+            icon: '/logo-tight.png',
+            badge: '/logo-tight.png',
             tag: 'taskiye-test-notification',
             data: { url: '/' },
           });
@@ -250,7 +254,7 @@ export function usePushNotifications() {
       try {
         new Notification('Taskiye Connected! 🔥', {
           body: 'Your device is verified and ready for streak & daily habit alerts.',
-          icon: '/logo.png',
+          icon: '/logo-tight.png',
         });
         return true;
       } catch {

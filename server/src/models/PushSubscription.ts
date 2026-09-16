@@ -7,8 +7,12 @@ export interface IPushSubscriptionKeys {
 
 export interface INotificationPreferences {
   dailyReminders: boolean;
+  morningReminderTime?: string;
+  taskPlanningReminder: boolean;
+  taskPlanningTime: string;
   streakAlerts: boolean;
   dailyCadenceDigest: boolean;
+  completionChimes?: boolean;
 }
 
 export interface IPushSubscription extends Document {
@@ -18,6 +22,7 @@ export interface IPushSubscription extends Document {
   timezone: string;
   preferences: INotificationPreferences;
   lastNotifiedDate?: string | null;
+  lastAlertsSent?: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +59,18 @@ const pushSubscriptionSchema = new Schema<IPushSubscription>(
         type: Boolean,
         default: true,
       },
+      morningReminderTime: {
+        type: String,
+        default: '08:00',
+      },
+      taskPlanningReminder: {
+        type: Boolean,
+        default: true,
+      },
+      taskPlanningTime: {
+        type: String,
+        default: '09:00',
+      },
       streakAlerts: {
         type: Boolean,
         default: true,
@@ -62,10 +79,19 @@ const pushSubscriptionSchema = new Schema<IPushSubscription>(
         type: Boolean,
         default: true,
       },
+      completionChimes: {
+        type: Boolean,
+        default: true,
+      },
     },
     lastNotifiedDate: {
       type: String,
       default: null,
+    },
+    lastAlertsSent: {
+      type: Map,
+      of: String,
+      default: () => new Map(),
     },
   },
   {

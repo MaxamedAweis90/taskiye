@@ -140,6 +140,26 @@ export const TRASH_PURGED_TEMPLATES: NotificationCopy[] = [
   },
 ];
 
+// 8. Daily Task Planning Reminder (Plan Today's Priorities)
+export const TASK_PLANNING_TEMPLATES: NotificationCopy[] = [
+  {
+    title: "Plan Today's Priorities 🎯",
+    body: "Hey {firstName}! Take 2 minutes to choose your focus tasks for today and set yourself up for victory.",
+  },
+  {
+    title: "What's on your agenda today? ⚡",
+    body: "Clarity creates momentum, {firstName}. Set your key tasks for today and conquer them one by one.",
+  },
+  {
+    title: "Time to set today's focus 📋",
+    body: "Good habits start with clear intentions. Add today's tasks to your checklist now, {firstName}!",
+  },
+  {
+    title: "Design your day, {firstName} 🌅",
+    body: "A successful day starts with a game plan. Tap here to set today's focus and habits.",
+  },
+];
+
 /**
  * Replaces dynamic variables ({firstName}, {streakDays}, etc.) with context data
  */
