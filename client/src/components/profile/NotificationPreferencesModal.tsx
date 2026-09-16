@@ -11,6 +11,7 @@ import {
   Send,
   Sparkles,
   Target,
+  ChevronDown,
 } from 'lucide-react';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -83,6 +84,26 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       setPrefs(DEFAULT_NOTIFICATION_PREFS);
       setInitialPrefs(DEFAULT_NOTIFICATION_PREFS);
     }
+
+    // Asynchronously fetch latest preferences from server to ensure multi-device consistency
+    fetch('/api/notifications/preferences', { credentials: 'include', cache: 'no-store' })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.data?.preferences) {
+          const remotePrefs: NotificationPrefs = {
+            ...DEFAULT_NOTIFICATION_PREFS,
+            ...json.data.preferences,
+          };
+          setPrefs(remotePrefs);
+          setInitialPrefs(remotePrefs);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(remotePrefs));
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .catch(() => null);
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -108,11 +129,19 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
     setSuccessMsg('');
 
     try {
-      // 1. Save local preferences
+      // 1. Save local preferences immediately
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
       setInitialPrefs(prefs);
 
-      // 2. If any push alert is active and push is supported, ensure device is registered
+      // 2. Persist directly to MongoDB via dedicated preferences endpoint
+      const prefPromise = fetch('/api/notifications/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ preferences: prefs }),
+      }).catch(() => null);
+
+      // 3. If any push alert is active and push is supported, ensure device push subscription is updated
       const hasAnyPush =
         prefs.dailyReminders ||
         prefs.taskPlanningReminder ||
@@ -131,10 +160,19 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
         });
       }
 
+      await prefPromise;
+
+      // Broadcast global event so any active mobile component re-syncs dynamically
+      window.dispatchEvent(
+        new CustomEvent('taskiye_preferences_updated', {
+          detail: prefs,
+        })
+      );
+
       setSuccessMsg('Notification preferences updated and synced!');
       showToast(
         'Preferences Saved',
-        'Your alert preferences and push subscription have been saved.',
+        'Your alert preferences and scheduled times have been updated.',
         'success'
       );
 
@@ -292,21 +330,24 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
                   Preferred Reminder Time
                 </span>
-                <select
-                  value={prefs.taskPlanningTime}
-                  onChange={(e) => handleTimeChange('taskPlanningTime', e.target.value)}
-                  className="bg-[#151D33] border border-white/[0.12] hover:border-amber-400/50 focus:border-amber-400 rounded-xl px-2.5 py-1 text-xs font-semibold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
-                >
-                  <option value="07:00">07:00 AM</option>
-                  <option value="08:00">08:00 AM</option>
-                  <option value="09:00">09:00 AM (Recommended)</option>
-                  <option value="10:00">10:00 AM</option>
-                  <option value="11:00">11:00 AM</option>
-                  <option value="12:00">12:00 PM</option>
-                  <option value="13:00">01:00 PM</option>
-                  <option value="18:00">06:00 PM (Tomorrow prep)</option>
-                  <option value="20:00">08:00 PM</option>
-                </select>
+                <div className="relative flex items-center">
+                  <select
+                    value={prefs.taskPlanningTime}
+                    onChange={(e) => handleTimeChange('taskPlanningTime', e.target.value)}
+                    className="appearance-none bg-[#151D33] border border-amber-400/40 hover:border-amber-400 focus:border-amber-400 rounded-xl pl-3 pr-7 py-1 text-xs font-bold text-[#FACC15] focus:outline-none focus:ring-1 focus:ring-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.15)] cursor-pointer"
+                  >
+                    <option value="07:00">07:00 AM</option>
+                    <option value="08:00">08:00 AM</option>
+                    <option value="09:00">09:00 AM (Recommended)</option>
+                    <option value="10:00">10:00 AM</option>
+                    <option value="11:00">11:00 AM</option>
+                    <option value="12:00">12:00 PM</option>
+                    <option value="13:00">01:00 PM</option>
+                    <option value="18:00">06:00 PM (Tomorrow prep)</option>
+                    <option value="20:00">08:00 PM</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-amber-400 absolute right-2 pointer-events-none stroke-[2.5]" />
+                </div>
               </div>
             )}
           </div>
@@ -348,17 +389,20 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
                   Morning Cadence Time
                 </span>
-                <select
-                  value={prefs.morningReminderTime}
-                  onChange={(e) => handleTimeChange('morningReminderTime', e.target.value)}
-                  className="bg-[#151D33] border border-white/[0.12] hover:border-amber-400/50 focus:border-amber-400 rounded-xl px-2.5 py-1 text-xs font-semibold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
-                >
-                  <option value="06:00">06:00 AM (Early bird)</option>
-                  <option value="07:00">07:00 AM</option>
-                  <option value="08:00">08:00 AM (Default)</option>
-                  <option value="09:00">09:00 AM</option>
-                  <option value="10:00">10:00 AM</option>
-                </select>
+                <div className="relative flex items-center">
+                  <select
+                    value={prefs.morningReminderTime}
+                    onChange={(e) => handleTimeChange('morningReminderTime', e.target.value)}
+                    className="appearance-none bg-[#151D33] border border-amber-400/40 hover:border-amber-400 focus:border-amber-400 rounded-xl pl-3 pr-7 py-1 text-xs font-bold text-[#FACC15] focus:outline-none focus:ring-1 focus:ring-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.15)] cursor-pointer"
+                  >
+                    <option value="06:00">06:00 AM (Early bird)</option>
+                    <option value="07:00">07:00 AM</option>
+                    <option value="08:00">08:00 AM (Default)</option>
+                    <option value="09:00">09:00 AM</option>
+                    <option value="10:00">10:00 AM</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-amber-400 absolute right-2 pointer-events-none stroke-[2.5]" />
+                </div>
               </div>
             )}
           </div>

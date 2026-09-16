@@ -108,6 +108,68 @@ router.delete('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Respo
 });
 
 /**
+ * GET /api/notifications/preferences
+ * Retrieves saved user notification preferences from the database
+ */
+router.get('/preferences', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  try {
+    const userId = req.user?.id || null;
+    const endpoint = (req.query.endpoint as string | undefined) || null;
+
+    if (!userId && !endpoint) {
+      return sendSuccess(res, { preferences: null });
+    }
+
+    const filter = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      : { endpoint };
+
+    const sub = await PushSubscription.findOne(filter).sort({ updatedAt: -1 });
+    return sendSuccess(res, { preferences: sub?.preferences || null });
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to fetch preferences', 500);
+  }
+});
+
+/**
+ * POST /api/notifications/preferences
+ * Updates user notification preferences in the database
+ */
+router.post('/preferences', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || null;
+    const { preferences, endpoint } = req.body || {};
+
+    const safePrefs = {
+      dailyReminders: preferences?.dailyReminders ?? true,
+      morningReminderTime: preferences?.morningReminderTime || '08:00',
+      taskPlanningReminder: preferences?.taskPlanningReminder ?? true,
+      taskPlanningTime: preferences?.taskPlanningTime || '09:00',
+      streakAlerts: preferences?.streakAlerts ?? true,
+      dailyCadenceDigest: preferences?.dailyCadenceDigest ?? true,
+      completionChimes: preferences?.completionChimes ?? true,
+    };
+
+    if (userId || endpoint) {
+      const filter = userId
+        ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+        : { endpoint };
+
+      await PushSubscription.updateMany(filter, {
+        $set: { preferences: safePrefs },
+      });
+    }
+
+    return sendSuccess(res, { preferences: safePrefs }, 'Preferences updated successfully');
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to update preferences', 500);
+  }
+});
+
+/**
  * GET /api/notifications/vapid-public-key
  * Returns the public key required for the browser to subscribe via PushManager
  */
