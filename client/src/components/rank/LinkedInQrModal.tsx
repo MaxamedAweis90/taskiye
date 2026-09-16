@@ -1,16 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
   X,
   QrCode,
   Scan,
-  Copy,
-  Check,
   Camera,
-  Share2,
   CheckCircle2,
-  Download,
   AlertCircle,
 } from 'lucide-react';
 
@@ -25,6 +21,46 @@ interface LinkedInQrModalProps {
   onScannedUser?: (handle: string) => void;
 }
 
+// Safe ESM/CommonJS interop helper for QRCode
+function getQrCodeLib() {
+  const qr = QRCode as unknown as {
+    toCanvas?: typeof QRCode.toCanvas;
+    toString?: typeof QRCode.toString;
+    default?: {
+      toCanvas?: typeof QRCode.toCanvas;
+      toString?: typeof QRCode.toString;
+    };
+  };
+  if (qr && typeof qr.toCanvas === 'function') return qr;
+  if (qr && qr.default && typeof qr.default.toCanvas === 'function') return qr.default;
+  return qr;
+}
+
+// Safe ESM/CommonJS interop helper for jsQR
+function getJsQrDecoder() {
+  const jsqrAny = jsQR as unknown as typeof jsQR | { default?: typeof jsQR; jsQR?: typeof jsQR };
+  if (typeof jsqrAny === 'function') return jsqrAny;
+  if (jsqrAny && typeof (jsqrAny as { default?: typeof jsQR }).default === 'function') {
+    return (jsqrAny as { default: typeof jsQR }).default;
+  }
+  if (jsqrAny && typeof (jsqrAny as { jsQR?: typeof jsQR }).jsQR === 'function') {
+    return (jsqrAny as { jsQR: typeof jsQR }).jsQR;
+  }
+  return null;
+}
+
+function safeDecodeQr(data: Uint8ClampedArray, width: number, height: number) {
+  try {
+    const fn = getJsQrDecoder();
+    if (typeof fn === 'function') {
+      return fn(data, width, height, { inversionAttempts: 'dontInvert' });
+    }
+  } catch (err) {
+    console.warn('[jsQR] Decode error:', err);
+  }
+  return null;
+}
+
 export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
   isOpen,
   onClose,
@@ -36,42 +72,73 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
   onScannedUser,
 }) => {
   const [activeTab, setActiveTab] = useState<'my_code' | 'scan'>('my_code');
-  const [copied, setCopied] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [qrSvg, setQrSvg] = useState<string>('');
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [selfScanNotice, setSelfScanNotice] = useState<string | null>(null);
+  const [invalidNotice, setInvalidNotice] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  const cleanHandle = currentUser.handle.replace(/^@/, '');
-  const inviteLink = `${window.location.origin}/rank?invite=${encodeURIComponent(cleanHandle)}`;
-  const qrPayload = JSON.stringify({
-    app: 'taskiye',
-    action: 'add_friend',
-    handle: `@${cleanHandle}`,
-    name: currentUser.name,
-    timestamp: Date.now(),
-  });
+  const cleanHandle = (currentUser?.handle || '@alexmorgan').replace(/^@/, '');
+  const userName = currentUser?.name || 'Alex Morgan';
+  const userAvatar = currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
 
-  // Generate real QR code image using `qrcode`
+  const qrPayload = useMemo(
+    () =>
+      JSON.stringify({
+        app: 'taskiye',
+        action: 'add_friend',
+        handle: `@${cleanHandle}`,
+        name: userName,
+      }),
+    [cleanHandle, userName]
+  );
+
+  // Generate real QR code image & SVG on mount
   useEffect(() => {
     if (!isOpen) return;
 
-    QRCode.toDataURL(qrPayload, {
-      width: 320,
-      margin: 1.5,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF',
-      },
-      errorCorrectionLevel: 'H',
-    })
-      .then((url) => setQrDataUrl(url))
-      .catch((err) => console.error('Error generating QR code:', err));
+    let mounted = true;
+    const qrLib = getQrCodeLib();
+
+    // 1. Generate vector SVG
+    if (qrLib && typeof qrLib.toString === 'function') {
+      try {
+        qrLib.toString(qrPayload, { type: 'svg', margin: 1, errorCorrectionLevel: 'H' })
+          .then((svg: string) => {
+            if (mounted && svg && typeof svg === 'string' && svg.includes('<svg')) {
+              setQrSvg(svg);
+            }
+          })
+          .catch((err: unknown) => console.warn('[QRCode] SVG generation error:', err));
+      } catch (err) {
+        console.warn('[QRCode] SVG error:', err);
+      }
+    }
+
+    // 2. Render directly onto canvas for instant guaranteed rendering
+    if (qrCanvasRef.current && qrLib && typeof qrLib.toCanvas === 'function') {
+      try {
+        qrLib.toCanvas(qrCanvasRef.current, qrPayload, {
+          width: 220,
+          margin: 1.5,
+          color: { dark: '#000000', light: '#FFFFFF' },
+          errorCorrectionLevel: 'H',
+        }).catch((err: unknown) => console.warn('[QRCode] Canvas render error:', err));
+      } catch (err) {
+        console.warn('[QRCode] Canvas error:', err);
+      }
+    }
+
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, qrPayload]);
 
   // Real Camera Scanner using `jsQR`
@@ -91,11 +158,13 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
   const startCamera = async () => {
     setCameraError(null);
     setScanResult(null);
+    setSelfScanNotice(null);
+    setInvalidNotice(null);
     setIsScanning(true);
 
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera not supported on this device/browser');
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera access requires HTTPS or is not supported by this browser.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -106,14 +175,12 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.play();
-        requestAnimationFrame(tickScan);
+        videoRef.current.play().catch(() => null);
+        animationFrameRef.current = requestAnimationFrame(tickScan);
       }
     } catch (err: unknown) {
-      console.warn('Camera access error:', err);
-      setCameraError(
-        (err as Error)?.message || 'Camera permission denied or camera not found.'
-      );
+      const msg = (err as Error)?.message || 'Camera permission denied or camera not found.';
+      setCameraError(msg);
       setIsScanning(false);
     }
   };
@@ -137,6 +204,11 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
     }
 
     const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      animationFrameRef.current = requestAnimationFrame(tickScan);
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -148,22 +220,49 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'dontInvert',
-    });
+    const code = safeDecodeQr(imageData.data, imageData.width, imageData.height);
 
     if (code && code.data) {
       try {
-        let handle = code.data;
+        let handle = '';
+        let isTaskiye = false;
+
         if (code.data.startsWith('{')) {
           const parsed = JSON.parse(code.data);
-          if (parsed.handle) handle = parsed.handle;
+          if (parsed.app === 'taskiye' || parsed.handle) {
+            isTaskiye = true;
+            handle = parsed.handle || '';
+          }
+        } else if (code.data.startsWith('taskiye:connect:')) {
+          isTaskiye = true;
+          handle = `@${code.data.replace('taskiye:connect:', '').replace(/^@/, '')}`;
         } else if (code.data.includes('invite=')) {
+          isTaskiye = true;
           const urlObj = new URL(code.data);
           const inviteParam = urlObj.searchParams.get('invite');
           if (inviteParam) handle = `@${inviteParam.replace(/^@/, '')}`;
         }
 
+        if (!isTaskiye || !handle) {
+          setInvalidNotice('Not a valid Taskiye streak code. Scan a rival’s QR code.');
+          setTimeout(() => setInvalidNotice(null), 2500);
+          animationFrameRef.current = requestAnimationFrame(tickScan);
+          return;
+        }
+
+        // Self-Scan Detection: Check if scanned handle matches current user
+        const decodedClean = handle.replace(/^@/, '').toLowerCase().trim();
+        if (decodedClean === cleanHandle.toLowerCase().trim()) {
+          stopCamera();
+          setSelfScanNotice("That's you! 👋 This is your personal streak code. Show it to a rival so they can challenge you.");
+          setTimeout(() => {
+            setSelfScanNotice(null);
+            setActiveTab('my_code');
+          }, 2200);
+          return;
+        }
+
+        // Valid rival QR code scanned
         setScanResult(handle);
         stopCamera();
 
@@ -185,30 +284,16 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDownloadQr = () => {
-    if (!qrDataUrl) return;
-    const a = document.createElement('a');
-    a.href = qrDataUrl;
-    a.download = `taskiye-qr-${cleanHandle}.png`;
-    a.click();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      {/* Mobile Fullscreen Container (< sm) vs Desktop Modal (sm:) */}
+    <div className="fixed inset-0 z-50 flex sm:hidden items-center justify-center p-0 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+      {/* Mobile-Only Fullscreen Container */}
       <div
-        className="w-full h-full sm:h-auto sm:max-w-md bg-[#0A101D] sm:border sm:border-[#FACC15]/40 sm:rounded-3xl p-5 sm:p-6 shadow-[0_0_50px_rgba(250,204,21,0.2)] flex flex-col justify-between text-left relative overflow-y-auto"
+        className="w-full h-full bg-[#0A101D] p-5 flex flex-col justify-between text-left relative overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col gap-4">
           {/* Top Bar Header */}
-          <div className="flex items-center justify-between border-b border-white/[0.08] pb-3 pt-2 sm:pt-0">
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-3 pt-2">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-[#FACC15] flex items-center justify-center">
                 <QrCode className="w-4 h-4" />
@@ -261,69 +346,39 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
           {activeTab === 'my_code' && (
             <div className="flex flex-col items-center gap-4 text-center py-2">
               {/* Profile Card with Real QR Code */}
-              <div className="w-full bg-gradient-to-b from-[#131D33] to-[#0A101E] border border-amber-400/30 rounded-3xl p-5 sm:p-6 flex flex-col items-center gap-3.5 shadow-lg">
+              <div className="w-full bg-gradient-to-b from-[#131D33] to-[#0A101E] border border-amber-400/30 rounded-3xl p-5 flex flex-col items-center gap-3.5 shadow-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-[#FACC15] bg-slate-800 shrink-0">
                     <img
-                      src={currentUser.avatarUrl}
-                      alt={currentUser.name}
+                      src={userAvatar}
+                      alt={userName}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div className="text-left">
-                    <div className="text-base font-black text-white">{currentUser.name}</div>
-                    <div className="text-xs text-[#FACC15] font-bold">{currentUser.handle}</div>
+                    <div className="text-base font-black text-white">{userName}</div>
+                    <div className="text-xs text-[#FACC15] font-bold">@{cleanHandle}</div>
                   </div>
                 </div>
 
-                {/* Real High-Resolution QR Code */}
+                {/* Real High-Resolution Vector QR Code with Instant Canvas Rendering */}
                 <div className="p-3 bg-white rounded-2xl shadow-[0_0_24px_rgba(250,204,21,0.25)] flex items-center justify-center">
-                  {qrDataUrl ? (
-                    <img
-                      src={qrDataUrl}
-                      alt="Real Taskiye QR Code"
-                      className="w-48 h-48 sm:w-52 sm:h-52 object-contain"
+                  {qrSvg && qrSvg.includes('<svg') ? (
+                    <div
+                      dangerouslySetInnerHTML={{ __html: qrSvg }}
+                      className="w-44 h-44 [&>svg]:w-full [&>svg]:h-full"
                     />
                   ) : (
-                    <div className="w-48 h-48 flex items-center justify-center text-xs text-slate-500">
-                      Generating QR...
-                    </div>
+                    <canvas
+                      ref={qrCanvasRef}
+                      className="w-44 h-44 rounded-lg"
+                    />
                   )}
                 </div>
 
                 <p className="text-xs text-slate-300 font-medium max-w-xs leading-relaxed">
-                  Point another phone camera at this real QR code to send an instant friend request.
+                  Show this real QR code to any camera to connect on Taskiye.
                 </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="w-full flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'Link Copied!' : 'Copy Link'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadQr}
-                  className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-amber-300" />
-                  <span>Save QR</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="px-4 py-2.5 rounded-xl bg-[#FACC15] hover:bg-amber-300 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>Share</span>
-                </button>
               </div>
             </div>
           )}
@@ -351,15 +406,30 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
                 </div>
 
                 {cameraError && (
-                  <div className="absolute inset-0 bg-[#0A101D]/90 p-4 flex flex-col items-center justify-center gap-2 text-center">
+                  <div className="absolute inset-0 bg-[#0A101D]/95 p-4 flex flex-col items-center justify-center gap-2 text-center">
                     <AlertCircle className="w-8 h-8 text-amber-400" />
-                    <span className="text-xs font-bold text-white">Camera Unavailable</span>
+                    <span className="text-xs font-bold text-white">Camera Access</span>
                     <span className="text-[11px] text-slate-400 max-w-xs">{cameraError}</span>
                   </div>
                 )}
               </div>
 
-              {scanResult ? (
+              {selfScanNotice ? (
+                <div className="w-full p-3.5 rounded-2xl bg-amber-400/15 border border-amber-400/35 text-amber-300 text-xs font-bold flex items-center justify-center gap-2.5 animate-in fade-in shadow-md text-left">
+                  <span className="text-xl">👋</span>
+                  <div className="flex flex-col">
+                    <span className="text-white font-extrabold">That's you!</span>
+                    <span className="text-[11px] text-amber-200/90 font-medium leading-tight">
+                      This is your personal streak code. Switching to your QR card to share...
+                    </span>
+                  </div>
+                </div>
+              ) : invalidNotice ? (
+                <div className="w-full p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{invalidNotice}</span>
+                </div>
+              ) : scanResult ? (
                 <div className="w-full p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>Scanned {scanResult}! Connecting...</span>
@@ -367,7 +437,7 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
                   <Camera className="w-4 h-4 text-amber-400" />
-                  <span>Align Taskiye QR code inside the frame to scan</span>
+                  <span>Align a rival's Taskiye QR code inside the frame to connect</span>
                 </div>
               )}
             </div>
@@ -379,7 +449,7 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 rounded-xl bg-white/10 text-white font-bold text-xs"
+            className="w-full py-3 rounded-xl bg-white/10 text-white font-bold text-xs cursor-pointer"
           >
             Close QR Scanner
           </button>

@@ -4,9 +4,9 @@ import { InAppNotification } from '../models/InAppNotification.js';
 
 // Deterministic VAPID keypair fallback ensures serverless cold starts never diverge
 const DEFAULT_VAPID_PUBLIC_KEY =
-  'BPqiFDbamgJZPy7vVjylHU2Tjyi0CuBXEX2QBtbendOCwA8x1GZv3XkIALf9gQKBo4AQN3y0SPWNGxjApAvZB0o';
+  'BDa5_97lKl35HcOpR1gJ6EHLTJIsEF2J9bjZc0Z1hOxuhFM0gjo3zk8cGPFnZqvevUzFCHmzdFZrc_JEbB9viwU';
 const DEFAULT_VAPID_PRIVATE_KEY =
-  's6yeP5Gnv79idVx-jR3kZaJvHDlHPCD4JBms7h_dUqw';
+  'fbAYOfeyppguX-CsYgHCfiPORBNsibscAKYAdPyG7Bk';
 
 const activeVapidKeys = {
   publicKey: process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY,

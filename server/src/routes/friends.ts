@@ -1,7 +1,11 @@
 import { Router, Response } from 'express';
+import { ObjectId } from 'mongodb';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { Friendship } from '../models/Friendship.js';
+import { Habit } from '../models/Habit.js';
+import { InAppNotification } from '../models/InAppNotification.js';
+import { mongoDb } from '../db/connection.js';
 
 const router = Router();
 
@@ -30,35 +34,111 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
 
 /**
  * GET /api/friends/search?q=...
- * Searches users starting with query prefix (e.g. @marcus or elena)
+ * Searches real registered users, strictly excluding the authenticated user
  */
 router.get('/search', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const rawQuery = ((req.query.q as string) || '').trim().replace(/^@/, '').toLowerCase();
-    
-    // Directory of searchable community members
-    const ALL_MEMBERS = [
-      { id: 'user_1', name: 'Elena Rostova', handle: '@elena_flow', initials: 'ER', streakDays: 48, consistency: 99.4 },
-      { id: 'user_2', name: 'Marcus Chen', handle: '@mchen_code', initials: 'MC', streakDays: 34, consistency: 97.8 },
-      { id: 'user_3', name: 'Sarah Jenkins', handle: '@sjenkins', initials: 'SJ', streakDays: 29, consistency: 96.5 },
-      { id: 'user_4', name: 'David Kim', handle: '@davidk', initials: 'DK', streakDays: 26, consistency: 95.0 },
-      { id: 'user_5', name: 'Maya Lin', handle: '@mayalin', initials: 'ML', streakDays: 22, consistency: 93.8 },
-      { id: 'user_6', name: 'Jonas Berg', handle: '@jberg', initials: 'JB', streakDays: 19, consistency: 91.4 },
-      { id: 'user_7', name: 'Sora Nakamura', handle: '@nakasora', initials: 'SN', streakDays: 18, consistency: 89.6 },
-      { id: 'user_8', name: 'Fatima Al-Mansoor', handle: '@fatima_m', initials: 'FA', streakDays: 16, consistency: 92.1 },
-      { id: 'user_9', name: 'Liam O’Connor', handle: '@liam_oc', initials: 'LO', streakDays: 11, consistency: 88.4 },
-      { id: 'user_10', name: 'Amara Okafor', handle: '@amara_o', initials: 'AO', streakDays: 9, consistency: 85.0 },
-    ];
+    const currentUserId = req.user?.id;
+    const currentUserEmail = req.user?.email;
+    const currentUsername = (req.user as unknown as { username?: string })?.username;
 
-    if (!rawQuery) {
-      return sendSuccess(res, ALL_MEMBERS.slice(0, 6));
+    // Multi-criteria exclusion for authenticated user
+    const exclusions: Record<string, unknown>[] = [];
+    if (currentUserId) {
+      exclusions.push({ id: currentUserId });
+      exclusions.push({ _id: currentUserId });
+      try {
+        exclusions.push({ _id: new ObjectId(currentUserId) });
+      } catch {
+        // Not a valid ObjectId hex string, ignore
+      }
+    }
+    if (currentUserEmail) {
+      exclusions.push({ email: currentUserEmail.toLowerCase() });
+    }
+    if (currentUsername) {
+      exclusions.push({ username: currentUsername });
     }
 
-    const matches = ALL_MEMBERS.filter(
-      (m) =>
-        m.name.toLowerCase().startsWith(rawQuery) ||
-        m.handle.toLowerCase().replace('@', '').startsWith(rawQuery)
-    );
+    const filter: Record<string, unknown> = {};
+    if (exclusions.length > 0) {
+      filter.$nor = exclusions;
+    }
+
+    if (rawQuery) {
+      const regex = { $regex: rawQuery, $options: 'i' };
+      filter.$or = [{ name: regex }, { username: regex }, { email: regex }];
+    }
+
+    // Query real users from database
+    const rawUsers = await mongoDb.collection('user').find(filter).limit(20).toArray();
+
+    // Additional defensive in-memory filter
+    const users = rawUsers.filter((u) => {
+      const uId = (u.id as string) || u._id?.toString();
+      if (currentUserId && (uId === currentUserId || u._id?.toString() === currentUserId)) return false;
+      if (currentUserEmail && u.email && String(u.email).toLowerCase() === currentUserEmail.toLowerCase()) return false;
+      if (currentUsername && u.username && String(u.username).toLowerCase() === currentUsername.toLowerCase()) return false;
+      return true;
+    });
+
+    // Query active habits for these users to calculate real streak count
+    const userIds = users.map((u) => (u.id as string) || u._id?.toString()).filter(Boolean);
+    const habits = await Habit.find({
+      userId: { $in: userIds },
+      isArchived: { $ne: true },
+      deletedAt: null,
+    }).lean();
+
+    const habitsByUser = new Map<string, typeof habits>();
+    for (const h of habits) {
+      if (!h.userId) continue;
+      const list = habitsByUser.get(h.userId) || [];
+      list.push(h);
+      habitsByUser.set(h.userId, list);
+    }
+
+    const matches = users.map((u) => {
+      const uId = (u.id as string) || u._id?.toString() || '';
+      const userHabits = habitsByUser.get(uId) || [];
+      const streakDays =
+        userHabits.length > 0
+          ? Math.max(...userHabits.map((h) => Number(h.streakDays) || 0))
+          : 0;
+      const consistency =
+        userHabits.length > 0
+          ? Math.round(
+              userHabits.reduce(
+                (acc, h) =>
+                  acc + (typeof h.consistencyRate === 'number' ? h.consistencyRate : 100),
+                0
+              ) / userHabits.length
+            )
+          : 100;
+
+      const name = (u.name as string) || (u.username as string) || 'User';
+      const handle = `@${((u.username as string) || name.toLowerCase().replace(/\s+/g, '')).replace(/^@/, '')}`;
+      const avatarUrl = (u.avatarUrl as string) || (u.image as string) || '';
+      const initials =
+        name
+          .split(' ')
+          .filter(Boolean)
+          .map((p) => p[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase() || 'U';
+
+      return {
+        id: uId,
+        name,
+        handle,
+        avatarUrl,
+        initials,
+        streakDays,
+        consistency,
+      };
+    });
 
     return sendSuccess(res, matches);
   } catch (error) {
@@ -68,25 +148,43 @@ router.get('/search', optionalAuth, async (req: AuthenticatedRequest, res: Respo
 
 /**
  * POST /api/friends/request
- * Send a friend request via username search or QR code token
+ * Send a friend request to a real user via username search or QR code token
  */
 router.post('/request', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'guest_user';
+    const senderName = req.user?.name || 'A rival';
     const { targetUsername, qrToken } = req.body;
 
     if (!targetUsername && !qrToken) {
       return sendError(res, 'Either targetUsername or qrToken is required', 400);
     }
 
-    // In a full implementation, resolve targetUsername or qrToken to targetUserId.
-    // For stub/initialization, generate or mock target user identifier:
-    const targetUserId = targetUsername
-      ? `user_${encodeURIComponent(targetUsername.toLowerCase().trim())}`
-      : `user_qr_${qrToken}`;
+    let targetUserId = '';
 
-    if (targetUserId === userId) {
-      return sendError(res, 'You cannot send a friend request to yourself', 400);
+    if (targetUsername) {
+      const cleanTarget = String(targetUsername).trim().replace(/^@/, '');
+      const foundUser = await mongoDb.collection('user').findOne({
+        $or: [
+          { username: { $regex: `^${cleanTarget}$`, $options: 'i' } },
+          { name: { $regex: `^${cleanTarget}$`, $options: 'i' } },
+          { email: cleanTarget.toLowerCase() },
+          { id: cleanTarget },
+        ],
+      });
+
+      targetUserId = foundUser ? ((foundUser.id as string) || foundUser._id.toString()) : cleanTarget;
+    } else if (qrToken) {
+      // Decode QR token if formatted or use directly as target ID
+      targetUserId = String(qrToken).replace('taskiye:user:', '').trim();
+    }
+
+    if (!targetUserId || targetUserId === userId) {
+      return sendError(
+        res,
+        "That's your own profile! Share your QR code or handle with a friend to connect.",
+        400
+      );
     }
 
     // Check if friendship or request already exists
@@ -112,6 +210,19 @@ router.post('/request', optionalAuth, async (req: AuthenticatedRequest, res: Res
       recipientId: targetUserId,
       status: 'PENDING',
     });
+
+    // Deliver in-app notification to recipient's inbox
+    try {
+      await InAppNotification.create({
+        userId: targetUserId,
+        title: 'New Friend Request',
+        body: `${senderName} challenged you to a streak rivalry!`,
+        type: 'system',
+        data: { url: '/rank', friendshipId: friendship._id },
+      });
+    } catch (notifErr) {
+      console.warn('[Friends] Failed to create in-app notification:', notifErr);
+    }
 
     return sendSuccess(
       res,

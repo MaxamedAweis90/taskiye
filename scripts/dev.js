@@ -12,25 +12,45 @@ const nodeExec = process.execPath;
 const viteJs = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const tsxJs = path.join(rootDir, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
-console.log('\x1b[36m%s\x1b[0m', '⚡ Starting Taskiye Client and Server in parallel...');
+console.log('\x1b[36m%s\x1b[0m', '⚡ Starting Taskiye Backend Server...');
 
-// Spawn Client Dev Server (Vite) directly via node runtime
-const client = spawn(nodeExec, [viteJs], {
-  cwd: path.join(rootDir, 'client'),
-  stdio: 'inherit',
-  env: process.env,
-});
+let client = null;
+let clientStarted = false;
 
-client.on('error', (err) => {
-  console.error('\x1b[31m%s\x1b[0m', `[CLIENT ERROR]: ${err.message}`);
-});
+const startClient = () => {
+  if (clientStarted) return;
+  clientStarted = true;
+  console.log('\x1b[36m%s\x1b[0m', '⚡ Starting Taskiye Client (Vite)...');
+  client = spawn(nodeExec, [viteJs], {
+    cwd: path.join(rootDir, 'client'),
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  client.on('error', (err) => {
+    console.error('\x1b[31m%s\x1b[0m', `[CLIENT ERROR]: ${err.message}`);
+  });
+};
 
 // Spawn Backend Server (TSX watch) directly via node runtime
 const server = spawn(nodeExec, [tsxJs, 'watch', 'src/index.ts'], {
   cwd: path.join(rootDir, 'server'),
-  stdio: 'inherit',
+  stdio: ['inherit', 'pipe', 'inherit'],
   env: process.env,
 });
+
+server.stdout.on('data', (chunk) => {
+  process.stdout.write(chunk);
+  const text = chunk.toString();
+  if (text.includes('[Taskiye Server] Running') || text.includes('Running on http')) {
+    startClient();
+  }
+});
+
+// Fallback: Ensure Vite client starts even if server log pattern changes
+setTimeout(() => {
+  startClient();
+}, 2500);
 
 server.on('error', (err) => {
   console.error('\x1b[31m%s\x1b[0m', `[SERVER ERROR]: ${err.message}`);

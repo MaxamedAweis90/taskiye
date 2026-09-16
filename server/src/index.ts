@@ -81,13 +81,15 @@ app.use('/api/cron', cronRouter);
 
 // 7. Initialize Database and start Express Listener (skipped in Vercel serverless)
 async function startServer() {
-  await connectDB();
-
   if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
-    app.listen(PORT, () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`[Taskiye Server] Running on http://localhost:${PORT}`);
     });
   }
+
+  await connectDB().catch((err) => {
+    console.error('[MongoDB Error]:', err);
+  });
 }
 
 startServer();
