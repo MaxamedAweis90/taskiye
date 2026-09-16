@@ -178,7 +178,7 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('Taskiye Connected! 🔥', {
             body: 'Push notifications are active on this device.',
-            icon: '/logo-tight.png',
+            icon: '/logo.png',
           });
           showToast('Alert Sent! 🔥', 'Check your device notification center.', 'success');
         } else {

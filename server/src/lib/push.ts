@@ -68,8 +68,8 @@ export async function sendPushNotification(
 
   const finalPayload = {
     ...payload,
-    icon: payload.icon || '/logo-tight.png',
-    badge: payload.badge || '/logo-tight.png',
+    icon: payload.icon || '/logo.png',
+    badge: payload.badge || '/logo.png',
   };
 
   try {
@@ -139,8 +139,8 @@ export async function dispatchUnifiedNotification(params: {
     pushSent = await sendPushNotification(params.sub, {
       title: params.title,
       body: params.body,
-      icon: '/logo-tight.png',
-      badge: '/logo-tight.png',
+      icon: '/logo.png',
+      badge: '/logo.png',
       tag: params.tag || `notif-${Date.now()}`,
       data: {
         url: params.url || '/',

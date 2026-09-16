@@ -134,8 +134,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Taskiye Alert',
     body: 'You have a new update in Taskiye.',
-    icon: '/logo-tight.png',
-    badge: '/logo-tight.png',
+    icon: '/logo.png',
+    badge: '/logo.png',
     data: { url: '/' },
   };
 
@@ -149,8 +149,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/logo-tight.png',
-    badge: data.badge || '/logo-tight.png',
+    icon: data.icon || '/logo.png',
+    badge: data.badge || '/logo.png',
     tag: data.tag || `taskiye-notification-${Date.now()}`,
     renotify: true,
     data: data.data || { url: '/' },

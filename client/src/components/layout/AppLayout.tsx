@@ -233,16 +233,18 @@ export const AppLayout: React.FC = () => {
           data?: { url?: string };
           createdAt?: string;
         }
-        const serverItems: InAppNotificationItem[] = json.data.notifications.map((n: RawNotificationDoc) => ({
-          id: n._id || n.id || `notif_${Date.now()}`,
-          title: n.title || 'Notification',
-          description: n.body || '',
-          time: formatNotificationTime(n.createdAt),
-          read: Boolean(n.isRead),
-          type: (n.type as InAppNotificationItem['type']) || 'system',
-          url: n.data?.url || '/',
-          createdAt: n.createdAt,
-        }));
+        const serverItems: InAppNotificationItem[] = json.data.notifications.map(
+          (n: RawNotificationDoc) => ({
+            id: n._id || n.id || `notif_${Date.now()}`,
+            title: n.title || 'Notification',
+            description: n.body || '',
+            time: formatNotificationTime(n.createdAt),
+            read: Boolean(n.isRead),
+            type: (n.type as InAppNotificationItem['type']) || 'system',
+            url: n.data?.url || '/',
+            createdAt: n.createdAt,
+          })
+        );
 
         setNotifications((prev) => {
           // Merge server items with any existing local migration/guest items
@@ -623,20 +625,22 @@ export const AppLayout: React.FC = () => {
         <header className="relative h-[calc(4rem+env(safe-area-inset-top,0px))] sm:h-20 pt-[env(safe-area-inset-top,0px)] sm:pt-0 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-50 w-full max-w-full">
           {/* Mobile Brand Logo (< md) */}
           <div className="flex md:hidden items-center shrink-0">
-            <NavLink to="/" className="flex items-center gap-2.5 group select-none">
-              <img
-                src="/logo-tight.png"
-                alt="Taskiye Logo"
-                className="w-10 h-10 object-contain drop-shadow-[0_0_12px_rgba(250,204,21,0.3)] transition-transform duration-200 group-hover:scale-105 active:scale-95 shrink-0"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  if (target.src.endsWith('/logo-tight.png')) {
-                    target.src = '/logo.png';
-                  } else {
-                    target.style.display = 'none';
-                  }
-                }}
-              />
+            <NavLink to="/" className="flex items-center gap-2 group select-none">
+              <div className="w-10 h-10 flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src="/logo.png"
+                  alt="Taskiye Logo"
+                  className="w-full h-full scale-[1.38] object-contain drop-shadow-[0_0_10px_rgba(250,204,21,0.3)] transition-transform duration-200 group-hover:scale-[1.45] active:scale-125"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML =
+                        '<span class="text-amber-400 font-extrabold text-2xl">⚡</span>';
+                    }
+                  }}
+                />
+              </div>
               <span className="text-[1.35rem] font-black text-white tracking-tight leading-none flex items-center">
                 Task<span className="text-amber-400">iye</span>
               </span>
@@ -1031,16 +1035,16 @@ export const AppLayout: React.FC = () => {
                                   {n.type === 'planning'
                                     ? '🎯'
                                     : n.type === 'morning'
-                                    ? '☀️'
-                                    : n.type === 'streak'
-                                    ? '🔥'
-                                    : n.type === 'achievement'
-                                    ? '🏆'
-                                    : n.type === 'trash'
-                                    ? '🗑️'
-                                    : n.type === 'habit'
-                                    ? '⏰'
-                                    : '🔔'}
+                                      ? '☀️'
+                                      : n.type === 'streak'
+                                        ? '🔥'
+                                        : n.type === 'achievement'
+                                          ? '🏆'
+                                          : n.type === 'trash'
+                                            ? '🗑️'
+                                            : n.type === 'habit'
+                                              ? '⏰'
+                                              : '🔔'}
                                 </span>
                                 <span className="text-xs font-bold text-white truncate">
                                   {n.title}

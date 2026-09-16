@@ -57,7 +57,7 @@ export function playCelebrationChime(): void {
 export async function sendWelcomeNotification(): Promise<void> {
   const title = 'Welcome to Taskiye! 🔥';
   const body = "You're all set! Now you can track daily habits, protect your streak, and conquer your goals.";
-  const icon = '/logo-tight.png';
+  const icon = '/logo.png';
 
   try {
     if ('serviceWorker' in navigator) {
@@ -237,8 +237,8 @@ export function usePushNotifications() {
         if (reg?.showNotification) {
           await reg.showNotification('Taskiye Connected! 🔥', {
             body: 'Your device is verified and ready for streak & daily habit alerts.',
-            icon: '/logo-tight.png',
-            badge: '/logo-tight.png',
+            icon: '/logo.png',
+            badge: '/logo.png',
             tag: 'taskiye-test-notification',
             data: { url: '/' },
           });
@@ -254,7 +254,7 @@ export function usePushNotifications() {
       try {
         new Notification('Taskiye Connected! 🔥', {
           body: 'Your device is verified and ready for streak & daily habit alerts.',
-          icon: '/logo-tight.png',
+          icon: '/logo.png',
         });
         return true;
       } catch {
