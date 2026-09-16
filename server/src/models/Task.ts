@@ -8,6 +8,9 @@ export interface ITask extends Document {
   isHabitInstance: boolean;
   habitId: Types.ObjectId | null;
   sortOrder: number;
+  category?: string;
+  priority?: 'normal' | 'high';
+  timeTag?: string;
   deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -46,6 +49,21 @@ const taskSchema = new Schema<ITask>(
     sortOrder: {
       type: Number,
       default: 0,
+    },
+    category: {
+      type: String,
+      default: 'Work',
+      trim: true,
+    },
+    priority: {
+      type: String,
+      enum: ['normal', 'high'],
+      default: 'normal',
+    },
+    timeTag: {
+      type: String,
+      default: null,
+      trim: true,
     },
     deletedAt: {
       type: Date,

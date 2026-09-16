@@ -21,6 +21,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
 import { useTaskiyeStore, GuestHabit } from '../store/useTaskiyeStore';
+import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 
 type CadenceType = 'Daily' | 'Specific Days' | 'Times per Week';
 
@@ -37,34 +38,34 @@ interface HabitFormData {
 
 const SETUP_CATEGORIES = [
   {
+    id: 'Work',
+    label: 'Work',
+    dot: 'bg-amber-400',
+    activeClass: 'bg-[#251f14] border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(250,204,21,0.2)]',
+  },
+  {
     id: 'Health & Fitness',
     label: 'Health & Fitness',
     dot: 'bg-emerald-400',
     activeClass: 'bg-[#122425] border-emerald-400 text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.2)]',
   },
   {
-    id: 'Deep Work',
-    label: 'Deep Work',
-    dot: 'bg-amber-400',
-    activeClass: 'bg-[#251f14] border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(250,204,21,0.2)]',
+    id: 'Routine Activity',
+    label: 'Routine Activity',
+    dot: 'bg-teal-400',
+    activeClass: 'bg-[#122228] border-teal-400 text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.2)]',
   },
   {
-    id: 'Mind & Focus',
-    label: 'Mind & Focus',
-    dot: 'bg-blue-400',
-    activeClass: 'bg-[#132238] border-blue-400 text-blue-200 shadow-[0_0_12px_rgba(96,165,250,0.2)]',
-  },
-  {
-    id: 'Daily Routine',
-    label: 'Daily Routine',
-    dot: 'bg-purple-400',
-    activeClass: 'bg-[#221832] border-purple-400 text-purple-200 shadow-[0_0_12px_rgba(192,132,252,0.2)]',
+    id: 'Mind Improving',
+    label: 'Mind Improving',
+    dot: 'bg-indigo-400',
+    activeClass: 'bg-[#132238] border-indigo-400 text-indigo-200 shadow-[0_0_12px_rgba(129,140,248,0.2)]',
   },
   {
     id: 'Personal Growth',
     label: 'Personal Growth',
-    dot: 'bg-rose-400',
-    activeClass: 'bg-[#27151c] border-rose-400 text-rose-200 shadow-[0_0_12px_rgba(251,113,133,0.2)]',
+    dot: 'bg-purple-400',
+    activeClass: 'bg-[#221832] border-purple-400 text-purple-200 shadow-[0_0_12px_rgba(192,132,252,0.2)]',
   },
 ] as const;
 
@@ -73,7 +74,7 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 
 const DEFAULT_FORM: HabitFormData = {
   title: '',
-  category: 'Health & Fitness',
+  category: 'Work',
   cadence: 'Daily',
   activeDays: [0, 1, 2, 3, 4, 5, 6],
   timeOfDay: 'Morning (08:00 AM)',
@@ -137,7 +138,7 @@ const TypewriterTitle: React.FC<TypewriterTitleProps> = ({
   return <ActiveTypewriterTitle text={text} onFinish={onFinish} className={className} />;
 };
 
-const CATEGORIES = ['All Habits', 'Health', 'Work', 'Mind', 'Routine'] as const;
+const CATEGORIES = ['All Habits', ...APP_CATEGORIES] as const;
 
 export const Habits: React.FC = () => {
   const queryClient = useQueryClient();
@@ -416,13 +417,13 @@ export const Habits: React.FC = () => {
 
   // Category counts for filter pills (safe against undefined category)
   const categoryCounts = useMemo(() => {
-    const getCat = (h: { category?: string }) => (h.category || '').toLowerCase();
     const counts: Record<string, number> = {
       'All Habits': activeHabits.length,
-      Health: activeHabits.filter((h) => getCat(h).includes('health')).length,
-      Work: activeHabits.filter((h) => getCat(h).includes('work')).length,
-      Mind: activeHabits.filter((h) => getCat(h).includes('mind')).length,
-      Routine: activeHabits.filter((h) => getCat(h).includes('routine')).length,
+      Work: activeHabits.filter((h) => normalizeCategory(h.category) === 'Work').length,
+      'Health & Fitness': activeHabits.filter((h) => normalizeCategory(h.category) === 'Health & Fitness').length,
+      'Routine Activity': activeHabits.filter((h) => normalizeCategory(h.category) === 'Routine Activity').length,
+      'Mind Improving': activeHabits.filter((h) => normalizeCategory(h.category) === 'Mind Improving').length,
+      'Personal Growth': activeHabits.filter((h) => normalizeCategory(h.category) === 'Personal Growth').length,
     };
     return counts;
   }, [activeHabits]);
@@ -430,19 +431,18 @@ export const Habits: React.FC = () => {
   // Filtered Active Habits based on search & category
   const filteredActiveHabits = useMemo(() => {
     return activeHabits.filter((h) => {
-      const habitCat = (h.category || '').toLowerCase();
+      const normalizedCat = normalizeCategory(h.category);
       const habitTitle = (h.title || '').toLowerCase();
 
       // Category filter
       if (selectedCategory !== 'All Habits') {
-        const catKey = selectedCategory.toLowerCase();
-        if (!habitCat.includes(catKey)) return false;
+        if (normalizedCat !== selectedCategory) return false;
       }
       // Search query filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesTitle = habitTitle.includes(query);
-        const matchesCategory = habitCat.includes(query);
+        const matchesCategory = normalizedCat.toLowerCase().includes(query);
         if (!matchesTitle && !matchesCategory) return false;
       }
       return true;
@@ -451,34 +451,10 @@ export const Habits: React.FC = () => {
 
   // Helper for Category styling & indicator dots
   const getCategoryTheme = (category?: string) => {
-    const lower = (category || '').toLowerCase();
-    if (lower.includes('health')) {
-      return {
-        pill: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300',
-        dot: 'bg-emerald-400',
-      };
-    }
-    if (lower.includes('routine')) {
-      return {
-        pill: 'bg-teal-500/10 border-teal-500/25 text-teal-300',
-        dot: 'bg-teal-400',
-      };
-    }
-    if (lower.includes('work') || lower.includes('focus')) {
-      return {
-        pill: 'bg-amber-500/10 border-amber-500/25 text-amber-300',
-        dot: 'bg-amber-400',
-      };
-    }
-    if (lower.includes('mind') || lower.includes('reading')) {
-      return {
-        pill: 'bg-blue-500/10 border-blue-500/25 text-blue-300',
-        dot: 'bg-blue-400',
-      };
-    }
+    const style = getCategoryBadgeStyle(category);
     return {
-      pill: 'bg-slate-700/30 border-slate-600/30 text-slate-300',
-      dot: 'bg-slate-400',
+      pill: style.badgeClass,
+      dot: style.dotColor,
     };
   };
 

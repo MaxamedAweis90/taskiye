@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { normalizeCategory } from '../constants/categories';
 
 export interface GuestTask {
   id: string;
@@ -337,7 +338,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
           isHabitInstance: Boolean(taskInput.isHabitInstance),
           habitId: taskInput.habitId ?? null,
           sortOrder: calculatedSortOrder,
-          category: taskInput.category || 'Work',
+          category: normalizeCategory(taskInput.category || 'Work'),
           priority: taskInput.priority || 'normal',
           timeTag: taskInput.timeTag || '',
           createdAt: new Date().toISOString(),
@@ -671,7 +672,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
             updatedTasks[existingIndex] = {
               ...existing,
               title: habit.title,
-              category: habit.category || 'Routine',
+              category: normalizeCategory(habit.category || 'Routine Activity'),
               timeTag: habit.timeOfDay || existing.timeTag,
               habitId: habit.id,
               isHabitInstance: true,
@@ -686,7 +687,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
               isHabitInstance: true,
               habitId: habit.id,
               sortOrder: -1,
-              category: habit.category || 'Routine',
+              category: normalizeCategory(habit.category || 'Routine Activity'),
               priority: 'normal',
               timeTag: habit.timeOfDay || 'Continuous',
               createdAt: new Date().toISOString(),
@@ -778,10 +779,27 @@ export const useTaskiyeStore = create<TaskiyeState>()(
             delete dismissed[updates.title.toLowerCase().trim()];
           }
 
+          // Cascade category, title, timeOfDay updates to all matching task instances
+          const updatedTasks = state.tasks.map((task) => {
+            const isMatch =
+              (task.habitId && task.habitId === id) ||
+              (task.isHabitInstance &&
+                target?.title &&
+                task.title?.toLowerCase().trim() === target.title.toLowerCase().trim());
+            if (!isMatch) return task;
+            return {
+              ...task,
+              ...(updates.title ? { title: updates.title } : {}),
+              ...(updates.category ? { category: normalizeCategory(updates.category) } : {}),
+              ...(updates.timeOfDay ? { timeTag: updates.timeOfDay } : {}),
+            };
+          });
+
           return {
             habits: state.habits.map((habit) =>
               habit.id === id ? { ...habit, ...updates } : habit
             ),
+            tasks: updatedTasks,
             dismissedHabitToday: dismissed,
           };
         });

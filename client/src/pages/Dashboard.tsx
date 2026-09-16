@@ -17,6 +17,7 @@ import { useTaskiyeStore, DEFAULT_INITIAL_TASKS } from '../store/useTaskiyeStore
 import { HeatmapMatrix } from '../components/dashboard/HeatmapMatrix';
 import { TodayChecklist, ChecklistItem } from '../components/dashboard/TodayChecklist';
 import { CustomScrollArea } from '../components/common/CustomScrollArea';
+import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 
 interface ServerTaskItem {
   _id: string;
@@ -55,7 +56,7 @@ export const Dashboard: React.FC = () => {
 
   // Quick Action form state (Task-only creation)
   const [itemTitle, setItemTitle] = useState('');
-  const [category, setCategory] = useState('Focus / Work');
+  const [category, setCategory] = useState<string>('Work');
   const [priority, setPriority] = useState<'normal' | 'high'>('normal');
   const [editingTask, setEditingTask] = useState<ChecklistItem | null>(null);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
@@ -230,15 +231,17 @@ export const Dashboard: React.FC = () => {
       id,
       title,
       priority,
+      category,
     }: {
       id: string;
       title: string;
       priority?: 'normal' | 'high';
+      category?: string;
     }) => {
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, priority }),
+        body: JSON.stringify({ title, priority, category }),
         credentials: 'include',
       });
       return res.json();
@@ -296,7 +299,11 @@ export const Dashboard: React.FC = () => {
             id: t._id,
             title: t.title,
             isCompleted: Boolean(t.isCompleted),
-            category: t.category || linkedHabit?.category || (t.isHabitInstance ? 'Health & Fitness' : 'Work'),
+            category: normalizeCategory(
+              t.isHabitInstance
+                ? (linkedHabit?.category || t.category || 'Routine Activity')
+                : (t.category || 'Work')
+            ),
             priority: t.priority || 'normal',
             timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
             isHabitInstance: Boolean(t.isHabitInstance),
@@ -322,7 +329,7 @@ export const Dashboard: React.FC = () => {
             id: `server_habit_${h._id}`,
             title: h.title,
             isCompleted: false,
-            category: h.category || 'Health & Fitness',
+            category: normalizeCategory(h.category),
             priority: 'normal',
             timeTag: h.timeOfDay || 'Continuous',
             isHabitInstance: true,
@@ -360,7 +367,11 @@ export const Dashboard: React.FC = () => {
             id: t.id,
             title: t.title,
             isCompleted: t.isCompleted,
-            category: t.category || linkedHabit?.category || (t.isHabitInstance ? 'Health & Fitness' : 'Work'),
+            category: normalizeCategory(
+              t.isHabitInstance
+                ? (linkedHabit?.category || t.category || 'Routine Activity')
+                : (t.category || 'Work')
+            ),
             priority: t.priority || 'normal',
             timeTag: t.timeTag || (t.isHabitInstance ? 'Continuous' : 'Today'),
             isHabitInstance: Boolean(t.isHabitInstance),
@@ -396,7 +407,7 @@ export const Dashboard: React.FC = () => {
             id: `guest_task_habit_${h.id}_today`,
             title: h.title,
             isCompleted: false,
-            category: h.category || 'Health & Fitness',
+            category: normalizeCategory(h.category),
             priority: 'normal',
             timeTag: h.timeOfDay || 'Continuous',
             isHabitInstance: true,
@@ -576,18 +587,7 @@ export const Dashboard: React.FC = () => {
 
     setEditingTask(item);
     setItemTitle(item.title);
-
-    const catLower = item.category.toLowerCase();
-    if (catLower.includes('health') || catLower.includes('routine')) {
-      setCategory('Health / Routine');
-    } else if (catLower.includes('mind') || catLower.includes('reading')) {
-      setCategory('Mind / Reading');
-    } else if (catLower.includes('personal') || catLower.includes('goal')) {
-      setCategory('Personal Goal');
-    } else {
-      setCategory('Focus / Work');
-    }
-
+    setCategory(normalizeCategory(item.category));
     setPriority(item.priority || 'normal');
 
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -742,7 +742,7 @@ export const Dashboard: React.FC = () => {
 
     if (editingTask) {
       const targetId = editingTask.id;
-      const cleanCategory = category.replace(/^[^\w]+/, '').trim();
+      const cleanCategory = normalizeCategory(category);
 
       // Immediately activate blur loading state on this task
       setUpdatingTaskId(targetId);
@@ -779,6 +779,7 @@ export const Dashboard: React.FC = () => {
             id: targetId,
             title: trimmedTitle,
             priority,
+            category: cleanCategory,
           },
           {
             onSettled: finishUpdate,
@@ -805,7 +806,7 @@ export const Dashboard: React.FC = () => {
 
     // --- New Task Creation with Typewriter ("writing itself") Animation & Instant Scroll ---
     const newTaskId = `guest_task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const cleanCategory = category.replace(/^[^\w]+/, '').trim();
+    const cleanCategory = normalizeCategory(category);
 
     // Release focus from the input/button at top so browser doesn't anchor viewport to top
     titleInputRef.current?.blur();
@@ -838,6 +839,8 @@ export const Dashboard: React.FC = () => {
           title: trimmedTitle,
           date: todayStr,
           isHabitInstance: false,
+          category: cleanCategory,
+          priority,
         },
         {
           onSuccess: (data: { data?: { _id?: string } }) => {
@@ -1181,10 +1184,14 @@ export const Dashboard: React.FC = () => {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
                   >
-                    <option value="Focus / Work">⚡ Focus / Work</option>
-                    <option value="Health / Routine">🌿 Health / Routine</option>
-                    <option value="Mind / Reading">🧠 Mind / Reading</option>
-                    <option value="Personal Goal">🚀 Personal Goal</option>
+                    {APP_CATEGORIES.map((cat) => {
+                      const style = getCategoryBadgeStyle(cat);
+                      return (
+                        <option key={cat} value={cat}>
+                          {style.icon} {cat}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -1444,10 +1451,14 @@ export const Dashboard: React.FC = () => {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
                   >
-                    <option value="Focus / Work">⚡ Focus / Work</option>
-                    <option value="Health / Routine">🌿 Health / Routine</option>
-                    <option value="Mind / Reading">🧠 Mind / Reading</option>
-                    <option value="Personal Goal">🚀 Personal Goal</option>
+                    {APP_CATEGORIES.map((cat) => {
+                      const style = getCategoryBadgeStyle(cat);
+                      return (
+                        <option key={cat} value={cat}>
+                          {style.icon} {cat}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 

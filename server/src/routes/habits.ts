@@ -367,6 +367,22 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       { new: true }
     );
 
+    // Cascade category, title, timeOfDay updates to linked Task instances
+    if (updateFields.category || updateFields.title || updateFields.timeOfDay) {
+      const taskUpdates: Record<string, unknown> = {};
+      if (updateFields.category) taskUpdates.category = updateFields.category;
+      if (updateFields.title) taskUpdates.title = updateFields.title;
+      if (updateFields.timeOfDay) taskUpdates.timeTag = updateFields.timeOfDay;
+
+      await Task.updateMany(
+        {
+          userId: req.user!.id,
+          $or: [{ habitId: id }, { isHabitInstance: true, title: existing.title }],
+        },
+        { $set: taskUpdates }
+      );
+    }
+
     return sendSuccess(res, habit, 'Habit updated successfully');
   } catch (error) {
     return sendError(res, 'Failed to update habit', 500, error);

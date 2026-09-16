@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
+import { getCategoryBadgeStyle, normalizeCategory } from '../../constants/categories';
 
 export interface ChecklistItem {
   id: string;
@@ -307,20 +308,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   });
 
   const getCategoryBadgeClass = (category?: string) => {
-    const lower = (category || '').toLowerCase();
-    if (lower.includes('health') || lower.includes('fitness')) {
-      return 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300';
-    }
-    if (lower.includes('routine')) {
-      return 'bg-teal-500/15 border-teal-500/30 text-teal-300';
-    }
-    if (lower.includes('work') || lower.includes('focus')) {
-      return 'bg-amber-500/15 border-amber-500/30 text-amber-300';
-    }
-    if (lower.includes('mind') || lower.includes('reading')) {
-      return 'bg-blue-500/15 border-blue-500/30 text-blue-300';
-    }
-    return 'bg-slate-700/40 border-slate-600/40 text-slate-300';
+    return getCategoryBadgeStyle(category).badgeClass;
   };
 
   const renderItemRow = (item: ChecklistItem) => {
@@ -610,8 +598,8 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
             {/* Detail Badges */}
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full border ${getCategoryBadgeClass(item.category)}`}>
-                📁 {item.category}
+              <span className={`text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full border ${getCategoryBadgeStyle(item.category).badgeClass}`}>
+                {getCategoryBadgeStyle(item.category).icon} {normalizeCategory(item.category)}
               </span>
               {item.priority === 'high' && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
