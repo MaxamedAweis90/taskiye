@@ -66,7 +66,9 @@ export const AppLayout: React.FC = () => {
     syncHabitsToTodayTasks,
   } = useTaskiyeStore();
 
-  const { data: serverHabits = [] } = useQuery<Array<{ streakDays?: number; isArchived?: boolean; lastCompletedDate?: string | null }>>({
+  const { data: serverHabits = [] } = useQuery<
+    Array<{ streakDays?: number; isArchived?: boolean; lastCompletedDate?: string | null }>
+  >({
     queryKey: ['habits'],
     queryFn: async () => {
       const res = await fetch('/api/habits', { credentials: 'include' });
@@ -148,7 +150,9 @@ export const AppLayout: React.FC = () => {
   const [streakPillWidth, setStreakPillWidth] = useState<number>(64);
   const bellMeasureRef = useRef<HTMLDivElement>(null);
   const [bellPillWidth, setBellPillWidth] = useState<number>(64);
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 640
+  );
 
   useEffect(() => {
     const handleResize = () => {
@@ -291,7 +295,8 @@ export const AppLayout: React.FC = () => {
 
   const handleSignOut = async () => {
     try {
-      const userIdentifier = user?.name || user?.username || user?.email?.split('@')[0] || 'account';
+      const userIdentifier =
+        user?.name || user?.username || user?.email?.split('@')[0] || 'account';
       triggerLogoutSplash(`Signing out ${userIdentifier}...`);
       await signOut();
       queryClient.removeQueries({ queryKey: ['tasks'] });
@@ -435,18 +440,22 @@ export const AppLayout: React.FC = () => {
         {/* Topbar - Respects iOS notch/status bar with safe-area-inset-top */}
         <header className="relative h-[calc(4rem+env(safe-area-inset-top,0px))] sm:h-20 pt-[env(safe-area-inset-top,0px)] sm:pt-0 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-50 w-full max-w-full">
           {/* Mobile Brand Logo (< md) */}
-          <div className="flex md:hidden items-center gap-2 shrink-0">
-            <NavLink to="/" className="flex items-center gap-2 group">
+          <div className="flex md:hidden items-center shrink-0">
+            <NavLink to="/" className="flex items-center gap-2.5 group select-none">
               <img
-                src="/logo.png"
+                src="/logo-tight.png"
                 alt="Taskiye Logo"
-                className="w-8 h-8 sm:w-9 sm:h-9 object-contain drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]"
+                className="w-10 h-10 object-contain drop-shadow-[0_0_12px_rgba(250,204,21,0.3)] transition-transform duration-200 group-hover:scale-105 active:scale-95 shrink-0"
                 onError={(e) => {
                   const target = e.currentTarget;
-                  target.style.display = 'none';
+                  if (target.src.endsWith('/logo-tight.png')) {
+                    target.src = '/logo.png';
+                  } else {
+                    target.style.display = 'none';
+                  }
                 }}
               />
-              <span className="text-base font-extrabold text-white tracking-tight">
+              <span className="text-[1.35rem] font-black text-white tracking-tight leading-none flex items-center">
                 Task<span className="text-amber-400">iye</span>
               </span>
             </NavLink>
@@ -470,11 +479,7 @@ export const AppLayout: React.FC = () => {
             <div
               className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
               style={{
-                width: isMobile
-                  ? 52
-                  : activeDropdown === 'streak'
-                    ? 320
-                    : streakPillWidth,
+                width: isMobile ? 52 : activeDropdown === 'streak' ? 320 : streakPillWidth,
                 height: 40,
               }}
             >
@@ -681,11 +686,7 @@ export const AppLayout: React.FC = () => {
             <div
               className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
               style={{
-                width: isMobile
-                  ? 48
-                  : activeDropdown === 'notifications'
-                    ? 320
-                    : bellPillWidth,
+                width: isMobile ? 48 : activeDropdown === 'notifications' ? 320 : bellPillWidth,
                 height: 40,
               }}
             >
@@ -824,8 +825,12 @@ export const AppLayout: React.FC = () => {
                       {notifications.length === 0 ? (
                         <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
                           <Bell className="w-5 h-5 opacity-40 text-slate-400" />
-                          <span className="text-xs font-medium text-slate-400">No new notifications</span>
-                          <span className="text-[11px] text-slate-500">Activity and reminders will appear here</span>
+                          <span className="text-xs font-medium text-slate-400">
+                            No new notifications
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Activity and reminders will appear here
+                          </span>
                         </div>
                       ) : (
                         notifications.map((n) => (
@@ -872,7 +877,8 @@ export const AppLayout: React.FC = () => {
                   <Sparkles className="w-3 h-3 text-amber-400" />
                 </div>
                 <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
-                  <span className="hidden xs:inline">Save progress </span><span className="text-[#FACC15] font-bold">Sign In</span>
+                  <span className="hidden xs:inline">Save progress </span>
+                  <span className="text-[#FACC15] font-bold">Sign In</span>
                 </span>
                 <span className="text-[10px] font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 rounded-full shrink-0">
                   {guestItemCount}/{GUEST_ITEM_LIMIT}
@@ -909,15 +915,13 @@ export const AppLayout: React.FC = () => {
                 <div
                   className={`relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0 ${
                     activeDropdown === 'profile'
-                      ? isMobile ? 'static' : 'block'
+                      ? isMobile
+                        ? 'static'
+                        : 'block'
                       : 'hidden sm:block'
                   }`}
                   style={{
-                    width: isMobile
-                      ? 0
-                      : activeDropdown === 'profile'
-                        ? 320
-                        : pillWidth,
+                    width: isMobile ? 0 : activeDropdown === 'profile' ? 320 : pillWidth,
                     height: isMobile ? 0 : 40,
                   }}
                 >
@@ -953,8 +957,8 @@ export const AppLayout: React.FC = () => {
                       className="flex items-center justify-between gap-2.5 cursor-pointer select-none group w-full h-full"
                     >
                       <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
-                        {getGreeting()}, <span className="text-[#FACC15] font-bold">{firstName}</span>{' '}
-                        👏
+                        {getGreeting()},{' '}
+                        <span className="text-[#FACC15] font-bold">{firstName}</span> 👏
                       </span>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -986,139 +990,139 @@ export const AppLayout: React.FC = () => {
                       </div>
                     </div>
 
-                  {/* Morphing Dropdown Body (smoothly unfurls using CSS Grid row expansion) */}
-                  <div
-                    className={`grid transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                      activeDropdown === 'profile'
-                        ? 'grid-rows-[1fr] opacity-100'
-                        : 'grid-rows-[0fr] opacity-0 pointer-events-none'
-                    }`}
-                  >
-                    <div className="overflow-hidden flex flex-col gap-3 text-left">
-                      {/* Divider below trigger row */}
-                      <div className="border-t border-white/[0.08] mt-3" />
+                    {/* Morphing Dropdown Body (smoothly unfurls using CSS Grid row expansion) */}
+                    <div
+                      className={`grid transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                        activeDropdown === 'profile'
+                          ? 'grid-rows-[1fr] opacity-100'
+                          : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+                      }`}
+                    >
+                      <div className="overflow-hidden flex flex-col gap-3 text-left">
+                        {/* Divider below trigger row */}
+                        <div className="border-t border-white/[0.08] mt-3" />
 
-                      {/* User Profile Header */}
-                      <div className="flex items-center justify-between pb-1">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="relative shrink-0">
-                            <img
-                              src={avatarSrc}
-                              alt={displayName}
-                              className="w-11 h-11 rounded-xl object-cover border border-white/10"
-                              onError={(e) => {
-                                e.currentTarget.src = defaultAvatar;
-                              }}
-                            />
-                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
+                        {/* User Profile Header */}
+                        <div className="flex items-center justify-between pb-1">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative shrink-0">
+                              <img
+                                src={avatarSrc}
+                                alt={displayName}
+                                className="w-11 h-11 rounded-xl object-cover border border-white/10"
+                                onError={(e) => {
+                                  e.currentTarget.src = defaultAvatar;
+                                }}
+                              />
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-bold text-white truncate">
+                                {displayName}
+                              </span>
+                              <span className="text-xs text-slate-400 truncate">{email}</span>
+                            </div>
                           </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-white truncate">
-                              {displayName}
-                            </span>
-                            <span className="text-xs text-slate-400 truncate">{email}</span>
-                          </div>
+
+                          <span className="bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9.5px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase shrink-0">
+                            PRO ACTIVE
+                          </span>
                         </div>
 
-                        <span className="bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9.5px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase shrink-0">
-                          PRO ACTIVE
-                        </span>
-                      </div>
+                        {/* Section 1: Main Profile Actions */}
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveDropdown(null);
+                              setIsProfileSettingsOpen(true);
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <UserIcon className="w-4 h-4 text-slate-400" />
+                              <span>Profile Settings</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
+                              ⌘P
+                            </span>
+                          </button>
 
-                      {/* Section 1: Main Profile Actions */}
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdown(null);
-                            setIsProfileSettingsOpen(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <UserIcon className="w-4 h-4 text-slate-400" />
-                            <span>Profile Settings</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
-                            ⌘P
-                          </span>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveDropdown(null);
+                              setIsTrashOpen(true);
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer group/trash"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-400 transition-colors" />
+                              <span>Trash & Recovery (30 Days)</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded">
+                              30d TTL
+                            </span>
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdown(null);
-                            setIsTrashOpen(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer group/trash"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-400 transition-colors" />
-                            <span>Trash & Recovery (30 Days)</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded">
-                            30d TTL
-                          </span>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveDropdown(null);
+                              setIsNotificationModalOpen(true);
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Bell className="w-4 h-4 text-slate-400" />
+                              <span>Notification Preferences</span>
+                            </div>
+                          </button>
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdown(null);
-                            setIsNotificationModalOpen(true);
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Bell className="w-4 h-4 text-slate-400" />
-                            <span>Notification Preferences</span>
-                          </div>
-                        </button>
-                      </div>
+                        {/* Divider */}
+                        <div className="border-t border-white/[0.06]" />
 
-                      {/* Divider */}
-                      <div className="border-t border-white/[0.06]" />
+                        {/* Section 2: Appearance & Preferences */}
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setActiveDropdown(null)}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Moon className="w-4 h-4 text-slate-400" />
+                              <span>Appearance</span>
+                            </div>
+                            <span className="text-xs font-semibold text-amber-400">Dark Slate</span>
+                          </button>
+                        </div>
 
-                      {/* Section 2: Appearance & Preferences */}
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setActiveDropdown(null)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Moon className="w-4 h-4 text-slate-400" />
-                            <span>Appearance</span>
-                          </div>
-                          <span className="text-xs font-semibold text-amber-400">Dark Slate</span>
-                        </button>
-                      </div>
+                        {/* Divider */}
+                        <div className="border-t border-white/[0.06]" />
 
-                      {/* Divider */}
-                      <div className="border-t border-white/[0.06]" />
-
-                      {/* Section 3: Session Actions */}
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveDropdown(null);
-                            handleSignOut();
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <LogOut className="w-4 h-4 text-rose-400" />
-                            <span>Sign Out</span>
-                          </div>
-                        </button>
+                        {/* Section 3: Session Actions */}
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveDropdown(null);
+                              handleSignOut();
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <LogOut className="w-4 h-4 text-rose-400" />
+                              <span>Sign Out</span>
+                            </div>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
           </div>
         </header>
 
