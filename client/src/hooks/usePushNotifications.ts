@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const FALLBACK_VAPID_KEY =
-  'BPqiFDbamgJZPy7vVjylHU2Tjyi0CuBXEX2QBtbendOCwA8x1GZv3XkIALf9gQKBo4AQN3y0SPWNGxjAvZB0o';
+  'BPqiFDbamgJZPy7vVjylHU2Tjyi0CuBXEX2QBtbendOCwA8x1GZv3XkIALf9gQKBo4AQN3y0SPWNGxjApAvZB0o';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -169,6 +169,31 @@ export function usePushNotifications() {
           if (activeReg?.pushManager) {
             let sub = await activeReg.pushManager.getSubscription();
 
+            // Validate that the existing subscription was created with the active VAPID key
+            if (sub && sub.options && sub.options.applicationServerKey) {
+              const currentKeyBytes = new Uint8Array(sub.options.applicationServerKey);
+              const targetKeyBytes = urlBase64ToUint8Array(vapidKey);
+              let isMatch = currentKeyBytes.length === targetKeyBytes.length;
+              if (isMatch) {
+                for (let i = 0; i < currentKeyBytes.length; i++) {
+                  if (currentKeyBytes[i] !== targetKeyBytes[i]) {
+                    isMatch = false;
+                    break;
+                  }
+                }
+              }
+
+              if (!isMatch) {
+                console.log('[Push] VAPID key mismatch on device. Renewing subscription with active key...');
+                try {
+                  await sub.unsubscribe();
+                } catch {
+                  // ignore
+                }
+                sub = null;
+              }
+            }
+
             if (!sub) {
               try {
                 sub = await activeReg.pushManager.subscribe({
@@ -215,22 +240,40 @@ export function usePushNotifications() {
   );
 
   const sendTestAlert = useCallback(async (): Promise<boolean> => {
-    // 1. Try server-side push notification if active subscription exists
-    if (activeSubscription) {
+    let serverDispatched = false;
+
+    // 1. Retrieve active subscription or query PushManager directly from registration
+    let endpoint = activeSubscription?.endpoint;
+    if (!endpoint && 'serviceWorker' in navigator) {
       try {
-        const res = await fetch('/api/notifications/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: activeSubscription.endpoint }),
-        });
-        const json = await res.json();
-        if (json?.success) return true;
-      } catch (err) {
-        console.warn('[Push] Server push test failed, attempting client notification:', err);
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub?.endpoint) {
+          endpoint = sub.endpoint;
+          setActiveSubscription(sub);
+          setIsSubscribed(true);
+        }
+      } catch {
+        // ignore
       }
     }
 
-    // 2. Direct Service Worker notification
+    // 2. Send server-side push notification & create in-app notification in MongoDB
+    try {
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: endpoint || undefined }),
+      });
+      const json = await res.json();
+      if (json?.success) {
+        serverDispatched = Boolean(json.data?.dispatched);
+      }
+    } catch (err) {
+      console.warn('[Push] Server push test failed, attempting client notification:', err);
+    }
+
+    // 2. Direct Service Worker notification guarantee (fires native OS banner on iPhone PWA)
     if ('serviceWorker' in navigator) {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
@@ -239,7 +282,7 @@ export function usePushNotifications() {
             body: 'Your device is verified and ready for streak & daily habit alerts.',
             icon: '/logo.png',
             badge: '/logo.png',
-            tag: 'taskiye-test-notification',
+            tag: `taskiye-test-${Date.now()}`,
             data: { url: '/' },
           });
           return true;
@@ -258,11 +301,11 @@ export function usePushNotifications() {
         });
         return true;
       } catch {
-        return false;
+        return serverDispatched;
       }
     }
 
-    return false;
+    return serverDispatched;
   }, [activeSubscription]);
 
   return {

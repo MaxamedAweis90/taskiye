@@ -171,6 +171,23 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       }
 
       const delivered = await sendTestAlert();
+
+      // Instantly update the topbar notification bell in real-time without needing an app restart
+      window.dispatchEvent(
+        new CustomEvent('taskiye_refresh_notifications', {
+          detail: {
+            id: `test_alert_${Date.now()}`,
+            title: 'Taskiye Connected! 🔥',
+            description: 'Your device is verified and ready for daily task planning & streak alerts.',
+            time: 'Just now',
+            read: false,
+            type: 'system',
+            url: '/',
+            createdAt: new Date().toISOString(),
+          },
+        })
+      );
+
       if (delivered) {
         showToast('Alert Sent! 🔥', 'Check your device lock screen and in-app notification bell.', 'success');
       } else {

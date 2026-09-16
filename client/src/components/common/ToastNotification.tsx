@@ -46,7 +46,7 @@ export const ToastNotification: React.FC = () => {
 
   return (
     <div
-      className={`fixed top-5 right-5 z-[10000] max-w-md w-[calc(100vw-40px)] sm:w-auto select-none transition-all duration-350 ease-out transform ${
+      className={`fixed top-[calc(4.75rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 sm:top-6 sm:right-6 sm:left-auto sm:translate-x-0 z-[10000] max-w-md w-[calc(100vw-2rem)] sm:w-auto select-none transition-all duration-350 ease-out transform ${
         visible ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-4 opacity-0 scale-95 pointer-events-none'
       }`}
     >

@@ -74,6 +74,12 @@ self.addEventListener('fetch', (event) => {
 
   // B. API endpoints (/api/): Network-First with offline resilience
   if (url.pathname.startsWith('/api/')) {
+    // Always bypass SW cache for live notifications to keep bell counter real-time
+    if (url.pathname.startsWith('/api/notifications')) {
+      event.respondWith(fetch(request));
+      return;
+    }
+
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -147,17 +153,25 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const origin = self.location.origin;
+  const iconUrl = data.icon
+    ? data.icon.startsWith('http')
+      ? data.icon
+      : `${origin}${data.icon.startsWith('/') ? '' : '/'}${data.icon}`
+    : `${origin}/logo.png`;
+
   const options = {
     body: data.body,
-    icon: data.icon || '/logo.png',
-    badge: data.badge || '/logo.png',
+    icon: iconUrl,
+    badge: iconUrl,
     tag: data.tag || `taskiye-notification-${Date.now()}`,
     renotify: true,
     data: data.data || { url: '/' },
-    vibrate: [100, 50, 100],
   };
 
-  const notifyPromise = self.registration.showNotification(data.title, options);
+  const notifyPromise = self.registration
+    .showNotification(data.title, options)
+    .catch((err) => console.warn('[PWA SW] showNotification warning:', err));
 
   // Broadcast to all active client windows so the in-app notification bell updates in real-time
   const broadcastPromise = self.clients

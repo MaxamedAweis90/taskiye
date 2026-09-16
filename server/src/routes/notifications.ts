@@ -19,6 +19,7 @@ configureWebPush();
  * Retrieves unread count and latest 30 in-app notifications
  */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   try {
     const userId = req.user?.id || null;
     const endpoint = (req.query.endpoint as string | undefined) || null;
@@ -111,6 +112,7 @@ router.delete('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Respo
  * Returns the public key required for the browser to subscribe via PushManager
  */
 router.get('/vapid-public-key', (_req, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   return sendSuccess(res, { publicKey: getVapidPublicKey() });
 });
 
@@ -184,18 +186,18 @@ router.post('/unsubscribe', async (req, res: Response) => {
  */
 router.post('/test', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { endpoint } = req.body;
-    if (!endpoint) {
-      return sendError(res, 'Endpoint is required to send a test notification', 400);
-    }
+    const { endpoint } = req.body || {};
+    const userId = req.user?.id || null;
 
-    const sub = await PushSubscription.findOne({ endpoint });
-    const userId = req.user?.id || sub?.userId || null;
+    let sub = endpoint ? await PushSubscription.findOne({ endpoint }) : null;
+    if (!sub && userId) {
+      sub = await PushSubscription.findOne({ userId }).sort({ updatedAt: -1 });
+    }
 
     const result = await dispatchUnifiedNotification({
       sub,
       userId,
-      endpoint,
+      endpoint: endpoint || sub?.endpoint || null,
       title: 'Taskiye Connected! 🔥',
       body: 'Your device is verified and ready for daily task planning & streak alerts.',
       type: 'system',

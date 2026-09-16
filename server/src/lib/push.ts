@@ -73,10 +73,13 @@ export async function sendPushNotification(
   };
 
   try {
-    await webpush.sendNotification(pushSubscription, JSON.stringify(finalPayload));
+    await webpush.sendNotification(pushSubscription, JSON.stringify(finalPayload), {
+      TTL: 86400,
+      urgency: 'high',
+    });
     return true;
   } catch (error: unknown) {
-    const err = error as { statusCode?: number; message?: string };
+    const err = error as { statusCode?: number; message?: string; body?: string };
     // 410 Gone or 404 indicates the user unsubscribed or revoked permission on their device
     if (err?.statusCode === 410 || err?.statusCode === 404) {
       console.log(`[WebPush] Pruning expired subscription for endpoint: ${sub.endpoint.slice(0, 30)}...`);
@@ -86,7 +89,7 @@ export async function sendPushNotification(
         console.warn('[WebPush] Failed to prune subscription:', dbErr);
       }
     } else {
-      console.warn('[WebPush] Push dispatch error:', err?.message || error);
+      console.warn('[WebPush] Push dispatch error:', err?.statusCode, err?.message, err?.body || '');
     }
     return false;
   }

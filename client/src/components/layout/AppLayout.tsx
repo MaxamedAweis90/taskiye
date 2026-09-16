@@ -219,7 +219,10 @@ export const AppLayout: React.FC = () => {
         ? `/api/notifications?endpoint=${encodeURIComponent(endpoint)}`
         : '/api/notifications';
 
-      const res = await fetch(queryUrl, { credentials: 'include' });
+      const res = await fetch(queryUrl, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       if (!res.ok) return;
       const json = await res.json();
       if (json?.data?.notifications) {
@@ -269,9 +272,48 @@ export const AppLayout: React.FC = () => {
 
   useEffect(() => {
     fetchNotifications();
+
     const onFocus = () => fetchNotifications();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    };
+
+    const handleCustomRefresh = (event: Event) => {
+      const ce = event as CustomEvent<InAppNotificationItem>;
+      if (ce?.detail) {
+        setNotifications((prev) => {
+          const filtered = prev.filter((item) => item.id !== ce.detail.id);
+          const updated = [ce.detail, ...filtered].slice(0, 30);
+          try {
+            localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
+          } catch {
+            // ignore
+          }
+          return updated;
+        });
+      }
+      fetchNotifications();
+    };
+
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('taskiye_refresh_notifications', handleCustomRefresh);
+
+    // Dynamic background polling every 20 seconds while app is active so bell counter stays real-time
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('taskiye_refresh_notifications', handleCustomRefresh);
+      clearInterval(pollInterval);
+    };
   }, [fetchNotifications, session?.user]);
 
   // Listen for live Service Worker push broadcasts
@@ -300,6 +342,9 @@ export const AppLayout: React.FC = () => {
           }
           return updated;
         });
+
+        // Trigger network re-sync to guarantee consistency
+        fetchNotifications();
       }
     };
 
@@ -309,7 +354,7 @@ export const AppLayout: React.FC = () => {
         navigator.serviceWorker.removeEventListener('message', handleSwMessage);
       };
     }
-  }, []);
+  }, [fetchNotifications]);
 
   const markAllNotificationsRead = async () => {
     setNotifications((prev) => {
