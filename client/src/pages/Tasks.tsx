@@ -8,7 +8,7 @@ import { HistoryTask } from '../components/tasks/TaskHistoryRow';
 import { TaskRescheduleModal } from '../components/tasks/TaskRescheduleModal';
 import { TaskEditCreateModal } from '../components/tasks/TaskEditCreateModal';
 import { TaskHistorySkeleton } from '../components/tasks/TaskHistorySkeleton';
-import { Calendar, CheckCircle2 } from 'lucide-react';
+import { Calendar, CheckCircle2, Trash2, X } from 'lucide-react';
 import { normalizeCategory } from '../constants/categories';
 
 export const Tasks: React.FC = () => {
@@ -31,13 +31,20 @@ export const Tasks: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [hideCompleted, setHideCompleted] = useState(false);
 
-  // Modals State
+  // Modals & Interactive State
   const [rescheduleTask, setRescheduleTask] = useState<HistoryTask | null>(null);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [editCreateTask, setEditCreateTask] = useState<HistoryTask | null>(null);
   const [isEditCreateOpen, setIsEditCreateOpen] = useState(false);
   const [defaultCreateDate, setDefaultCreateDate] = useState<string | undefined>(undefined);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+
+  // Animation, Scroll & Delete Confirmation States
+  const [taskToDelete, setTaskToDelete] = useState<HistoryTask | null>(null);
+  const [swipingOutTaskId, setSwipingOutTaskId] = useState<string | null>(null);
+  const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
 
   // Intersection Observer ref for infinite scroll
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -298,6 +305,50 @@ export const Tasks: React.FC = () => {
     };
   }, [hasMore, isLoadingMore, historyData?.nextCursorDate, loadMore]);
 
+  // Callback when typewriter typing animation completes
+  const handleCreationAnimationComplete = (targetId: string) => {
+    setCreatingTaskId((curr) => (curr === targetId ? null : curr));
+    setHighlightedTaskId(targetId);
+    setTimeout(() => {
+      setHighlightedTaskId((curr) => (curr === targetId ? null : curr));
+    }, 1800);
+  };
+
+  // Auto-scroll workspace smoothly to task with retries
+  const scrollWorkspaceToTask = useCallback((taskId: string, attempts = 0) => {
+    const el =
+      document.getElementById(`task-history-item-${taskId}`) ||
+      document.getElementById(`task-item-${taskId}`);
+    const main = document.getElementById('main-workspace') || document.querySelector('main');
+
+    if (el) {
+      if (main && 'scrollTo' in main) {
+        const mainRect = main.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const targetScrollTop =
+          main.scrollTop + (elRect.top - mainRect.top) - (main.clientHeight / 2) + (elRect.height / 2);
+        main.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: 'smooth',
+        });
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (attempts < 15) {
+      setTimeout(() => scrollWorkspaceToTask(taskId, attempts + 1), 40);
+    }
+  }, []);
+
+  // Auto-scroll to newly created task smoothly when creatingTaskId is set
+  useEffect(() => {
+    if (!creatingTaskId) return;
+
+    if (document.activeElement instanceof HTMLElement && document.activeElement.tagName !== 'BODY') {
+      document.activeElement.blur();
+    }
+
+    scrollWorkspaceToTask(creatingTaskId);
+  }, [creatingTaskId, scrollWorkspaceToTask]);
+
   /**
    * Task Checkbox Toggle Handler with optimistic state updates & global sync
    */
@@ -392,6 +443,10 @@ export const Tasks: React.FC = () => {
       targetDateStr = targetDate;
     }
 
+    const origDateStr = (rescheduleTask.date || todayStr).slice(0, 10);
+    const isPastTask = origDateStr < todayStr;
+    const shouldRemoveFromOriginal = !isPastTask; // Today and Tomorrow tasks are moved (removed from original day)
+
     if (isAuthenticated) {
       try {
         const res = await fetch(`/api/tasks/${rescheduleTask.id}/reschedule`, {
@@ -404,6 +459,7 @@ export const Tasks: React.FC = () => {
         const json = await res.json();
         if (json?.success && json?.data?.newTask) {
           const newTask = json.data.newTask;
+          const wasMoved = json.data.wasMoved ?? shouldRemoveFromOriginal;
           const mappedTask: HistoryTask = {
             id: newTask._id,
             title: newTask.title,
@@ -418,32 +474,62 @@ export const Tasks: React.FC = () => {
             createdAt: newTask.createdAt,
           };
 
-          // Optimistically append to target day bucket in UI cache
+          // Update UI cache for task history
           queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
             if (!old) return old;
             return {
               ...old,
               days: old.days.map((day) => {
-                if (day.date === targetDateStr) {
-                  const updated = [mappedTask, ...day.tasks];
-                  return {
-                    ...day,
-                    tasks: updated,
-                    totalCount: day.totalCount + 1,
-                    completionPercentage: Math.round(
-                      (day.completedCount / (day.totalCount + 1)) * 100
-                    ),
-                  };
+                let updatedTasks = day.tasks;
+                let newTotalCount = day.totalCount;
+                let newCompletedCount = day.completedCount;
+
+                // If task was moved (Today, Tomorrow, or future), remove from original day
+                if (wasMoved && day.date === origDateStr) {
+                  const removed = updatedTasks.find((t) => t.id === rescheduleTask.id);
+                  updatedTasks = updatedTasks.filter((t) => t.id !== rescheduleTask.id);
+                  newTotalCount = Math.max(0, newTotalCount - 1);
+                  if (removed?.isCompleted) {
+                    newCompletedCount = Math.max(0, newCompletedCount - 1);
+                  }
                 }
-                return day;
+
+                // Add to target day
+                if (day.date === targetDateStr) {
+                  updatedTasks = [mappedTask, ...updatedTasks];
+                  newTotalCount += 1;
+                }
+
+                const newPercentage =
+                  newTotalCount > 0 ? Math.round((newCompletedCount / newTotalCount) * 100) : 0;
+
+                return {
+                  ...day,
+                  tasks: updatedTasks,
+                  totalCount: newTotalCount,
+                  completedCount: newCompletedCount,
+                  completionPercentage: newPercentage,
+                };
               }),
             };
           });
 
-          // If scheduled for today, optimistically append to Dashboard cache
+          // If moved from today to another date, remove from Dashboard cache
+          if (wasMoved && origDateStr === todayStr && targetDateStr !== todayStr) {
+            queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+              if (!oldTasks) return oldTasks;
+              return oldTasks.filter((t) => t._id !== rescheduleTask.id);
+            });
+          }
+
+          // If scheduled for today, add to Dashboard cache
           if (targetDateStr === todayStr) {
             queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
               if (!oldTasks) return oldTasks;
+              const cleanTasks =
+                wasMoved && origDateStr === todayStr
+                  ? oldTasks.filter((t) => t._id !== rescheduleTask.id)
+                  : oldTasks;
               return [
                 {
                   _id: newTask._id,
@@ -456,7 +542,7 @@ export const Tasks: React.FC = () => {
                   timeTag: newTask.timeTag,
                   createdAt: newTask.createdAt,
                 },
-                ...oldTasks,
+                ...cleanTasks,
               ];
             });
           }
@@ -465,10 +551,14 @@ export const Tasks: React.FC = () => {
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
           showToast(
-            'Task Rescheduled! 🎯',
-            `"${rescheduleTask.title}" has been cloned and scheduled for ${
-              targetDate === 'today' ? 'Today' : targetDate === 'tomorrow' ? 'Tomorrow' : targetDateStr
-            }.`,
+            wasMoved ? 'Task Moved! 🎯' : 'Task Rescheduled! 🎯',
+            wasMoved
+              ? `"${rescheduleTask.title}" has been moved to ${
+                  targetDate === 'today' ? 'Today' : targetDate === 'tomorrow' ? 'Tomorrow' : targetDateStr
+                }.`
+              : `"${rescheduleTask.title}" has been cloned and scheduled for ${
+                  targetDate === 'today' ? 'Today' : targetDate === 'tomorrow' ? 'Tomorrow' : targetDateStr
+                }.`,
             'success'
           );
         }
@@ -477,6 +567,10 @@ export const Tasks: React.FC = () => {
       }
     } else {
       // Guest Mode Reschedule
+      if (shouldRemoveFromOriginal) {
+        deleteGuestTask(rescheduleTask.id);
+      }
+
       const newGuestTask: GuestTask = {
         id: `guest_task_${Date.now()}`,
         title: rescheduleTask.title,
@@ -492,33 +586,42 @@ export const Tasks: React.FC = () => {
 
       addGuestTask(newGuestTask);
       showToast(
-        'Task Rescheduled! 🎯',
-        `"${rescheduleTask.title}" scheduled for ${
-          targetDate === 'today' ? 'Today' : targetDate === 'tomorrow' ? 'Tomorrow' : targetDateStr
-        }.`,
+        shouldRemoveFromOriginal ? 'Task Moved! 🎯' : 'Task Rescheduled! 🎯',
+        shouldRemoveFromOriginal
+          ? `"${rescheduleTask.title}" moved to ${
+              targetDate === 'today' ? 'Today' : targetDate === 'tomorrow' ? 'Tomorrow' : targetDateStr
+            }.`
+          : `"${rescheduleTask.title}" scheduled for ${
+              targetDate === 'today' ? 'Today' : targetDate === 'tomorrow' ? 'Tomorrow' : targetDateStr
+            }.`,
         'success'
       );
     }
   };
 
   /**
-   * Delete Task Handler (Sends to Trash with instant recovery & global cache sync)
+   * Delete Task Handler (Confirmed from Modal)
+   * Smoothly plays swipe-out animation without UI jumping or flash-back,
+   * optimistically removes from cache, and dispatches soft-delete
    */
-  const handleDeleteTask = (id: string) => {
-    let deletedTitle = 'Task';
-    days.forEach((d) => {
-      const found = d.tasks.find((t) => t.id === id);
-      if (found) deletedTitle = found.title;
-    });
+  const handleConfirmDelete = (task: HistoryTask) => {
+    const targetId = task.id;
+    const taskTitle = task.title || 'Task';
+    const taskDate = (task.date || todayStr).slice(0, 10);
 
-    if (isAuthenticated) {
-      // 1. Optimistically update history cache
+    // 1. Close modal immediately and start smooth swipe-out CSS transition
+    setTaskToDelete(null);
+    setSwipingOutTaskId(targetId);
+
+    // 2. Wait 380ms for swipe-out animation to complete
+    setTimeout(async () => {
+      // Optimistically remove from History cache
       queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
         if (!old) return old;
         return {
           ...old,
           days: old.days.map((d) => {
-            const filtered = d.tasks.filter((t) => t.id !== id);
+            const filtered = d.tasks.filter((t) => t.id !== targetId);
             if (filtered.length === d.tasks.length) return d;
             const completed = filtered.filter((t) => t.isCompleted).length;
             const total = filtered.length;
@@ -530,46 +633,55 @@ export const Tasks: React.FC = () => {
               completionPercentage: total > 0 ? Math.round((completed / total) * 100) : 0,
             };
           }),
+          totalLoggedCount: Math.max(0, (old.totalLoggedCount ?? 1) - 1),
         };
       });
 
-      // 2. Optimistically remove from Dashboard cache
-      queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
-        if (!oldTasks) return oldTasks;
-        return oldTasks.filter((t) => t._id !== id);
-      });
+      // If task belongs to Today, optimistically remove from Dashboard cache
+      if (taskDate === todayStr) {
+        queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+          if (!Array.isArray(oldTasks)) return oldTasks;
+          return oldTasks.filter((t) => (t._id || t.id) !== targetId);
+        });
+      }
 
-      // 3. Invalidate tasks queries
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      // Reset swiping out id
+      setSwipingOutTaskId((curr) => (curr === targetId ? null : curr));
 
-      fetch(`/api/tasks/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      }).catch((err) => {
-        console.error('Failed to soft-delete task:', err);
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      });
-    } else {
-      deleteGuestTask(id);
-    }
-
-    showToast('Moved to Trash', `"${deletedTitle}" moved to 30-day trash.`, 'info', {
-      label: 'Undo',
-      onClick: async () => {
-        if (isAuthenticated) {
-          try {
-            await fetch(`/api/tasks/${id}/restore`, {
-              method: 'POST',
-              credentials: 'include',
-            });
-            queryClient.invalidateQueries({ queryKey: ['tasks'] });
-          } catch (err) {
-            console.error('Failed to restore task:', err);
-          }
+      if (isAuthenticated) {
+        try {
+          await fetch(`/api/tasks/${targetId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          // Update Trash view cache
+          queryClient.invalidateQueries({ queryKey: ['tasks', 'trash'] });
+        } catch (err) {
+          console.error('Failed to soft-delete task:', err);
         }
-        markTaskRestored(id);
-      },
-    });
+      } else {
+        deleteGuestTask(targetId);
+      }
+
+      showToast('Moved to Trash', `"${taskTitle}" moved to 30-day trash.`, 'info', {
+        label: 'Undo',
+        onClick: async () => {
+          if (isAuthenticated) {
+            try {
+              await fetch(`/api/tasks/${targetId}/restore`, {
+                method: 'POST',
+                credentials: 'include',
+              });
+              queryClient.invalidateQueries({ queryKey: ['tasks'] });
+              queryClient.invalidateQueries({ queryKey: ['tasks', 'trash'] });
+            } catch (err) {
+              console.error('Failed to restore task:', err);
+            }
+          }
+          markTaskRestored(targetId);
+        },
+      });
+    }, 380);
   };
 
   /**
@@ -657,37 +769,170 @@ export const Tasks: React.FC = () => {
       showToast('Task Updated', `"${taskData.title}" details saved.`, 'success');
     } else {
       // Create new task
+      const newTaskId = `history_task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const targetDateStr = (taskData.date || todayStr).slice(0, 10);
+
+      // Dismiss any active inputs to avoid browser viewport pinning
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
+      // Close modal immediately
+      setIsEditCreateOpen(false);
+
+      // Immediately activate typewriter creating state for smooth typing effect
+      setCreatingTaskId(newTaskId);
+
+      const optimisticTask: HistoryTask = {
+        id: newTaskId,
+        title: taskData.title.trim(),
+        isCompleted: false,
+        category: normalizeCategory(taskData.category),
+        priority: taskData.priority,
+        timeTag: taskData.timeTag || null,
+        isHabitInstance: false,
+        habitId: null,
+        status: 'pending',
+        date: targetDateStr,
+        createdAt: new Date().toISOString(),
+      };
+
       if (isAuthenticated) {
-        const res = await fetch('/api/tasks', {
+        // Optimistically insert into history cache
+        queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
+          if (!old) return old;
+          const exists = old.days.some((d) => d.date === targetDateStr);
+          let nextDays: HistoryDayBucket[];
+          if (exists) {
+            nextDays = old.days.map((d) => {
+              if (d.date === targetDateStr) {
+                const updatedTasks = [optimisticTask, ...d.tasks];
+                const totalCount = updatedTasks.length;
+                const completedCount = updatedTasks.filter((t) => t.isCompleted).length;
+                return {
+                  ...d,
+                  tasks: updatedTasks,
+                  totalCount,
+                  completedCount,
+                  completionPercentage: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
+                };
+              }
+              return d;
+            });
+          } else {
+            const dateObj = new Date(targetDateStr + 'T12:00:00.000Z');
+            const newDayBucket: HistoryDayBucket = {
+              date: targetDateStr,
+              label: dateObj.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                timeZone: 'UTC',
+              }).toUpperCase(),
+              formattedDate: dateObj.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                timeZone: 'UTC',
+              }),
+              isTomorrow: targetDateStr === tomorrowStr,
+              isToday: targetDateStr === todayStr,
+              isYesterday: false,
+              tasks: [optimisticTask],
+              totalCount: 1,
+              completedCount: 0,
+              completionPercentage: 0,
+            };
+            nextDays = [...old.days, newDayBucket].sort((a, b) => b.date.localeCompare(a.date));
+          }
+          return {
+            ...old,
+            days: nextDays,
+            totalLoggedCount: (old.totalLoggedCount ?? 0) + 1,
+          };
+        });
+
+        // If created for today, optimistically append to Dashboard cache
+        if (targetDateStr === todayStr) {
+          queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+            const dashTask = {
+              _id: newTaskId,
+              title: taskData.title.trim(),
+              category: normalizeCategory(taskData.category),
+              priority: taskData.priority,
+              timeTag: taskData.timeTag || 'Today',
+              isCompleted: false,
+              isHabitInstance: false,
+              createdAt: new Date().toISOString(),
+            };
+            return Array.isArray(oldTasks) ? [dashTask, ...oldTasks] : [dashTask];
+          });
+        }
+
+        // Trigger smooth scroll to newly created task
+        scrollWorkspaceToTask(newTaskId);
+
+        // Send POST to server without premature query refetch that cancels animations
+        fetch('/api/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            title: taskData.title,
-            date: taskData.date,
+            title: taskData.title.trim(),
+            date: targetDateStr,
             category: taskData.category,
             priority: taskData.priority,
             timeTag: taskData.timeTag,
             isCompleted: false,
           }),
-        });
-        const json = await res.json();
-        const createdTask = json?.data;
+        })
+          .then((res) => res.json())
+          .then((json) => {
+            const serverTask = json?.data;
+            if (serverTask?._id) {
+              const serverId = serverTask._id;
+              // Seamlessly update ID in history cache
+              queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
+                if (!old) return old;
+                return {
+                  ...old,
+                  days: old.days.map((d) => ({
+                    ...d,
+                    tasks: d.tasks.map((t) => (t.id === newTaskId ? { ...t, id: serverId } : t)),
+                  })),
+                };
+              });
 
-        // If created for today, optimistically append to Dashboard cache
-        if (taskData.date === todayStr && createdTask) {
-          queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
-            if (!oldTasks) return oldTasks;
-            return [createdTask, ...oldTasks];
+              if (targetDateStr === todayStr) {
+                queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+                  if (!Array.isArray(oldTasks)) return oldTasks;
+                  return oldTasks.map((t) => (t._id === newTaskId ? { ...t, _id: serverId } : t));
+                });
+              }
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to save created task:', err);
+            // Rollback on error
+            queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
+              if (!old) return old;
+              return {
+                ...old,
+                days: old.days.map((d) => ({
+                  ...d,
+                  tasks: d.tasks.filter((t) => t.id !== newTaskId),
+                })),
+              };
+            });
+            setCreatingTaskId(null);
           });
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
       } else {
+        // Guest mode
         addGuestTask({
-          id: `guest_task_${Date.now()}`,
-          title: taskData.title,
-          date: taskData.date,
+          id: newTaskId,
+          title: taskData.title.trim(),
+          date: targetDateStr,
           isCompleted: false,
           isHabitInstance: false,
           sortOrder: 0,
@@ -695,6 +940,7 @@ export const Tasks: React.FC = () => {
           priority: taskData.priority,
           timeTag: taskData.timeTag,
         });
+        scrollWorkspaceToTask(newTaskId);
       }
 
       showToast('Task Created', `"${taskData.title}" added to your history schedule.`, 'success');
@@ -736,9 +982,15 @@ export const Tasks: React.FC = () => {
             <TaskHistoryDaySection
               key={day.date}
               day={day}
+              expandedTaskId={expandedTaskId}
+              creatingTaskId={creatingTaskId}
+              highlightedTaskId={highlightedTaskId}
+              swipingOutTaskId={swipingOutTaskId}
+              onCreationAnimationComplete={handleCreationAnimationComplete}
+              onToggleExpand={(id) => setExpandedTaskId((prev) => (prev === id ? null : id))}
               onToggle={handleToggleTask}
               onEdit={handleOpenEdit}
-              onDelete={handleDeleteTask}
+              onDelete={(task) => setTaskToDelete(task)}
               onOpenReschedule={(task) => {
                 setRescheduleTask(task);
                 setIsRescheduleOpen(true);
@@ -802,6 +1054,7 @@ export const Tasks: React.FC = () => {
           setRescheduleTask(null);
         }}
         taskTitle={rescheduleTask?.title || ''}
+        taskDate={rescheduleTask?.date}
         onReschedule={handleReschedule}
       />
 
@@ -816,6 +1069,70 @@ export const Tasks: React.FC = () => {
         defaultDate={defaultCreateDate}
         onSave={handleSaveTask}
       />
+
+      {/* Move to Trash Confirmation Modal */}
+      {taskToDelete && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setTaskToDelete(null)}
+        >
+          <div
+            className="bg-[#162032] border border-amber-400/20 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setTaskToDelete(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Trash Icon & Heading with clear 30-day instruction */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
+                <Trash2 className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white leading-tight">
+                  Move to Trash?
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5 leading-normal">
+                  Retained in 30-Day Trash. You can restore it anytime.
+                </p>
+              </div>
+            </div>
+
+            {/* Target Item Preview */}
+            <div className="bg-[#101827] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 truncate">
+              <span className="text-slate-400 mr-1.5">Task:</span>
+              <span className="font-semibold text-slate-100">{taskToDelete.title}</span>
+            </div>
+
+            {/* Actions: Cancel & Move to Trash */}
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setTaskToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmDelete(taskToDelete)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Move to Trash</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

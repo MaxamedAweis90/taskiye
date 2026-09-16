@@ -5,6 +5,7 @@ interface TaskRescheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   taskTitle: string;
+  taskDate?: string;
   onReschedule: (targetDate: 'today' | 'tomorrow' | string) => Promise<void>;
 }
 
@@ -12,20 +13,36 @@ export const TaskRescheduleModal: React.FC<TaskRescheduleModalProps> = ({
   isOpen,
   onClose,
   taskTitle,
+  taskDate,
   onReschedule,
 }) => {
-  const [selectedOption, setSelectedOption] = useState<'today' | 'tomorrow' | 'custom'>('tomorrow');
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const tomorrow = new Date(today.getTime() + 86400000);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  const isTaskToday = Boolean(taskDate && taskDate.slice(0, 10) === todayStr);
+  const isTaskTomorrow = Boolean(taskDate && taskDate.slice(0, 10) === tomorrowStr);
+
+  const [selectedOption, setSelectedOption] = useState<'today' | 'tomorrow' | 'custom'>(() => {
+    if (taskDate && taskDate.slice(0, 10) === tomorrowStr) return 'today';
+    return 'tomorrow';
+  });
   const [customDate, setCustomDate] = useState(() => {
     const d = new Date(Date.now() + 86400000 * 2);
     return d.toISOString().slice(0, 10);
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen) return null;
+  // Sync selectedOption when task context changes
+  React.useEffect(() => {
+    if (isTaskToday && selectedOption === 'today') {
+      setSelectedOption('tomorrow');
+    } else if (isTaskTomorrow && selectedOption === 'tomorrow') {
+      setSelectedOption('today');
+    }
+  }, [isTaskToday, isTaskTomorrow, selectedOption]);
 
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const tomorrow = new Date(today.getTime() + 86400000);
+  if (!isOpen) return null;
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
@@ -60,7 +77,7 @@ export const TaskRescheduleModal: React.FC<TaskRescheduleModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white">Reschedule Task</h3>
-              <p className="text-[11px] text-slate-400 font-medium">Forward to an upcoming daily plan</p>
+              <p className="text-[11px] text-slate-400 font-medium">Forward or adjust to an upcoming daily plan</p>
             </div>
           </div>
           <button
@@ -84,69 +101,73 @@ export const TaskRescheduleModal: React.FC<TaskRescheduleModalProps> = ({
         <div className="flex flex-col gap-2.5">
           <span className="text-xs font-bold text-slate-300">Choose Target Schedule:</span>
 
-          {/* Option 1: Tomorrow (Recommended) */}
-          <div
-            onClick={() => setSelectedOption('tomorrow')}
-            className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-              selectedOption === 'tomorrow'
-                ? 'bg-amber-400/10 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(250,204,21,0.15)]'
-                : 'bg-[#152033] border-white/[0.06] text-slate-300 hover:border-white/[0.15]'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                  selectedOption === 'tomorrow'
-                    ? 'border-amber-400 bg-amber-400'
-                    : 'border-slate-500'
-                }`}
-              >
-                {selectedOption === 'tomorrow' && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />
-                )}
+          {/* Option 1: Tomorrow (Only available if task is not already tomorrow) */}
+          {!isTaskTomorrow && (
+            <div
+              onClick={() => setSelectedOption('tomorrow')}
+              className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                selectedOption === 'tomorrow'
+                  ? 'bg-amber-400/10 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(250,204,21,0.15)]'
+                  : 'bg-[#152033] border-white/[0.06] text-slate-300 hover:border-white/[0.15]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                    selectedOption === 'tomorrow'
+                      ? 'border-amber-400 bg-amber-400'
+                      : 'border-slate-500'
+                  }`}
+                >
+                  {selectedOption === 'tomorrow' && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold">Tomorrow (Recommended)</span>
+                  <span className="text-[10.5px] text-slate-400 font-medium">
+                    {tomorrow.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold">Tomorrow (Recommended)</span>
-                <span className="text-[10.5px] text-slate-400 font-medium">
-                  {tomorrow.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                </span>
-              </div>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                Next Cadence
+              </span>
             </div>
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-              Next Cadence
-            </span>
-          </div>
+          )}
 
-          {/* Option 2: Today */}
-          <div
-            onClick={() => setSelectedOption('today')}
-            className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-              selectedOption === 'today'
-                ? 'bg-amber-400/10 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(250,204,21,0.15)]'
-                : 'bg-[#152033] border-white/[0.06] text-slate-300 hover:border-white/[0.15]'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                  selectedOption === 'today'
-                    ? 'border-amber-400 bg-amber-400'
-                    : 'border-slate-500'
-                }`}
-              >
-                {selectedOption === 'today' && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />
-                )}
+          {/* Option 2: Today (Only available for missed/past tasks, not if already scheduled for today) */}
+          {!isTaskToday && (
+            <div
+              onClick={() => setSelectedOption('today')}
+              className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                selectedOption === 'today'
+                  ? 'bg-amber-400/10 border-amber-400 text-amber-200 shadow-[0_0_15px_rgba(250,204,21,0.15)]'
+                  : 'bg-[#152033] border-white/[0.06] text-slate-300 hover:border-white/[0.15]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                    selectedOption === 'today'
+                      ? 'border-amber-400 bg-amber-400'
+                      : 'border-slate-500'
+                  }`}
+                >
+                  {selectedOption === 'today' && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold">Today {isTaskTomorrow && '(Bring Forward)'}</span>
+                  <span className="text-[10.5px] text-slate-400 font-medium">Add to today's active checklist</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold">Today</span>
-                <span className="text-[10.5px] text-slate-400 font-medium">Add to today's active checklist</span>
-              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                {isTaskTomorrow ? 'Earlier' : 'Immediate'}
+              </span>
             </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
-              Immediate
-            </span>
-          </div>
+          )}
 
           {/* Option 3: Custom Date */}
           <div

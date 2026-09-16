@@ -4,7 +4,7 @@ import { RouteErrorBoundary } from './components/common/RouteErrorBoundary';
 import { Dashboard } from './pages/Dashboard';
 import { Habits } from './pages/Habits';
 import { Tasks } from './pages/Tasks';
-import { Goals } from './pages/Goals';
+import { Rank } from './pages/Rank';
 
 export const router = createBrowserRouter([
   {
@@ -25,8 +25,12 @@ export const router = createBrowserRouter([
         element: <Tasks />,
       },
       {
+        path: 'rank',
+        element: <Rank />,
+      },
+      {
         path: 'goals',
-        element: <Goals />,
+        element: <Navigate to="/rank" replace />,
       },
       {
         path: '*',

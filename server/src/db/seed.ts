@@ -6,7 +6,6 @@ import { connectDB, mongoDb, mongoClient } from './connection.js';
 import { auth } from '../lib/auth.js';
 import { Habit } from '../models/Habit.js';
 import { Task } from '../models/Task.js';
-import { Goal } from '../models/Goal.js';
 
 async function seed() {
   console.log('[Seed] Connecting to MongoDB...');
@@ -54,7 +53,6 @@ async function seed() {
   // Clear previous sample data for clean testing
   await Habit.deleteMany({ userId });
   await Task.deleteMany({ userId });
-  await Goal.deleteMany({ userId });
 
   console.log('[Seed] Seeding sample habits...');
   const habit1 = await Habit.create({
@@ -244,38 +242,6 @@ async function seed() {
       isCompleted: false,
       isHabitInstance: false,
       sortOrder: 1,
-    },
-  ]);
-
-  console.log('[Seed] Seeding sample goals...');
-  const nextWeek = new Date(now);
-  nextWeek.setDate(nextWeek.getDate() + 7);
-
-  const endOfYear = new Date(now.getFullYear(), 11, 31);
-
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-  await Goal.create([
-    {
-      userId,
-      title: 'Launch Taskiye MVP on Vercel & Railway',
-      deadline: endOfMonth,
-      targetType: 'custom',
-      isCompleted: false,
-    },
-    {
-      userId,
-      title: 'Read 12 books on productivity & engineering',
-      deadline: endOfYear,
-      targetType: 'yearly',
-      isCompleted: false,
-    },
-    {
-      userId,
-      title: 'Complete Monorepo Architecture and Frontend UI',
-      deadline: nextWeek,
-      targetType: 'weekly',
-      isCompleted: true,
     },
   ]);
 

@@ -6,7 +6,8 @@ import { auth } from './lib/auth.js';
 import { connectDB } from './db/connection.js';
 import habitsRouter from './routes/habits.js';
 import tasksRouter from './routes/tasks.js';
-import goalsRouter from './routes/goals.js';
+import rankingsRouter from './routes/rankings.js';
+import friendsRouter from './routes/friends.js';
 import usersRouter from './routes/users.js';
 import syncRouter from './routes/sync.js';
 import notificationsRouter from './routes/notifications.js';
@@ -71,7 +72,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // 6. Feature Routes
 app.use('/api/habits', habitsRouter);
 app.use('/api/tasks', tasksRouter);
-app.use('/api/goals', goalsRouter);
+app.use('/api/rankings', rankingsRouter);
+app.use('/api/friends', friendsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/notifications', notificationsRouter);

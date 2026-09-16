@@ -435,14 +435,28 @@ router.post('/:id/reschedule', requireAuth, async (req: AuthenticatedRequest, re
       targetDateObj = parsed;
     }
 
-    // Create a new task instance on the target date (preserving original historical record as missed)
+    const todayStr = now.toISOString().slice(0, 10);
+    const origDateStr = originalTask.date
+      ? new Date(originalTask.date).toISOString().slice(0, 10)
+      : todayStr;
+
+    // Previous / past missed tasks (strictly before today) are retained as historical records (copied only).
+    // Active tasks scheduled for Today, Tomorrow, or future are moved (deleted from original date).
+    const isPastTask = origDateStr < todayStr;
+    const shouldDeleteOriginal = !isPastTask;
+
+    if (shouldDeleteOriginal) {
+      await Task.deleteOne({ _id: originalTask._id, userId: req.user!.id });
+    }
+
+    // Create a new task instance on the target date
     const newTask = await Task.create({
       userId: req.user!.id,
       title: originalTask.title,
       category: originalTask.category || 'Work',
       priority: originalTask.priority || 'normal',
       timeTag: originalTask.timeTag || null,
-      isHabitInstance: false, // cloned as an actionable daily focus task
+      isHabitInstance: false,
       habitId: originalTask.habitId || null,
       isCompleted: false,
       date: targetDateObj,
@@ -451,8 +465,13 @@ router.post('/:id/reschedule', requireAuth, async (req: AuthenticatedRequest, re
 
     return sendSuccess(
       res,
-      { originalTask, newTask },
-      `Task rescheduled to ${targetDateObj.toISOString().slice(0, 10)}`,
+      {
+        originalTaskId: originalTask._id,
+        originalTaskDate: origDateStr,
+        wasMoved: shouldDeleteOriginal,
+        newTask,
+      },
+      shouldDeleteOriginal ? 'Task moved to target schedule' : 'Task copied to target schedule',
       201
     );
   } catch (error) {

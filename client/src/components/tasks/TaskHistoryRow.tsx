@@ -14,6 +14,61 @@ import {
 import { playCelebrationChime } from '../../hooks/usePushNotifications';
 import { getCategoryBadgeStyle, normalizeCategory } from '../../constants/categories';
 
+interface TypewriterTitleProps {
+  text: string;
+  isWriting: boolean;
+  onFinish?: () => void;
+  className?: string;
+}
+
+const ActiveTypewriterTitle: React.FC<{
+  text: string;
+  onFinish?: () => void;
+  className?: string;
+}> = ({ text, onFinish, className }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const onFinishRef = React.useRef(onFinish);
+  onFinishRef.current = onFinish;
+
+  React.useEffect(() => {
+    let index = 0;
+    const intervalMs = Math.max(16, Math.min(32, Math.floor(650 / (text.length || 1))));
+
+    const timer = setInterval(() => {
+      index++;
+      setDisplayedText(text.slice(0, index));
+
+      if (index >= text.length) {
+        clearInterval(timer);
+        setTimeout(() => {
+          onFinishRef.current?.();
+        }, 350);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [text]);
+
+  return (
+    <span className={className}>
+      {displayedText}
+      <span className="inline-block w-1.5 h-3.5 bg-[#FACC15] ml-1 translate-y-[2px] animate-pulse rounded-sm" />
+    </span>
+  );
+};
+
+const TypewriterTitle: React.FC<TypewriterTitleProps> = ({
+  text,
+  isWriting,
+  onFinish,
+  className,
+}) => {
+  if (!isWriting) {
+    return <span className={className}>{text}</span>;
+  }
+  return <ActiveTypewriterTitle text={text} onFinish={onFinish} className={className} />;
+};
+
 export interface HistoryTask {
   id: string;
   title: string;
@@ -32,9 +87,15 @@ interface TaskHistoryRowProps {
   task: HistoryTask;
   isTomorrow?: boolean;
   isToday?: boolean;
+  isExpanded?: boolean;
+  isCreating?: boolean;
+  isHighlighted?: boolean;
+  isSwipingOut?: boolean;
+  onCreationAnimationComplete?: (id: string) => void;
+  onToggleExpand?: () => void;
   onToggle: (id: string, isCompleted: boolean) => void;
   onEdit: (task: HistoryTask) => void;
-  onDelete: (id: string) => void;
+  onDelete: (task: HistoryTask) => void;
   onOpenReschedule: (task: HistoryTask) => void;
   onQuickReschedule?: (id: string, targetDate: 'today' | 'tomorrow') => void;
 }
@@ -43,13 +104,29 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
   task,
   isTomorrow = false,
   isToday = false,
+  isExpanded: isExpandedProp,
+  isCreating = false,
+  isHighlighted = false,
+  isSwipingOut = false,
+  onCreationAnimationComplete,
+  onToggleExpand,
   onToggle,
   onEdit,
   onDelete,
   onOpenReschedule,
   onQuickReschedule: _onQuickReschedule,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = typeof isExpandedProp === 'boolean' ? isExpandedProp : internalExpanded;
+
+  const handleToggleExpand = () => {
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setInternalExpanded((prev) => !prev);
+    }
+  };
+
   const [showPastTooltip, setShowPastTooltip] = useState(false);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const tooltipTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -109,8 +186,15 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
 
   return (
     <div
-      className={`rounded-2xl border transition-all duration-200 overflow-visible select-none ${
-        isMissed
+      id={`task-history-item-${task.id}`}
+      className={`rounded-2xl border transition-all duration-300 overflow-visible select-none ${
+        isSwipingOut
+          ? 'animate-task-swipe-left z-20 pointer-events-none'
+          : isCreating
+          ? 'bg-[#111A2E] border border-amber-400/80 shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
+          : isHighlighted
+          ? 'bg-[#111A2E] border border-amber-400/50 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+          : isMissed
           ? 'bg-[#15101E]/90 border-rose-500/30 hover:border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.06)]'
           : isCompleted
           ? 'bg-[#0E1528]/80 border-white/[0.05] hover:border-white/[0.1]'
@@ -119,7 +203,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
     >
       {/* Main Row */}
       <div
-        onClick={() => setIsExpanded((prev) => !prev)}
+        onClick={handleToggleExpand}
         className="px-3.5 sm:px-5 py-3 sm:py-3.5 flex items-center justify-between gap-3 cursor-pointer group"
       >
         {/* Left: Checkbox + Title */}
@@ -214,7 +298,10 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
 
           {/* Title and Category */}
           <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-            <span
+            <TypewriterTitle
+              text={task.title}
+              isWriting={Boolean(isCreating)}
+              onFinish={() => onCreationAnimationComplete?.(task.id)}
               className={`text-sm truncate select-none transition-colors ${
                 isCompleted
                   ? 'line-through text-slate-400 font-normal'
@@ -222,9 +309,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                   ? 'text-slate-100 font-semibold'
                   : 'text-slate-100 font-medium'
               }`}
-            >
-              {task.title}
-            </span>
+            />
 
             {/* Category Badge */}
             <span
@@ -328,17 +413,19 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
 
           {/* Drawer Actions */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenReschedule(task);
-              }}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-            >
-              <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Reschedule Plan</span>
-            </button>
+            {!isCompleted && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenReschedule(task);
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Reschedule Plan</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -356,7 +443,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(task.id);
+                onDelete(task);
               }}
               className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >

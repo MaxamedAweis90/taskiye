@@ -5,7 +5,7 @@ import {
   CheckSquare,
   Repeat,
   Sparkles,
-  Target,
+  Trophy,
   Search,
   Bell,
   User as UserIcon,
@@ -20,6 +20,10 @@ import {
   CheckCheck,
   ArrowRight,
   Trash2,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Zap,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
@@ -36,7 +40,7 @@ interface InAppNotificationItem {
   description: string;
   time: string;
   read: boolean;
-  type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system' | 'habit' | 'goal';
+  type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system' | 'habit' | 'rank';
   url?: string;
   createdAt?: string;
 }
@@ -65,7 +69,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'OVERVIEW', icon: LayoutGrid },
   { to: '/habits', label: 'HABITS', icon: Repeat },
   { to: '/tasks', label: 'TASKS', icon: CheckSquare },
-  { to: '/goals', label: 'GOALS', icon: Target },
+  { to: '/rank', label: 'RANK', icon: Trophy },
 ];
 
 export const AppLayout: React.FC = () => {
@@ -91,19 +95,6 @@ export const AppLayout: React.FC = () => {
     syncHabitsToTodayTasks,
   } = useTaskiyeStore();
 
-  const { data: serverHabits = [] } = useQuery<
-    Array<{ streakDays?: number; isArchived?: boolean; lastCompletedDate?: string | null }>
-  >({
-    queryKey: ['habits'],
-    queryFn: async () => {
-      const res = await fetch('/api/habits', { credentials: 'include' });
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-    enabled: Boolean(session?.user),
-    staleTime: 30000,
-  });
-
   const { data: serverActivity = {} } = useQuery({
     queryKey: ['tasks', 'activity'],
     queryFn: async () => {
@@ -115,7 +106,9 @@ export const AppLayout: React.FC = () => {
     staleTime: 30000,
   });
 
-  const todayStr = currentDateStr || new Date().toLocaleDateString('en-CA');
+  const localTodayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
+  const utcTodayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayStr = currentDateStr || localTodayStr;
 
   const activityLogs = useMemo(() => {
     if (session?.user) {
@@ -131,8 +124,10 @@ export const AppLayout: React.FC = () => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
     for (let i = 0; i < 365; i++) {
-      const dateStr = d.toLocaleDateString('en-CA');
-      if (activityLogs[dateStr] && activityLogs[dateStr].completedCount > 0) {
+      const localStr = d.toLocaleDateString('en-CA');
+      const utcStr = d.toISOString().slice(0, 10);
+      const log = activityLogs[localStr] || activityLogs[utcStr];
+      if (log && log.completedCount > 0) {
         count++;
         d.setDate(d.getDate() - 1);
       } else {
@@ -142,22 +137,8 @@ export const AppLayout: React.FC = () => {
     return count;
   }, [activityLogs]);
 
-  const pastHabitsMaxStreak = useMemo(() => {
-    const list = session?.user ? serverHabits : guestHabits;
-    const active = list.filter((h) => !h.isArchived);
-    if (active.length === 0) return 0;
-    return Math.max(
-      ...active.map((h) => {
-        const s = h.streakDays || 0;
-        if (h.lastCompletedDate === todayStr) {
-          return Math.max(0, s - 1);
-        }
-        return s;
-      })
-    );
-  }, [session?.user, serverHabits, guestHabits, todayStr]);
-
-  const effectiveBaseStreak = Math.max(pastConsecutiveDays, pastHabitsMaxStreak);
+  // Effective base streak prior to today, strictly matching calendar activity logs
+  const effectiveBaseStreak = pastConsecutiveDays;
 
   useEffect(() => {
     setBaseStreakDays(effectiveBaseStreak);
@@ -188,8 +169,13 @@ export const AppLayout: React.FC = () => {
   }, []);
 
   const isTaskDoneToday = useMemo(() => {
-    return todayChecklistCompletedCount > 0 || (activityLogs[todayStr]?.completedCount || 0) > 0;
-  }, [todayChecklistCompletedCount, activityLogs, todayStr]);
+    return (
+      todayChecklistCompletedCount > 0 ||
+      (activityLogs[todayStr]?.completedCount || 0) > 0 ||
+      (activityLogs[localTodayStr]?.completedCount || 0) > 0 ||
+      (activityLogs[utcTodayStr]?.completedCount || 0) > 0
+    );
+  }, [todayChecklistCompletedCount, activityLogs, todayStr, localTodayStr, utcTodayStr]);
 
   const [notifications, setNotifications] = useState<InAppNotificationItem[]>(() => {
     try {
@@ -437,34 +423,88 @@ export const AppLayout: React.FC = () => {
     }
   }, []);
 
-  const weekDays = useMemo(() => {
-    const now = new Date();
-    const currentDayOfWeek = now.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
-    const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  // Monthly Calendar Navigation & Data for Duolingo-style Streak Popover
+  const [streakCalendarDate, setStreakCalendarDate] = useState(() => new Date());
 
-    return days.map((label, index) => {
-      const isPast = index < currentDayOfWeek;
-      const isToday = index === currentDayOfWeek;
-      const isFuture = index > currentDayOfWeek;
+  const canGoNextMonth = useMemo(() => {
+    const now = new Date();
+    return (
+      streakCalendarDate.getFullYear() < now.getFullYear() ||
+      (streakCalendarDate.getFullYear() === now.getFullYear() &&
+        streakCalendarDate.getMonth() < now.getMonth())
+    );
+  }, [streakCalendarDate]);
+
+  const handlePrevMonth = () => {
+    setStreakCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    if (!canGoNextMonth) return;
+    setStreakCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const calendarMonthData = useMemo(() => {
+    const year = streakCalendarDate.getFullYear();
+    const month = streakCalendarDate.getMonth();
+
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sunday
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const days: Array<{
+      dayNumber: number;
+      dateStr: string;
+      isToday: boolean;
+      isFuture: boolean;
+      isCompleted: boolean;
+      dayOfWeek: number;
+    }> = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const monthStr = String(month + 1).padStart(2, '0');
+      const dayStr = String(d).padStart(2, '0');
+      const dateStr = `${year}-${monthStr}-${dayStr}`;
+      const dayOfWeek = (firstDayIndex + d - 1) % 7;
+
+      const isToday =
+        dateStr === todayStr || dateStr === localTodayStr || dateStr === utcTodayStr;
+      const isFuture =
+        dateStr > todayStr && dateStr > localTodayStr && dateStr > utcTodayStr;
 
       let isCompleted = false;
       if (isToday) {
         isCompleted = isTaskDoneToday;
-      } else if (isPast) {
-        // How many days ago was this day from today?
-        const daysAgo = currentDayOfWeek - index;
-        isCompleted = daysAgo <= effectiveBaseStreak;
+      } else if (!isFuture) {
+        const log = activityLogs[dateStr];
+        isCompleted = Boolean(log && log.completedCount > 0);
       }
 
-      return {
-        label,
-        isPast,
+      days.push({
+        dayNumber: d,
+        dateStr,
         isToday,
         isFuture,
         isCompleted,
-      };
-    });
-  }, [isTaskDoneToday, effectiveBaseStreak]);
+        dayOfWeek,
+      });
+    }
+
+    return {
+      firstDayIndex,
+      monthName: streakCalendarDate.toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      }),
+      days,
+    };
+  }, [
+    streakCalendarDate,
+    todayStr,
+    localTodayStr,
+    utcTodayStr,
+    isTaskDoneToday,
+    activityLogs,
+  ]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
@@ -706,11 +746,11 @@ export const AppLayout: React.FC = () => {
 
           {/* Right Controls: Streak Button, Notifications Bell & User Profile Dropdown Widget */}
           <div className="flex items-center gap-2.5 sm:gap-3" ref={controlsRef}>
-            {/* 1. Streak Widget (Morphs from unlit/lit flame pill to Duolingo streak card) */}
+            {/* 1. Streak Widget (Morphs from unlit/lit flame pill to Duolingo monthly calendar streak card) */}
             <div
               className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
               style={{
-                width: isMobile ? 52 : activeDropdown === 'streak' ? 320 : streakPillWidth,
+                width: isMobile ? 52 : activeDropdown === 'streak' ? 340 : streakPillWidth,
                 height: 40,
               }}
             >
@@ -762,7 +802,7 @@ export const AppLayout: React.FC = () => {
                 }
                 className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'streak'
-                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-[340px] rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
                     : `hidden sm:flex absolute left-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         isTaskDoneToday
                           ? 'bg-[#151D33] border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400/70'
@@ -864,49 +904,118 @@ export const AppLayout: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Weekly Inset Calendar (Duolingo style: S M T W T F S) */}
-                    <div className="bg-[#090E1B] border border-white/[0.08] rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-1 shadow-inner">
-                      {weekDays.map((day, idx) => (
-                        <div key={idx} className="flex flex-col items-center gap-1 flex-1">
-                          <span
-                            className={`text-[10.5px] font-bold ${
-                              day.isToday ? 'text-amber-400' : 'text-slate-400'
-                            }`}
-                          >
-                            {day.label}
-                          </span>
-                          <div
-                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                              day.isCompleted
-                                ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_10px_rgba(250,204,21,0.35)]'
-                                : day.isToday
-                                  ? 'bg-sky-500/20 border-2 border-sky-400 text-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.35)]'
-                                  : 'bg-white/[0.04] border border-white/[0.08] text-slate-500'
-                            }`}
-                          >
-                            {day.isCompleted ? (
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            ) : day.isToday ? (
-                              <Snowflake className="w-3.5 h-3.5 stroke-[2.5]" />
-                            ) : (
-                              <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
-                            )}
-                          </div>
+                    {/* Monthly Inset Calendar (Duolingo style: < Month Year > with full month grid) */}
+                    <div className="bg-[#090E1B] border border-white/[0.08] rounded-2xl p-2.5 sm:p-3 flex flex-col gap-2 shadow-inner">
+                      {/* Month Header Switcher */}
+                      <div className="flex items-center justify-between px-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrevMonth();
+                          }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                          title="Previous month"
+                        >
+                          <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+
+                        <div className="flex items-center gap-1.5 text-xs font-black tracking-wide text-white uppercase select-none">
+                          <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{calendarMonthData.monthName}</span>
                         </div>
-                      ))}
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNextMonth();
+                          }}
+                          disabled={!canGoNextMonth}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                            canGoNextMonth
+                              ? 'text-slate-400 hover:text-white hover:bg-white/10 active:scale-90 cursor-pointer'
+                              : 'text-slate-600 opacity-30 cursor-not-allowed'
+                          }`}
+                          title={canGoNextMonth ? 'Next month' : 'Current month'}
+                        >
+                          <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+                      </div>
+
+                      {/* Day of Week Labels */}
+                      <div className="grid grid-cols-7 gap-1 text-center py-1 border-b border-white/[0.06]">
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] font-bold text-slate-400 uppercase select-none"
+                          >
+                            {day}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Month Days Grid with Morph Transition */}
+                      <div
+                        key={calendarMonthData.monthName}
+                        className="grid grid-cols-7 gap-y-1.5 gap-x-1 py-1 animate-in fade-in zoom-in-95 duration-200"
+                      >
+                        {/* Leading empty placeholder cells */}
+                        {Array.from({ length: calendarMonthData.firstDayIndex }).map((_, i) => (
+                          <div key={`empty-${i}`} className="w-7 h-7 sm:w-7.5 sm:h-7.5 mx-auto" />
+                        ))}
+
+                        {/* Actual Month Days */}
+                        {calendarMonthData.days.map((day) => (
+                          <div
+                            key={day.dateStr}
+                            className="relative flex items-center justify-center"
+                          >
+                            <div
+                              className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full flex items-center justify-center text-[10.5px] font-bold transition-all select-none ${
+                                day.isCompleted
+                                  ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_10px_rgba(250,204,21,0.4)] ring-1 ring-amber-300'
+                                  : day.isToday
+                                    ? 'bg-sky-500/15 border-2 border-sky-400 text-sky-300 shadow-[0_0_8px_rgba(56,189,248,0.35)]'
+                                    : day.isFuture
+                                      ? 'text-slate-600'
+                                      : 'text-slate-400 hover:bg-white/[0.04]'
+                              }`}
+                              title={`${day.dateStr}: ${
+                                day.isCompleted
+                                  ? 'Streak day completed! 🔥'
+                                  : day.isToday
+                                    ? 'Active today - complete your habits to keep streak alive!'
+                                    : day.isFuture
+                                      ? 'Upcoming'
+                                      : 'Missed'
+                              }`}
+                            >
+                              {day.isCompleted ? (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : day.isToday ? (
+                                <Snowflake className="w-3 h-3 stroke-[2.5]" />
+                              ) : (
+                                <span>{day.dayNumber}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
-                    {/* Action Button */}
+                    {/* Action Button: View Streak */}
                     <button
                       type="button"
                       onClick={() => {
                         setActiveDropdown(null);
                         navigate('/habits');
                       }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-[0_0_16px_rgba(250,204,21,0.25)] hover:shadow-[0_0_24px_rgba(250,204,21,0.45)] transition-all cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-extrabold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-[0_0_16px_rgba(250,204,21,0.25)] hover:shadow-[0_0_24px_rgba(250,204,21,0.45)] transition-all cursor-pointer active:scale-[0.98]"
                     >
-                      <span>View Habit Streaks</span>
-                      <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                      <span>View Streak</span>
+                      <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] ml-auto" />
                     </button>
                   </div>
                 </div>

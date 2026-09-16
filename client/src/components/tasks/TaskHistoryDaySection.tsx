@@ -17,9 +17,15 @@ export interface HistoryDayBucket {
 
 interface TaskHistoryDaySectionProps {
   day: HistoryDayBucket;
+  expandedTaskId?: string | null;
+  creatingTaskId?: string | null;
+  highlightedTaskId?: string | null;
+  swipingOutTaskId?: string | null;
+  onCreationAnimationComplete?: (id: string) => void;
+  onToggleExpand?: (id: string) => void;
   onToggle: (id: string, isCompleted: boolean) => void;
   onEdit: (task: HistoryTask) => void;
-  onDelete: (id: string) => void;
+  onDelete: (task: HistoryTask) => void;
   onOpenReschedule: (task: HistoryTask) => void;
   onQuickReschedule: (id: string, targetDate: 'today' | 'tomorrow') => void;
   onAddTaskForDay?: (date: string) => void;
@@ -27,6 +33,12 @@ interface TaskHistoryDaySectionProps {
 
 export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
   day,
+  expandedTaskId,
+  creatingTaskId,
+  highlightedTaskId,
+  swipingOutTaskId,
+  onCreationAnimationComplete,
+  onToggleExpand,
   onToggle,
   onEdit,
   onDelete,
@@ -132,6 +144,12 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
               task={task}
               isTomorrow={day.isTomorrow}
               isToday={day.isToday}
+              isExpanded={expandedTaskId === task.id}
+              isCreating={creatingTaskId === task.id}
+              isHighlighted={highlightedTaskId === task.id}
+              isSwipingOut={swipingOutTaskId === task.id}
+              onCreationAnimationComplete={onCreationAnimationComplete}
+              onToggleExpand={() => onToggleExpand?.(task.id)}
               onToggle={onToggle}
               onEdit={onEdit}
               onDelete={onDelete}

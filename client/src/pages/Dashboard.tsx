@@ -467,12 +467,6 @@ export const Dashboard: React.FC = () => {
   const habitsDoneCount = todayHabitItems.filter((i) => i.isCompleted).length;
   const habitsTodayTotalCount = todayHabitItems.length;
 
-  const activeHabits = useMemo(() => {
-    return isAuthenticated
-      ? serverHabits.filter((h) => !h.isArchived)
-      : guestHabits.filter((h) => !h.isArchived);
-  }, [isAuthenticated, serverHabits, guestHabits]);
-
   // Per-Habit Streaks are maintained individually on each habit (h.streakDays).
   // Global Daily Streak: counts if user checked ANY task or habit on that calendar day.
   const pastConsecutiveDailyStreak = useMemo(() => {
@@ -482,8 +476,9 @@ export const Dashboard: React.FC = () => {
     d.setDate(d.getDate() - 1); // Start checking backwards from yesterday
 
     for (let i = 0; i < 365; i++) {
-      const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
-      const dayRecord = activityLogs[dateStr];
+      const localStr = d.toLocaleDateString('en-CA');
+      const utcStr = d.toISOString().slice(0, 10);
+      const dayRecord = activityLogs[localStr] || activityLogs[utcStr];
       if (dayRecord && dayRecord.completedCount > 0) {
         streak++;
         d.setDate(d.getDate() - 1);
@@ -494,24 +489,17 @@ export const Dashboard: React.FC = () => {
     return streak;
   }, [activityLogs]);
 
-  const pastHabitsMaxStreak = useMemo(() => {
-    if (activeHabits.length === 0) return 0;
-    return Math.max(
-      ...activeHabits.map((h) => {
-        const s = h.streakDays || 0;
-        if (h.lastCompletedDate === todayStr) {
-          return Math.max(0, s - 1);
-        }
-        return s;
-      })
-    );
-  }, [activeHabits, todayStr]);
-
-  // Base daily streak prior to today (supported by past consecutive days or unbroken habit records)
-  const baseDailyStreak = Math.max(pastConsecutiveDailyStreak, pastHabitsMaxStreak);
+  // Base daily streak prior to today, strictly matching calendar activity logs
+  const baseDailyStreak = pastConsecutiveDailyStreak;
 
   // If user completed ANY task or habit today, increment daily streak by 1
-  const isAnyItemDoneToday = completedCount > 0 || (activityLogs[todayStr]?.completedCount || 0) > 0;
+  const localTodayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
+  const utcTodayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const isAnyItemDoneToday =
+    completedCount > 0 ||
+    (activityLogs[todayStr]?.completedCount || 0) > 0 ||
+    (activityLogs[localTodayStr]?.completedCount || 0) > 0 ||
+    (activityLogs[utcTodayStr]?.completedCount || 0) > 0;
   const globalDailyStreak = baseDailyStreak + (isAnyItemDoneToday ? 1 : 0);
 
   useEffect(() => {
