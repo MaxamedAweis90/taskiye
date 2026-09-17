@@ -292,7 +292,7 @@ router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Resp
       const isYesterday = dStr === yesterdayStr;
 
       // Label generation
-      let label = isTomorrow
+      const label = isTomorrow
         ? 'TOMORROW'
         : isToday
         ? 'TODAY'

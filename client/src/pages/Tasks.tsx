@@ -11,6 +11,20 @@ import { TaskHistorySkeleton } from '../components/tasks/TaskHistorySkeleton';
 import { Calendar, CheckCircle2, Trash2, X } from 'lucide-react';
 import { normalizeCategory } from '../constants/categories';
 
+interface DashboardCacheTask {
+  _id?: string;
+  id?: string;
+  title: string;
+  isCompleted?: boolean;
+  isHabitInstance?: boolean;
+  habitId?: string | { _id: string };
+  sortOrder?: number;
+  category?: string;
+  priority?: 'normal' | 'high';
+  timeTag?: string;
+  createdAt?: string;
+}
+
 export const Tasks: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
@@ -127,7 +141,7 @@ export const Tasks: React.FC = () => {
       const isToday = dateStr === todayStr;
       const isYesterday = dateStr === yesterdayStr;
 
-      let label = isTomorrow
+      const label = isTomorrow
         ? 'TOMORROW'
         : isToday
         ? 'TODAY'
@@ -402,7 +416,7 @@ export const Tasks: React.FC = () => {
       });
 
       // 2. Optimistically update Dashboard cache if task is today
-      queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+      queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
         if (!oldTasks) return oldTasks;
         return oldTasks.map((t) => (t._id === id ? { ...t, isCompleted: nextCompleted } : t));
       });
@@ -516,7 +530,7 @@ export const Tasks: React.FC = () => {
 
           // If moved from today to another date, remove from Dashboard cache
           if (wasMoved && origDateStr === todayStr && targetDateStr !== todayStr) {
-            queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+            queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
               if (!oldTasks) return oldTasks;
               return oldTasks.filter((t) => t._id !== rescheduleTask.id);
             });
@@ -524,7 +538,7 @@ export const Tasks: React.FC = () => {
 
           // If scheduled for today, add to Dashboard cache
           if (targetDateStr === todayStr) {
-            queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+            queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
               if (!oldTasks) return oldTasks;
               const cleanTasks =
                 wasMoved && origDateStr === todayStr
@@ -639,7 +653,7 @@ export const Tasks: React.FC = () => {
 
       // If task belongs to Today, optimistically remove from Dashboard cache
       if (taskDate === todayStr) {
-        queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+        queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
           if (!Array.isArray(oldTasks)) return oldTasks;
           return oldTasks.filter((t) => (t._id || t.id) !== targetId);
         });
@@ -723,7 +737,7 @@ export const Tasks: React.FC = () => {
 
         // 2. If task date is today, optimistically update Dashboard cache
         if (taskData.date === todayStr) {
-          queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+          queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
             if (!oldTasks) return oldTasks;
             return oldTasks.map((t) =>
               t._id === taskData.id
@@ -855,7 +869,7 @@ export const Tasks: React.FC = () => {
 
         // If created for today, optimistically append to Dashboard cache
         if (targetDateStr === todayStr) {
-          queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+          queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
             const dashTask = {
               _id: newTaskId,
               title: taskData.title.trim(),
@@ -905,7 +919,7 @@ export const Tasks: React.FC = () => {
               });
 
               if (targetDateStr === todayStr) {
-                queryClient.setQueryData(['tasks', todayStr], (oldTasks: any[] | undefined) => {
+                queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
                   if (!Array.isArray(oldTasks)) return oldTasks;
                   return oldTasks.map((t) => (t._id === newTaskId ? { ...t, _id: serverId } : t));
                 });

@@ -153,6 +153,7 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
     return () => {
       stopCamera();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, activeTab]);
 
   const startCamera = async () => {
