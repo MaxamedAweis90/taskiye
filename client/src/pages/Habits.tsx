@@ -40,32 +40,32 @@ const SETUP_CATEGORIES = [
   {
     id: 'Work',
     label: 'Work',
-    dot: 'bg-amber-400',
-    activeClass: 'bg-[#251f14] border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(250,204,21,0.2)]',
+    dot: 'bg-amber-500 dark:bg-amber-400',
+    activeClass: 'bg-amber-50 border-amber-400 text-amber-700 dark:bg-[#251f14] dark:border-amber-400 dark:text-amber-200 shadow-sm dark:shadow-[0_0_12px_rgba(250,204,21,0.2)]',
   },
   {
     id: 'Health & Fitness',
     label: 'Health & Fitness',
-    dot: 'bg-emerald-400',
-    activeClass: 'bg-[#122425] border-emerald-400 text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.2)]',
+    dot: 'bg-emerald-500 dark:bg-emerald-400',
+    activeClass: 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-[#122425] dark:border-emerald-400 dark:text-emerald-200 shadow-sm dark:shadow-[0_0_12px_rgba(52,211,153,0.2)]',
   },
   {
     id: 'Routine Activity',
     label: 'Routine Activity',
-    dot: 'bg-teal-400',
-    activeClass: 'bg-[#122228] border-teal-400 text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.2)]',
+    dot: 'bg-teal-500 dark:bg-teal-400',
+    activeClass: 'bg-teal-50 border-teal-400 text-teal-700 dark:bg-[#122228] dark:border-teal-400 dark:text-teal-200 shadow-sm dark:shadow-[0_0_12px_rgba(45,212,191,0.2)]',
   },
   {
     id: 'Mind Improving',
     label: 'Mind Improving',
-    dot: 'bg-indigo-400',
-    activeClass: 'bg-[#132238] border-indigo-400 text-indigo-200 shadow-[0_0_12px_rgba(129,140,248,0.2)]',
+    dot: 'bg-indigo-500 dark:bg-indigo-400',
+    activeClass: 'bg-indigo-50 border-indigo-400 text-indigo-700 dark:bg-[#132238] dark:border-indigo-400 dark:text-indigo-200 shadow-sm dark:shadow-[0_0_12px_rgba(129,140,248,0.2)]',
   },
   {
     id: 'Personal Growth',
     label: 'Personal Growth',
-    dot: 'bg-purple-400',
-    activeClass: 'bg-[#221832] border-purple-400 text-purple-200 shadow-[0_0_12px_rgba(192,132,252,0.2)]',
+    dot: 'bg-purple-500 dark:bg-purple-400',
+    activeClass: 'bg-purple-50 border-purple-400 text-purple-700 dark:bg-[#221832] dark:border-purple-400 dark:text-purple-200 shadow-sm dark:shadow-[0_0_12px_rgba(192,132,252,0.2)]',
   },
 ] as const;
 
@@ -986,10 +986,10 @@ export const Habits: React.FC = () => {
       {/* 1. Header Section */}
       <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Habit Library
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 font-medium mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
             Manage recurring daily routines and active commitments
           </p>
         </div>
@@ -998,12 +998,12 @@ export const Habits: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsTrashOpen(true)}
-            className="bg-[#152033] hover:bg-[#1C2B44] text-slate-300 hover:text-white border border-white/[0.08] hover:border-amber-400/30 text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer group/trash shadow-sm"
+            className="bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-amber-400/40 dark:bg-[#152033] dark:hover:bg-[#1C2B44] dark:text-slate-300 dark:hover:text-white dark:border-white/[0.08] text-xs sm:text-sm font-bold px-3.5 sm:px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer group/trash shadow-sm"
             title="Open 30-Day Trash & Recovery"
           >
-            <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-400 transition-colors" />
+            <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-500 dark:group-hover/trash:text-rose-400 transition-colors" />
             <span>Trash</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/30">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/30">
               30d
             </span>
           </button>
@@ -1012,7 +1012,7 @@ export const Habits: React.FC = () => {
           <button
             type="button"
             onClick={openCreateModal}
-            className="bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+            className="bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#FACC15] dark:hover:bg-[#EAB308] dark:text-slate-950 font-extrabold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-md dark:shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-lg dark:hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>+ Create New Habit</span>
@@ -1035,14 +1035,14 @@ export const Habits: React.FC = () => {
                 onClick={() => setSelectedCategory(cat)}
                 className={`text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
                   isSelected
-                    ? 'bg-[#FACC15] text-slate-950 shadow-sm'
-                    : 'bg-[#152033] hover:bg-[#1C2B44] text-slate-300 border border-white/[0.06]'
+                    ? 'bg-amber-500 text-white shadow-sm dark:bg-[#FACC15] dark:text-slate-950'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 dark:bg-[#152033] dark:hover:bg-[#1C2B44] dark:text-slate-300 dark:border-white/[0.06]'
                 }`}
               >
                 <span>{cat}</span>
                 <span
                   className={`text-[11px] px-1.5 py-0.2 rounded-full font-semibold ${
-                    isSelected ? 'bg-slate-900/20 text-slate-950' : 'text-slate-400'
+                    isSelected ? 'bg-black/15 text-white dark:bg-slate-900/20 dark:text-slate-950' : 'text-slate-400 dark:text-slate-400'
                   }`}
                 >
                   {count}
@@ -1058,8 +1058,8 @@ export const Habits: React.FC = () => {
             <div
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 isDragOverActiveZone
-                  ? 'bg-emerald-400 text-slate-950 shadow-md scale-105'
-                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 animate-pulse'
+                  ? 'bg-emerald-500 text-white dark:bg-emerald-400 dark:text-slate-950 shadow-md scale-105'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-400/40 animate-pulse'
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5 animate-spin" />
@@ -1078,7 +1078,7 @@ export const Habits: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter by routine name..."
-              className="w-full bg-[#10192D] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40 transition-all"
+              className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500/40 dark:focus:ring-amber-400/40 transition-all shadow-sm dark:shadow-none"
             />
           </div>
         </div>
@@ -1086,18 +1086,18 @@ export const Habits: React.FC = () => {
 
       {/* 3. Active Habits Grid (3 Columns) */}
       {filteredActiveHabits.length === 0 ? (
-        <div className="bg-[#152033] border border-white/[0.06] rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+        <div className="bg-white dark:bg-[#152033] border border-slate-200/80 dark:border-white/[0.06] rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-3 shadow-sm dark:shadow-none">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/20 dark:text-amber-400 flex items-center justify-center">
             <Repeat className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-bold text-white">No habits match your view</h3>
-          <p className="text-xs text-slate-400 max-w-sm">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">No habits match your view</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
             Try adjusting your search query or category filter, or create a brand new habit to track.
           </p>
           <button
             type="button"
             onClick={openCreateModal}
-            className="mt-2 text-xs font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+            className="mt-2 text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 underline cursor-pointer"
           >
             + Create New Habit
           </button>
@@ -1135,44 +1135,44 @@ export const Habits: React.FC = () => {
                 onDragOver={(e) => handleActiveCardDragOver(e, habit.id)}
                 onDragEnd={handleDragEnd}
                 onDrop={(e) => handleActiveCardDrop(e, habit.id)}
-                className={`relative rounded-2xl p-5 flex flex-col justify-between shadow-md hover:shadow-xl group overflow-hidden bg-[#152033] border transition-[background-color,border-color,box-shadow] duration-200 ${
+                className={`relative rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:shadow-md dark:shadow-md dark:hover:shadow-xl group overflow-hidden bg-white dark:bg-[#152033] border transition-[background-color,border-color,box-shadow] duration-200 ${
                   isDeleting
                     ? 'animate-card-break-drop pointer-events-none z-30 border-rose-500/40'
                     : isArchiving
-                    ? 'animate-card-archive pointer-events-none z-20 border-white/[0.06]'
+                    ? 'animate-card-archive pointer-events-none z-20 border-slate-200 dark:border-white/[0.06]'
                     : isDragging
-                    ? 'opacity-40 scale-[0.98] border-dashed border-amber-400/80 cursor-grabbing z-30'
+                    ? 'opacity-40 scale-[0.98] border-dashed border-amber-500 dark:border-amber-400/80 cursor-grabbing z-30'
                     : isDragOver
-                    ? 'border-amber-400 bg-[#182538] shadow-[0_0_20px_rgba(250,204,21,0.35)] scale-[1.02] z-20'
+                    ? 'border-amber-500 dark:border-amber-400 bg-amber-50/50 dark:bg-[#182538] shadow-[0_0_20px_rgba(250,204,21,0.35)] scale-[1.02] z-20'
                     : isRestored
-                    ? 'animate-card-restored-arrival border-emerald-400/80 shadow-[0_0_25px_rgba(52,211,153,0.35)] z-20'
+                    ? 'animate-card-restored-arrival border-emerald-500 dark:border-emerald-400/80 shadow-[0_0_25px_rgba(52,211,153,0.35)] z-20'
                     : isEdited
-                    ? 'animate-card-edit-pulse border-amber-400/80 shadow-[0_0_25px_rgba(250,204,21,0.35)] z-20'
+                    ? 'animate-card-edit-pulse border-amber-500 dark:border-amber-400/80 shadow-[0_0_25px_rgba(250,204,21,0.35)] z-20'
                     : isCreating
-                    ? 'border-violet-400/80 shadow-[0_0_30px_rgba(167,139,250,0.35)] scale-[1.01] z-20 before:absolute before:inset-0 before:bg-gradient-to-br before:from-violet-500/[0.12] before:to-transparent before:pointer-events-none'
-                    : 'border-white/[0.06] hover:border-white/[0.12]'
+                    ? 'border-violet-500 dark:border-violet-400/80 shadow-[0_0_30px_rgba(167,139,250,0.35)] scale-[1.01] z-20 before:absolute before:inset-0 before:bg-gradient-to-br before:from-violet-500/[0.12] before:to-transparent before:pointer-events-none'
+                    : 'border-slate-200/90 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.12]'
                 }`}
               >
                 {/* Creation Generation Badge */}
                 {isCreating && (
-                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/20 border border-violet-400/50 text-[10px] font-bold text-violet-300 shadow-sm animate-pulse z-10">
-                    <Sparkles className="w-3 h-3 text-violet-300" />
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-700 dark:bg-violet-500/20 dark:border-violet-400/50 dark:text-violet-300 text-[10px] font-bold shadow-sm animate-pulse z-10">
+                    <Sparkles className="w-3 h-3 text-violet-600 dark:text-violet-300" />
                     <span>Generating Habit...</span>
                   </div>
                 )}
 
                 {/* Edited Pulse Badge */}
                 {isEdited && !isCreating && (
-                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-[10px] font-bold text-amber-300 shadow-sm animate-pulse z-10">
-                    <Sparkles className="w-3 h-3 text-amber-300" />
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-500/20 dark:border-amber-400/50 dark:text-amber-300 text-[10px] font-bold shadow-sm animate-pulse z-10">
+                    <Sparkles className="w-3 h-3 text-amber-600 dark:text-amber-300" />
                     <span>Updated!</span>
                   </div>
                 )}
 
                 {/* Restored Arrival Badge */}
                 {isRestored && !isCreating && (
-                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-[10px] font-bold text-emerald-300 shadow-sm animate-pulse z-10">
-                    <RotateCcw className="w-3 h-3 text-emerald-300" />
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-500/20 dark:border-emerald-400/50 dark:text-emerald-300 text-[10px] font-bold shadow-sm animate-pulse z-10">
+                    <RotateCcw className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                     <span>Restored!</span>
                   </div>
                 )}
@@ -1181,7 +1181,7 @@ export const Habits: React.FC = () => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div
-                      className="text-slate-600 group-hover:text-slate-400 hover:!text-amber-400 cursor-grab active:cursor-grabbing transition-colors p-1 -ml-1 rounded hover:bg-white/5 shrink-0"
+                      className="text-slate-400 hover:text-slate-600 dark:text-slate-600 dark:group-hover:text-slate-400 hover:!text-amber-500 dark:hover:!text-amber-400 cursor-grab active:cursor-grabbing transition-colors p-1 -ml-1 rounded hover:bg-slate-100 dark:hover:bg-white/5 shrink-0"
                       title="Option 2: Drag down to Archived section to archive, or drag to reorder"
                     >
                       <GripVertical className="w-3.5 h-3.5" />
@@ -1198,15 +1198,15 @@ export const Habits: React.FC = () => {
                   <div className="flex items-center gap-1.5 shrink-0">
                     {habit.isStreakFrozen ? (
                       <span
-                        className="bg-[#0b2430] border border-cyan-400/50 text-cyan-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(34,211,238,0.25)]"
+                        className="bg-cyan-50 border border-cyan-200 text-cyan-700 dark:bg-[#0b2430] dark:border-cyan-400/50 dark:text-cyan-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 shadow-sm dark:shadow-[0_0_12px_rgba(34,211,238,0.25)]"
                         title="Streak Frozen (Vacation Mode). Streak count and warnings are protected from penalty."
                       >
-                        <Snowflake className="w-3.5 h-3.5 text-cyan-400" />
+                        <Snowflake className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                         <span>{habit.streakDays ?? 0}d (Frozen)</span>
                       </span>
                     ) : habit.warnings === 1 ? (
                       <span
-                        className="bg-[#2b1f09] border border-amber-500/50 text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm"
+                        className="bg-amber-50 border border-amber-300 text-amber-700 dark:bg-[#2b1f09] dark:border-amber-500/50 dark:text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm"
                         title="Warning 1: 1 Day Missed! Streak is frozen. Complete today to clear warning."
                       >
                         <span>⚠️</span>
@@ -1214,14 +1214,14 @@ export const Habits: React.FC = () => {
                       </span>
                     ) : habit.warnings === 2 ? (
                       <span
-                        className="bg-[#2e1219] border border-rose-500/50 text-rose-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm animate-pulse"
+                        className="bg-rose-50 border border-rose-300 text-rose-700 dark:bg-[#2e1219] dark:border-rose-500/50 dark:text-rose-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm animate-pulse"
                         title="Warning 2: 2 Days Missed! Final warning before streak resets to 0. Complete today to save streak!"
                       >
                         <span>🚨</span>
                         <span>{habit.streakDays ?? 0}d (Final Notice)</span>
                       </span>
                     ) : (
-                      <span className="bg-[#271E0B] border border-amber-500/30 text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0">
+                      <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-[#271E0B] dark:border-amber-500/30 dark:text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0">
                         <span>🔥</span>
                         <span>{habit.streakDays ?? 0} Days Active</span>
                       </span>
@@ -1231,28 +1231,28 @@ export const Habits: React.FC = () => {
 
                 {/* Vacation Mode Banner */}
                 {habit.isStreakFrozen && (
-                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center gap-1.5 text-[11px] text-cyan-300 font-medium">
-                    <Snowflake className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-200 dark:bg-cyan-500/10 dark:border-cyan-500/25 flex items-center gap-1.5 text-[11px] text-cyan-700 dark:text-cyan-300 font-medium">
+                    <Snowflake className="w-3.5 h-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" />
                     <span>Vacation Mode Active: Streak is safely paused without penalties.</span>
                   </div>
                 )}
 
                 {/* Warning Alert Banner (if under Warning 1 or Warning 2) */}
                 {habit.warnings === 1 && (
-                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center gap-1.5 text-[11px] text-amber-300 font-medium">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-500/10 dark:border-amber-500/25 flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>Warning 1: Missed 1 day. Streak is frozen. Complete today to clear warning!</span>
                   </div>
                 )}
                 {habit.warnings === 2 && (
-                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center gap-1.5 text-[11px] text-rose-300 font-semibold animate-pulse">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-300 dark:bg-rose-500/15 dark:border-rose-500/30 flex items-center gap-1.5 text-[11px] text-rose-700 dark:text-rose-300 font-semibold animate-pulse">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
                     <span>Warning 2: Missed 2 days. Streak resets to 0 if not completed today!</span>
                   </div>
                 )}
 
                 {/* Habit Title */}
-                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight mt-3 truncate">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight mt-3 truncate">
                   {isCreating ? (
                     <TypewriterTitle
                       text={habit.title}
@@ -1262,7 +1262,7 @@ export const Habits: React.FC = () => {
                           setNewlyCreatedHabitId((curr) => (curr === habit.id ? null : curr));
                         }, 800);
                       }}
-                      className="text-white"
+                      className="text-slate-900 dark:text-white"
                     />
                   ) : (
                     habit.title
@@ -1270,29 +1270,29 @@ export const Habits: React.FC = () => {
                 </h3>
 
                 {/* Schedule Info */}
-                <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                  <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                   <span className="truncate">
                     {habit.frequency} • {habit.timeOfDay || 'Continuous'}
                   </span>
                 </div>
 
                 {/* Inset Metrics Container */}
-                <div className="bg-[#0F172A]/70 border border-white/[0.04] rounded-xl p-3.5 mt-4 flex items-center justify-between">
+                <div className="bg-slate-50 dark:bg-[#0F172A]/70 border border-slate-200/80 dark:border-white/[0.04] rounded-xl p-3.5 mt-4 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
                       Completions
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-white">
+                    <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
                       {habit.totalCompletions ?? 0} {habit.targetUnit || 'sessions'}
                     </span>
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
                       Consistency
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-emerald-400">
+                    <span className="text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
                       {(typeof habit.consistencyRate === 'number' ? habit.consistencyRate : 100).toFixed(1)}%
                     </span>
                   </div>
@@ -1303,7 +1303,7 @@ export const Habits: React.FC = () => {
                   {/* Day labels (M T W T F S S) */}
                   <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
                     {dayLabels.map((day, idx) => (
-                      <span key={idx} className="text-[10px] font-bold text-slate-500">
+                      <span key={idx} className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
                         {day}
                       </span>
                     ))}
@@ -1319,7 +1319,7 @@ export const Habits: React.FC = () => {
                         return (
                           <div
                             key={dayIndex}
-                            className="h-7 bg-[#141C2B] text-slate-600 text-[10px] font-bold rounded-lg flex items-center justify-center select-none"
+                            className="h-7 bg-slate-100 text-slate-400 dark:bg-[#141C2B] dark:text-slate-600 text-[10px] font-bold rounded-lg flex items-center justify-center select-none"
                             title="Day off"
                           >
                             off
@@ -1332,8 +1332,8 @@ export const Habits: React.FC = () => {
                           key={dayIndex}
                           className={`h-7 rounded-lg flex items-center justify-center transition-all ${
                             isCompleted
-                              ? 'bg-[#FACC15] text-slate-950 shadow-sm'
-                              : 'bg-[#1C263A] border border-white/[0.04]'
+                              ? 'bg-amber-500 text-white dark:bg-[#FACC15] dark:text-slate-950 shadow-sm'
+                              : 'bg-slate-100 border border-slate-200 dark:bg-[#1C263A] dark:border-white/[0.04]'
                           }`}
                           title={isCompleted ? 'Completed' : 'Pending / Missed'}
                         >
@@ -1345,11 +1345,11 @@ export const Habits: React.FC = () => {
                 </div>
 
                 {/* Card Action Controls Footer */}
-                <div className="flex items-center justify-between border-t border-white/[0.06] mt-4 pt-3 text-xs text-slate-400">
+                <div className="flex items-center justify-between border-t border-slate-100 dark:border-white/[0.06] mt-4 pt-3 text-xs text-slate-500 dark:text-slate-400">
                   <button
                     type="button"
                     onClick={() => openEditModal(habit)}
-                    className="flex items-center gap-1.5 hover:text-amber-400 transition-colors font-semibold cursor-pointer"
+                    className="flex items-center gap-1.5 hover:text-amber-600 dark:hover:text-amber-400 transition-colors font-semibold cursor-pointer"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                     <span>Edit</span>
@@ -1362,8 +1362,8 @@ export const Habits: React.FC = () => {
                       onClick={() => handleToggleFreeze(habit.id)}
                       className={`flex items-center gap-1 transition-colors font-medium cursor-pointer ${
                         habit.isStreakFrozen
-                          ? 'text-cyan-400 hover:text-cyan-300'
-                          : 'hover:text-cyan-300'
+                          ? 'text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300'
+                          : 'hover:text-cyan-600 dark:hover:text-cyan-300'
                       }`}
                       title={
                         habit.isStreakFrozen
@@ -1379,7 +1379,7 @@ export const Habits: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleArchive(habit.id)}
-                      className="flex items-center gap-1 hover:text-slate-200 transition-colors font-medium cursor-pointer"
+                      className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-200 transition-colors font-medium cursor-pointer"
                       title="Option 1: Archive habit (Progress will be paused & preserved)"
                     >
                       <Archive className="w-3.5 h-3.5" />
@@ -1389,7 +1389,7 @@ export const Habits: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setHabitToDelete(habit)}
-                      className="flex items-center gap-1 text-rose-400/80 hover:text-rose-300 transition-colors font-medium cursor-pointer hover:bg-rose-500/10 px-2 py-1 rounded-lg border border-transparent hover:border-rose-500/20"
+                      className="flex items-center gap-1 text-rose-600 dark:text-rose-400/80 hover:text-rose-700 dark:hover:text-rose-300 transition-colors font-medium cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2 py-1 rounded-lg border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
                       title="Delete habit"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1408,19 +1408,19 @@ export const Habits: React.FC = () => {
         onDragOver={handleArchiveZoneDragOver}
         onDragLeave={handleArchiveZoneDragLeave}
         onDrop={handleArchiveZoneDrop}
-        className={`bg-[#152033] rounded-2xl overflow-hidden mt-2 transition-colors duration-200 ${
+        className={`bg-white dark:bg-[#152033] rounded-2xl overflow-hidden mt-2 transition-colors duration-200 shadow-sm dark:shadow-none ${
           dragSource === 'active' && isDragOverArchiveZone
-            ? 'ring-2 ring-amber-400 bg-[#19273f] shadow-[0_0_25px_rgba(250,204,21,0.25)]'
+            ? 'ring-2 ring-amber-500 bg-amber-50/50 dark:ring-amber-400 dark:bg-[#19273f] shadow-[0_0_25px_rgba(250,204,21,0.25)]'
             : dragSource === 'active'
-            ? 'ring-1 ring-dashed ring-amber-400/60 bg-[#162238]'
-            : 'border border-white/[0.06]'
+            ? 'ring-1 ring-dashed ring-amber-500/60 bg-amber-50/20 dark:ring-amber-400/60 dark:bg-[#162238]'
+            : 'border border-slate-200/80 dark:border-white/[0.06]'
         }`}
       >
         {/* Accordion Toggle Header */}
         <button
           type="button"
           onClick={() => setIsArchivedOpen(!isArchivedOpen)}
-          className="w-full p-4 sm:p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer text-left"
+          className="w-full p-4 sm:p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer text-left"
         >
           <div className="flex items-center gap-3">
             {isArchivedOpen ? (
@@ -1428,10 +1428,10 @@ export const Habits: React.FC = () => {
             ) : (
               <ChevronRight className="w-4 h-4 text-slate-400" />
             )}
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Archived Habits
             </h3>
-            <span className="bg-slate-800 border border-white/10 text-slate-300 text-xs font-bold px-2 py-0.5 rounded-full">
+            <span className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 text-xs font-bold px-2 py-0.5 rounded-full">
               {archivedHabits.length}
             </span>
 
@@ -1440,8 +1440,8 @@ export const Habits: React.FC = () => {
               <span
                 className={`text-xs font-extrabold px-3 py-1 rounded-lg transition-all ml-2 ${
                   isDragOverArchiveZone
-                    ? 'bg-amber-400 text-slate-950 shadow-sm scale-105'
-                    : 'bg-amber-400/20 text-amber-300 border border-amber-400/40 animate-pulse'
+                    ? 'bg-amber-500 text-white dark:bg-amber-400 dark:text-slate-950 shadow-sm scale-105'
+                    : 'bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-400/20 dark:text-amber-300 dark:border-amber-400/40 animate-pulse'
                 }`}
               >
                 {isDragOverArchiveZone
@@ -1451,16 +1451,16 @@ export const Habits: React.FC = () => {
             )}
           </div>
 
-          <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+          <span className="text-xs text-slate-400 dark:text-slate-500 font-medium hidden sm:inline">
             Click to {isArchivedOpen ? 'collapse' : 'expand'}
           </span>
         </button>
 
         {/* Collapsible Content */}
         {isArchivedOpen && (
-          <div className="p-4 sm:p-5 pt-0 border-t border-white/[0.04] flex flex-col gap-3">
+          <div className="p-4 sm:p-5 pt-0 border-t border-slate-100 dark:border-white/[0.04] flex flex-col gap-3">
             {archivedHabits.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-500">
+              <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
                 No archived habits. Archived routines will be stored here.
               </div>
             ) : (
@@ -1476,31 +1476,31 @@ export const Habits: React.FC = () => {
                     draggable={!isRestoring}
                     onDragStart={(e) => handleArchivedDragStart(e, habit.id)}
                     onDragEnd={handleDragEnd}
-                    className={`rounded-xl p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3 bg-[#111A2E]/80 border transition-[background-color,border-color,box-shadow] duration-200 ${
+                    className={`rounded-xl p-3 sm:px-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 dark:bg-[#111A2E]/80 border transition-[background-color,border-color,box-shadow] duration-200 ${
                       isRestoring
-                        ? 'animate-row-restore-exit pointer-events-none border-white/[0.05]'
+                        ? 'animate-row-restore-exit pointer-events-none border-slate-200 dark:border-white/[0.05]'
                         : isJustArchived
-                        ? 'bg-amber-500/10 border-amber-400/40 shadow-[0_0_15px_rgba(250,204,21,0.2)] animate-pulse'
+                        ? 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-500/10 dark:border-amber-400/40 shadow-sm animate-pulse'
                         : draggedHabitId === habit.id
-                        ? 'opacity-40 border-dashed border-emerald-400/80 cursor-grabbing bg-[#111A2E]'
-                        : 'border-white/[0.05] hover:border-white/10'
+                        ? 'opacity-40 border-dashed border-emerald-500 dark:border-emerald-400/80 cursor-grabbing bg-slate-100 dark:bg-[#111A2E]'
+                        : 'border-slate-200/80 hover:border-slate-300 dark:border-white/[0.05] dark:hover:border-white/10'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Option 2 Drag Handle to restore */}
                       <div
-                        className="text-slate-600 hover:text-emerald-400 cursor-grab active:cursor-grabbing transition-colors p-1 -ml-1 rounded hover:bg-white/5 shrink-0"
+                        className="text-slate-400 hover:text-emerald-600 dark:text-slate-600 dark:hover:text-emerald-400 cursor-grab active:cursor-grabbing transition-colors p-1 -ml-1 rounded hover:bg-slate-200 dark:hover:bg-white/5 shrink-0"
                         title="Option 2: Drag up to active grid to restore habit"
                       >
                         <GripVertical className="w-3.5 h-3.5" />
                       </div>
 
-                      <div className="w-8 h-8 rounded-lg bg-slate-800 border border-white/5 flex items-center justify-center text-slate-400 shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
                         <Archive className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-300 line-through truncate">
+                          <span className="text-sm font-semibold text-slate-500 dark:text-slate-300 line-through truncate">
                             {habit.title}
                           </span>
                           <span
@@ -1509,15 +1509,15 @@ export const Habits: React.FC = () => {
                             {habit.category}
                           </span>
                           {isJustArchived && (
-                            <span className="text-[10px] font-bold text-amber-300 bg-amber-400/20 border border-amber-400/40 px-2 py-0.2 rounded-full animate-pulse">
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300 dark:text-amber-300 dark:bg-amber-400/20 dark:border-amber-400/40 px-2 py-0.2 rounded-full animate-pulse">
                               Archived!
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                           <span>{habit.archivedAt || 'Archived previously'}</span>
                           <span>•</span>
-                          <span className="text-amber-400/90 font-medium">
+                          <span className="text-amber-600 dark:text-amber-400/90 font-medium">
                             🔥 Preserved streak: {habit.lastStreak || habit.streakDays} days (Paused)
                           </span>
                         </div>
@@ -1530,7 +1530,7 @@ export const Habits: React.FC = () => {
                         type="button"
                         onClick={() => handleRestore(habit.id)}
                         disabled={isRestoring}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-white/5 hover:border-emerald-400/30 text-xs font-semibold text-slate-200 hover:text-emerald-300 transition-all cursor-pointer disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 hover:border-emerald-500/30 text-xs font-semibold text-slate-700 hover:text-emerald-700 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 dark:border-white/5 dark:hover:border-emerald-400/30 dark:text-slate-200 dark:hover:text-emerald-300 transition-all cursor-pointer disabled:opacity-50"
                         title="Option 1: Restore Habit to active library"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -1542,7 +1542,7 @@ export const Habits: React.FC = () => {
                         type="button"
                         onClick={() => setHabitToDelete(habit)}
                         disabled={isRestoring}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-xs font-semibold text-rose-300 hover:text-rose-200 transition-all cursor-pointer disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-semibold text-rose-700 hover:text-rose-800 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:border-rose-500/20 dark:text-rose-300 dark:hover:text-rose-200 transition-all cursor-pointer disabled:opacity-50"
                         title="Delete habit permanently"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1562,24 +1562,24 @@ export const Habits: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={closeModal}
         >
           <div
-            className="bg-[#141C2B] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full max-h-[90dvh] overflow-y-auto custom-scrollbar shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] flex flex-col gap-5 relative animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#141C2B] border border-slate-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full max-h-[90dvh] overflow-y-auto custom-scrollbar shadow-2xl dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] flex flex-col gap-5 relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-1">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(250,204,21,0.15)]">
-                  <Zap className="w-5 h-5 fill-amber-400 text-amber-400" />
+                <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/25 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.15)]">
+                  <Zap className="w-5 h-5 fill-amber-500 text-amber-500 dark:fill-amber-400 dark:text-amber-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                     {editingHabitId ? 'Edit Habit' : 'Create New Habit'}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Build consistent routines with trackable daily actions.
                   </p>
                 </div>
@@ -1588,7 +1588,7 @@ export const Habits: React.FC = () => {
               <button
                 type="button"
                 onClick={closeModal}
-                className="w-8 h-8 rounded-full bg-white/[0.04] hover:bg-white/10 border border-white/5 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-500 hover:text-slate-900 dark:bg-white/[0.04] dark:hover:bg-white/10 dark:border-white/5 dark:text-slate-400 dark:hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1599,8 +1599,8 @@ export const Habits: React.FC = () => {
               {/* Habit Name Input */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Habit Name</label>
-                  <span className="text-[11px] font-medium text-slate-500">Required</span>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Habit Name</label>
+                  <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Required</span>
                 </div>
                 <input
                   type="text"
@@ -1608,13 +1608,13 @@ export const Habits: React.FC = () => {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g. Morning 20m Deep Yoga & Mobility"
-                  className="w-full bg-[#0D1524] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40 transition-all"
+                  className="w-full bg-slate-50 dark:bg-[#0D1524] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500/40 dark:focus:ring-amber-400/40 transition-all"
                 />
               </div>
 
               {/* Category (Single line, scrollable to left & right) */}
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-2">Category</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">Category</label>
                 <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2 pt-0.5 -mx-1 px-1 select-none">
                   {SETUP_CATEGORIES.map((cat) => {
                     const isSelected = formData.category === cat.id;
@@ -1626,7 +1626,7 @@ export const Habits: React.FC = () => {
                         className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
                           isSelected
                             ? cat.activeClass
-                            : 'bg-[#0D1524] border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 dark:bg-[#0D1524] dark:border-white/10 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:border-white/20'
                         }`}
                       >
                         <span className={`w-2 h-2 rounded-full ${cat.dot} shrink-0`} />
@@ -1639,12 +1639,12 @@ export const Habits: React.FC = () => {
 
               {/* Frequency & Cadence */}
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-2">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">
                   Frequency & Cadence
                 </label>
 
                 {/* Cadence segmented pill tabs */}
-                <div className="grid grid-cols-3 bg-[#0D1524] p-1 rounded-xl border border-white/10 select-none">
+                <div className="grid grid-cols-3 bg-slate-100 dark:bg-[#0D1524] p-1 rounded-xl border border-slate-200 dark:border-white/10 select-none">
                   {(['Daily', 'Specific Days', 'Times per Week'] as const).map((tab) => {
                     const isSelected = formData.cadence === tab;
                     return (
@@ -1654,8 +1654,8 @@ export const Habits: React.FC = () => {
                         onClick={() => handleCadenceChange(tab)}
                         className={`py-2 px-2 sm:px-3 text-xs font-bold rounded-lg transition-all cursor-pointer text-center truncate ${
                           isSelected
-                            ? 'bg-[#FACC15] text-slate-950 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+                            ? 'bg-amber-500 text-white shadow-sm dark:bg-[#FACC15] dark:text-slate-950'
+                            : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-white/[0.03]'
                         }`}
                       >
                         {tab}
@@ -1676,8 +1676,8 @@ export const Habits: React.FC = () => {
                         title={DAY_NAMES[idx]}
                         className={`h-9 sm:h-10 rounded-xl flex items-center justify-center text-xs font-extrabold transition-all cursor-pointer ${
                           isDayActive
-                            ? 'bg-[#FACC15] text-slate-950 shadow-[0_0_12px_rgba(250,204,21,0.25)] hover:bg-[#EAB308]'
-                            : 'bg-[#0D1524] border border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+                            ? 'bg-amber-500 text-white shadow-sm hover:bg-amber-600 dark:bg-[#FACC15] dark:text-slate-950 dark:shadow-[0_0_12px_rgba(250,204,21,0.25)] dark:hover:bg-[#EAB308]'
+                            : 'bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 dark:bg-[#0D1524] dark:border-white/10 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:border-white/20'
                         }`}
                       >
                         {day}
@@ -1688,22 +1688,22 @@ export const Habits: React.FC = () => {
               </div>
 
               {/* Streak Freeze / Vacation Mode Toggle */}
-              <div className="bg-[#0D1524] border border-white/10 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
+              <div className="bg-slate-50 dark:bg-[#0D1524] border border-slate-200 dark:border-white/10 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border transition-colors ${
                       formData.isStreakFrozen
-                        ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-400'
-                        : 'bg-white/5 border-white/10 text-slate-400'
+                        ? 'bg-cyan-50 border-cyan-300 text-cyan-700 dark:bg-cyan-500/15 dark:border-cyan-400/40 dark:text-cyan-400'
+                        : 'bg-white border-slate-200 text-slate-400 dark:bg-white/5 dark:border-white/10 dark:text-slate-400'
                     }`}
                   >
                     <Snowflake className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-white block">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white block">
                       Streak Freeze (Vacation Mode)
                     </span>
-                    <span className="text-[11px] text-slate-400 block leading-tight">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block leading-tight">
                       Pause streak penalties during sick or travel days. Warnings are frozen.
                     </span>
                   </div>
@@ -1715,7 +1715,7 @@ export const Habits: React.FC = () => {
                   className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 border ${
                     formData.isStreakFrozen
                       ? 'bg-cyan-500 border-cyan-400'
-                      : 'bg-slate-800 border-white/10'
+                      : 'bg-slate-300 border-slate-300 dark:bg-slate-800 dark:border-white/10'
                   }`}
                   role="switch"
                   aria-checked={Boolean(formData.isStreakFrozen)}
@@ -1729,17 +1729,17 @@ export const Habits: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.06] mt-2">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-white/[0.06] mt-2">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/5 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#FACC15] dark:hover:bg-[#EAB308] dark:text-slate-950 font-extrabold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-md dark:shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-lg dark:hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
                   <span>{editingHabitId ? 'Save Changes' : '+ Create Habit'}</span>
@@ -1755,39 +1755,39 @@ export const Habits: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={() => setHabitToDelete(null)}
         >
           <div
-            className="bg-[#141C2B] border border-amber-400/20 rounded-2xl p-6 max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#141C2B] border border-slate-200 dark:border-amber-400/20 rounded-2xl p-6 max-w-md w-full shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(250,204,21,0.15)]">
+              <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/25 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.15)]">
                 <Trash2 className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white tracking-tight">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                   Move Habit to Trash?
                 </h3>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  Are you sure you want to move <span className="text-white font-semibold">"{habitToDelete.title}"</span> to Trash? It will be safely retained in the 30-Day Trash with all streaks and history preserved before permanent cleanup.
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Are you sure you want to move <span className="text-slate-900 dark:text-white font-semibold">"{habitToDelete.title}"</span> to Trash? It will be safely retained in the 30-Day Trash with all streaks and history preserved before permanent cleanup.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/[0.06] mt-2">
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-white/[0.06] mt-2">
               <button
                 type="button"
                 onClick={() => setHabitToDelete(null)}
-                className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/5 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteHabit}
-                className="bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center gap-1.5 cursor-pointer"
+                className="bg-amber-500 hover:bg-amber-600 text-white dark:bg-gradient-to-r dark:from-amber-400 dark:to-yellow-400 dark:hover:from-amber-300 dark:hover:to-yellow-300 dark:text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Move to Trash</span>

@@ -14,6 +14,8 @@ import {
   MessageSquare,
   ChevronDown,
   Moon,
+  Sun,
+  Laptop,
   Flame,
   Check,
   Snowflake,
@@ -23,12 +25,12 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Zap,
   RotateCcw,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
 import { useTaskiyeStore, GUEST_ITEM_LIMIT } from '../../store/useTaskiyeStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import { ProfileSettingsModal } from '../profile/ProfileSettingsModal';
 import { NotificationPreferencesModal } from '../profile/NotificationPreferencesModal';
 import { PwaInstallOnboarding } from '../pwa/PwaInstallOnboarding';
@@ -846,10 +848,12 @@ export const AppLayout: React.FC = () => {
   const email = user?.email || '';
   const avatarSrc = user?.avatarUrl || user?.image || defaultAvatar;
 
+  const { theme, resolvedTheme, setTheme } = useThemeStore();
+
   return (
-    <div className="w-full max-w-full h-screen h-[100dvh] overflow-hidden bg-[#070D19] text-slate-100 flex flex-col md:flex-row font-sans antialiased selection:bg-amber-400/30 selection:text-amber-200">
+    <div className="w-full max-w-full h-screen h-[100dvh] overflow-hidden bg-[#f8fafc] text-slate-900 dark:bg-[#070D19] dark:text-slate-100 flex flex-col md:flex-row font-sans antialiased selection:bg-amber-400/30 selection:text-amber-800 dark:selection:text-amber-200">
       {/* 1. Left Sidebar Navigation - Desktop only */}
-      <aside className="hidden md:flex w-[84px] sm:w-[92px] shrink-0 flex-col items-center py-4 sm:py-5 justify-between z-20">
+      <aside className="hidden md:flex w-[84px] sm:w-[92px] shrink-0 flex-col items-center py-4 sm:py-5 justify-between z-20 border-r border-slate-200/80 dark:border-white/[0.04]">
         {/* Top: Taskiye Brand Logo (Standalone with no circled round box) */}
         <div className="h-12 flex items-center justify-center">
           <NavLink
@@ -867,7 +871,7 @@ export const AppLayout: React.FC = () => {
                 const parent = target.parentElement;
                 if (parent) {
                   parent.innerHTML =
-                    '<span class="text-amber-400 font-extrabold text-2xl">⚡</span>';
+                    '<span class="text-amber-500 dark:text-amber-400 font-extrabold text-2xl">⚡</span>';
                 }
               }}
             />
@@ -891,21 +895,23 @@ export const AppLayout: React.FC = () => {
                 <div
                   className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 ${
                     isActive
-                      ? 'bg-[#232115] border border-[#544310] shadow-[0_0_16px_rgba(250,204,21,0.15)]'
-                      : 'hover:bg-white/[0.04]'
+                      ? 'bg-amber-100 border border-amber-300 shadow-[0_0_12px_rgba(217,119,6,0.15)] dark:bg-[#232115] dark:border-[#544310] dark:shadow-[0_0_16px_rgba(250,204,21,0.15)]'
+                      : 'hover:bg-slate-200/60 dark:hover:bg-white/[0.04]'
                   }`}
                 >
                   <Icon
                     className={`w-6 h-6 transition-transform group-hover:scale-105 ${
                       isActive
-                        ? 'text-[#FACC15] stroke-[2.2]'
-                        : 'text-slate-400 group-hover:text-slate-200 stroke-[1.8]'
+                        ? 'text-amber-600 dark:text-[#FACC15] stroke-[2.2]'
+                        : 'text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-slate-200 stroke-[1.8]'
                     }`}
                   />
                 </div>
                 <span
                   className={`text-[9px] tracking-wider font-extrabold mt-1.5 uppercase transition-colors ${
-                    isActive ? 'text-[#FACC15]' : 'text-slate-400 group-hover:text-slate-200'
+                    isActive
+                      ? 'text-amber-600 dark:text-[#FACC15]'
+                      : 'text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-slate-200'
                   }`}
                 >
                   {item.label}
@@ -922,24 +928,24 @@ export const AppLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => openAuthModal('manual')}
-              className="flex flex-col items-center bg-[#10192D] hover:bg-[#162032] border border-white/[0.08] hover:border-amber-400/40 rounded-xl p-1.5 transition-all text-center w-14"
+              className="flex flex-col items-center bg-white dark:bg-[#10192D] hover:bg-slate-50 dark:hover:bg-[#162032] border border-slate-200 dark:border-white/[0.08] hover:border-amber-400/40 rounded-xl p-1.5 transition-all text-center w-14 shadow-sm"
               title={`Guest mode: ${guestItemCount}/${GUEST_ITEM_LIMIT} items stored locally. Click to sign in.`}
             >
-              <div className="flex items-center gap-0.5 text-[10px] font-bold text-amber-300">
-                <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
+              <div className="flex items-center gap-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-300">
+                <ShieldAlert className="w-3 h-3 text-amber-500 dark:text-amber-400 shrink-0" />
                 <span>
                   {guestItemCount}/{GUEST_ITEM_LIMIT}
                 </span>
               </div>
-              <div className="w-10 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden border border-white/5">
+              <div className="w-10 h-1 bg-slate-200 dark:bg-slate-800 rounded-full mt-1 overflow-hidden border border-slate-200/50 dark:border-white/5">
                 <div
                   className={`h-full transition-all duration-300 ${
-                    usagePercentage > 85 ? 'bg-rose-500' : 'bg-amber-400'
+                    usagePercentage > 85 ? 'bg-rose-500' : 'bg-amber-500 dark:bg-amber-400'
                   }`}
                   style={{ width: `${usagePercentage}%` }}
                 />
               </div>
-              <span className="text-[7.5px] text-slate-400 mt-0.5 tracking-tight uppercase font-medium">
+              <span className="text-[7.5px] text-slate-500 dark:text-slate-400 mt-0.5 tracking-tight uppercase font-medium">
                 Guest
               </span>
             </button>
@@ -948,7 +954,7 @@ export const AppLayout: React.FC = () => {
           {/* Bottom Chat / Feedback Icon Button matching reference design */}
           <button
             type="button"
-            className="w-11 h-11 rounded-2xl bg-[#10192D] border border-white/[0.08] hover:border-amber-400/40 text-amber-400 hover:text-amber-300 flex items-center justify-center transition-all shadow-sm"
+            className="w-11 h-11 rounded-2xl bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.08] hover:border-amber-400/40 text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300 flex items-center justify-center transition-all shadow-sm"
             title="Feedback & Support"
           >
             <MessageSquare className="w-5 h-5" />
@@ -973,13 +979,13 @@ export const AppLayout: React.FC = () => {
                     const parent = target.parentElement;
                     if (parent) {
                       parent.innerHTML =
-                        '<span class="text-amber-400 font-extrabold text-2xl">⚡</span>';
+                        '<span class="text-amber-500 dark:text-amber-400 font-extrabold text-2xl">⚡</span>';
                     }
                   }}
                 />
               </div>
-              <span className="text-[1.35rem] font-black text-white tracking-tight leading-none flex items-center">
-                Task<span className="text-amber-400">iye</span>
+              <span className="text-[1.35rem] font-black text-slate-900 dark:text-white tracking-tight leading-none flex items-center">
+                Task<span className="text-amber-500 dark:text-amber-400">iye</span>
               </span>
             </NavLink>
           </div>
@@ -991,7 +997,7 @@ export const AppLayout: React.FC = () => {
               <input
                 type="text"
                 placeholder="Search habits, tasks, streaks..."
-                className="w-full bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] focus:border-amber-400/60 rounded-2xl py-2.5 pl-11 pr-4 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400/20 transition-all duration-150"
+                className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15] focus:border-amber-500/60 dark:focus:border-amber-400/60 rounded-2xl py-2.5 pl-11 pr-4 text-sm text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 transition-all duration-150 shadow-sm"
               />
             </div>
           </div>
@@ -1023,10 +1029,10 @@ export const AppLayout: React.FC = () => {
                 }}
                 className={`sm:hidden absolute left-0 top-0 w-full h-10 rounded-full border px-2 flex items-center justify-center select-none cursor-pointer transition-all ${
                   activeDropdown === 'streak'
-                    ? 'bg-[#151D33] border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.3)] ring-1 ring-amber-400/50'
+                    ? 'bg-amber-500/10 border-amber-500 dark:bg-[#151D33] dark:border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.3)] ring-1 ring-amber-400/50'
                     : isTaskDoneToday
-                      ? 'bg-[#151D33] border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
-                      : 'bg-[#10192D] border-white/[0.08]'
+                      ? 'bg-amber-50 border-amber-300 dark:bg-[#151D33] dark:border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
+                      : 'bg-white border-slate-200 dark:bg-[#10192D] dark:border-white/[0.08]'
                 }`}
                 title={`Streak: ${maxStreak}`}
               >
@@ -1054,11 +1060,11 @@ export const AppLayout: React.FC = () => {
                 }
                 className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'streak'
-                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-[340px] rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-[340px] rounded-3xl bg-white dark:bg-[#10192D] backdrop-blur-xl border border-amber-500/80 dark:border-[#FACC15] shadow-2xl dark:shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
                     : `hidden sm:flex absolute left-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         isTaskDoneToday
-                          ? 'bg-[#151D33] border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400/70'
-                          : 'bg-[#10192D] border-white/[0.08] hover:border-white/[0.2]'
+                          ? 'bg-amber-50 dark:bg-[#151D33] border-amber-300 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400'
+                          : 'bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2]'
                       }`
                 }`}
               >
@@ -1079,15 +1085,15 @@ export const AppLayout: React.FC = () => {
                     <Flame
                       className={`w-4 h-4 transition-all duration-300 shrink-0 ${
                         isTaskDoneToday
-                          ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)] group-hover:scale-110'
-                          : 'text-slate-500 fill-slate-500/20 opacity-50'
+                          ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)] group-hover:scale-110'
+                          : 'text-slate-400 fill-slate-400/20 dark:text-slate-500 dark:fill-slate-500/20 opacity-50'
                       }`}
                     />
                     <span
                       className={`text-xs transition-all duration-300 ${
                         isTaskDoneToday
-                          ? 'text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                          : 'text-slate-400 font-semibold'
+                          ? 'text-amber-600 dark:text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                          : 'text-slate-600 dark:text-slate-400 font-semibold'
                       }`}
                     >
                       {maxStreak}
@@ -1095,7 +1101,7 @@ export const AppLayout: React.FC = () => {
                   </div>
 
                   {activeDropdown === 'streak' && (
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-amber-400/15 text-[#FACC15] transition-all">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-amber-500/15 dark:bg-amber-400/15 text-amber-600 dark:text-[#FACC15] transition-all">
                       <ChevronDown className="w-3.5 h-3.5 rotate-180 stroke-[2.5]" />
                     </div>
                   )}
@@ -1109,28 +1115,28 @@ export const AppLayout: React.FC = () => {
                       : 'grid-rows-[0fr] opacity-0 pointer-events-none'
                   }`}
                 >
-                  <div className="overflow-hidden flex flex-col gap-3 text-left pt-2.5">
-                    {/* Divider */}
-                    <div className="border-t border-white/[0.08]" />
+                  <div className="overflow-hidden flex flex-col gap-3 text-left">
+                    {/* Divider below trigger row */}
+                    <div className="border-t border-slate-200 dark:border-white/[0.08] mt-3" />
 
-                    {/* Top Tag & Title + Big Flame Illustration */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-col">
-                        <span className="bg-gradient-to-r from-amber-400/20 to-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full tracking-wider uppercase flex items-center gap-1 shadow-sm w-fit mb-1.5">
-                          <Sparkles className="w-3 h-3 text-amber-400" />
-                          <span>STREAK SOCIETY</span>
-                        </span>
-                        <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
-                          {maxStreak} {maxStreak === 1 ? 'day streak' : 'day streak'}
-                        </h3>
-                        <p className="text-xs text-slate-300 font-medium mt-1 leading-snug">
+                    {/* Streak Header Info */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                            {maxStreak}
+                          </span>
+                          <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                            Day Streak
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-tight mt-0.5">
                           {isTaskDoneToday ? (
-                            <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                              You're on fire! Streak protected today.
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              You've practiced today! Streak is protected.
                             </span>
                           ) : (
-                            <span className="text-amber-300 font-medium">
+                            <span className="text-amber-700 dark:text-amber-300 font-medium">
                               Complete today's habits to protect your streak!
                             </span>
                           )}
@@ -1141,23 +1147,23 @@ export const AppLayout: React.FC = () => {
                         <div
                           className={`w-13 h-13 rounded-2xl flex items-center justify-center ${
                             isTaskDoneToday
-                              ? 'bg-gradient-to-br from-amber-500/25 to-amber-600/10 border border-amber-400/35 shadow-[0_0_20px_rgba(250,204,21,0.35)]'
-                              : 'bg-white/5 border border-white/10'
+                              ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-400/35 shadow-[0_0_20px_rgba(250,204,21,0.25)]'
+                              : 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10'
                           }`}
                         >
                           <Flame
                             className={`w-8 h-8 transition-all ${
                               isTaskDoneToday
-                                ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]'
-                                : 'text-slate-500 fill-slate-500/30'
+                                ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]'
+                                : 'text-slate-400 fill-slate-400/30 dark:text-slate-500 dark:fill-slate-500/30'
                             }`}
                           />
                         </div>
                       </div>
                     </div>
 
-                    {/* Monthly Inset Calendar (Duolingo style: < Month Year > with full month grid) */}
-                    <div className="bg-[#090E1B] border border-white/[0.08] rounded-2xl p-2.5 sm:p-3 flex flex-col gap-2 shadow-inner">
+                    {/* Monthly Inset Calendar */}
+                    <div className="bg-slate-50 dark:bg-[#090E1B] border border-slate-200 dark:border-white/[0.08] rounded-2xl p-2.5 sm:p-3 flex flex-col gap-2 shadow-inner">
                       {/* Month Header Switcher */}
                       <div className="flex items-center justify-between px-1">
                         <button
@@ -1166,14 +1172,14 @@ export const AppLayout: React.FC = () => {
                             e.stopPropagation();
                             handlePrevMonth();
                           }}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
                           title="Previous month"
                         >
                           <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
                         </button>
 
-                        <div className="flex items-center gap-1.5 text-xs font-black tracking-wide text-white uppercase select-none">
-                          <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                        <div className="flex items-center gap-1.5 text-xs font-black tracking-wide text-slate-900 dark:text-white uppercase select-none">
+                          <Calendar className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                           <span>{calendarMonthData.monthName}</span>
                         </div>
 
@@ -1186,8 +1192,8 @@ export const AppLayout: React.FC = () => {
                           disabled={!canGoNextMonth}
                           className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
                             canGoNextMonth
-                              ? 'text-slate-400 hover:text-white hover:bg-white/10 active:scale-90 cursor-pointer'
-                              : 'text-slate-600 opacity-30 cursor-not-allowed'
+                              ? 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 active:scale-90 cursor-pointer'
+                              : 'text-slate-400 dark:text-slate-600 opacity-30 cursor-not-allowed'
                           }`}
                           title={canGoNextMonth ? 'Next month' : 'Current month'}
                         >
@@ -1196,18 +1202,18 @@ export const AppLayout: React.FC = () => {
                       </div>
 
                       {/* Day of Week Labels */}
-                      <div className="grid grid-cols-7 gap-1 text-center py-1 border-b border-white/[0.06]">
+                      <div className="grid grid-cols-7 gap-1 text-center py-1 border-b border-slate-200 dark:border-white/[0.06]">
                         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
                           <span
                             key={idx}
-                            className="text-[10px] font-bold text-slate-400 uppercase select-none"
+                            className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase select-none"
                           >
                             {day}
                           </span>
                         ))}
                       </div>
 
-                      {/* Month Days Grid with Morph Transition */}
+                      {/* Month Days Grid */}
                       <div
                         key={calendarMonthData.monthName}
                         className="grid grid-cols-7 gap-y-1.5 gap-x-1 py-1 animate-in fade-in zoom-in-95 duration-200"
@@ -1228,10 +1234,10 @@ export const AppLayout: React.FC = () => {
                                 day.isCompleted
                                   ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_10px_rgba(250,204,21,0.4)] ring-1 ring-amber-300'
                                   : day.isToday
-                                    ? 'bg-sky-500/15 border-2 border-sky-400 text-sky-300 shadow-[0_0_8px_rgba(56,189,248,0.35)]'
+                                    ? 'bg-sky-500/15 border-2 border-sky-500 dark:border-sky-400 text-sky-600 dark:text-sky-300 shadow-sm'
                                     : day.isFuture
-                                      ? 'text-slate-600'
-                                      : 'text-slate-400 hover:bg-white/[0.04]'
+                                      ? 'text-slate-400 dark:text-slate-600'
+                                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/[0.04]'
                               }`}
                               title={`${day.dateStr}: ${
                                 day.isCompleted
@@ -1263,11 +1269,10 @@ export const AppLayout: React.FC = () => {
                         setActiveDropdown(null);
                         navigate('/habits');
                       }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-extrabold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-[0_0_16px_rgba(250,204,21,0.25)] hover:shadow-[0_0_24px_rgba(250,204,21,0.45)] transition-all cursor-pointer active:scale-[0.98]"
+                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#FACC15] dark:hover:bg-amber-300 dark:text-slate-950 text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
                     >
-                      <Zap className="w-3.5 h-3.5 fill-slate-950" />
-                      <span>View Streak</span>
-                      <ArrowRight className="w-3.5 h-3.5 stroke-[2.5] ml-auto" />
+                      <span>Manage Habits & Streaks</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -1303,8 +1308,8 @@ export const AppLayout: React.FC = () => {
                 }}
                 className={`sm:hidden absolute right-0 top-0 w-full h-10 rounded-full border px-2 flex items-center justify-center select-none cursor-pointer transition-all ${
                   activeDropdown === 'notifications'
-                    ? 'bg-[#151D33] border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.25)] ring-1 ring-amber-400/50'
-                    : 'bg-[#10192D] border-white/[0.08]'
+                    ? 'bg-amber-500/10 border-amber-500 dark:bg-[#151D33] dark:border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.25)] ring-1 ring-amber-400/50'
+                    : 'bg-white border-slate-200 dark:bg-[#10192D] dark:border-white/[0.08]'
                 }`}
                 title={`Notifications (${unreadCount} unread)`}
               >
@@ -1337,8 +1342,8 @@ export const AppLayout: React.FC = () => {
                 }
                 className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                   activeDropdown === 'notifications'
-                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-[#10192D]/98 backdrop-blur-xl border border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
-                    : 'hidden sm:flex absolute right-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none bg-[#10192D] border-white/[0.08] hover:border-white/[0.2] transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)]'
+                    ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl bg-white dark:bg-[#10192D] backdrop-blur-xl border border-amber-500/80 dark:border-[#FACC15] shadow-2xl dark:shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                    : 'hidden sm:flex absolute right-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2] transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)]'
                 }`}
               >
                 {/* Trigger Row */}
@@ -1361,15 +1366,15 @@ export const AppLayout: React.FC = () => {
                   {activeDropdown === 'notifications' ? (
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-amber-400" />
-                        <span className="text-xs font-bold text-white">Notifications</span>
+                        <Bell className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">Notifications</span>
                         {hasUnreadNotifications && (
-                          <span className="bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[9.5px] font-bold px-1.5 py-0.2 rounded-full">
+                          <span className="bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-400/20 dark:border-amber-400/40 dark:text-amber-300 text-[9.5px] font-bold px-1.5 py-0.2 rounded-full">
                             New
                           </span>
                         )}
                       </div>
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center bg-amber-400/15 text-[#FACC15] transition-all">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center bg-amber-500/15 dark:bg-amber-400/15 text-amber-600 dark:text-[#FACC15] transition-all">
                         <ChevronDown className="w-3.5 h-3.5 rotate-180 stroke-[2.5]" />
                       </div>
                     </div>
@@ -1378,15 +1383,15 @@ export const AppLayout: React.FC = () => {
                       <Bell
                         className={`w-4 h-4 transition-all duration-300 shrink-0 ${
                           unreadCount > 0
-                            ? 'text-amber-400 fill-amber-400/20'
-                            : 'text-slate-500 fill-slate-500/20 opacity-50'
+                            ? 'text-amber-500 fill-amber-500/20 dark:text-amber-400 dark:fill-amber-400/20'
+                            : 'text-slate-400 fill-slate-400/20 dark:text-slate-500 dark:fill-slate-500/20 opacity-50'
                         }`}
                       />
                       <span
                         className={`text-xs transition-all duration-300 ${
                           unreadCount > 0
-                            ? 'text-[#FACC15] font-semibold'
-                            : 'text-slate-400 font-semibold'
+                            ? 'text-amber-600 dark:text-[#FACC15] font-semibold'
+                            : 'text-slate-500 dark:text-slate-400 font-semibold'
                         }`}
                       >
                         {unreadCount}
@@ -1405,21 +1410,21 @@ export const AppLayout: React.FC = () => {
                 >
                   <div className="overflow-hidden flex flex-col gap-2.5 text-left pt-2.5">
                     {/* Header action bar with Tab Switcher */}
-                    <div className="border-t border-white/[0.08] pt-2 flex items-center justify-between gap-2">
-                      <div className="flex items-center p-0.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px]">
+                    <div className="border-t border-slate-200 dark:border-white/[0.08] pt-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.06] text-[11px]">
                         <button
                           type="button"
                           onClick={() => setNotificationTab('inbox')}
                           className={`px-2 py-0.5 rounded-md font-semibold transition-all flex items-center gap-1 cursor-pointer ${
                             notificationTab === 'inbox'
-                              ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30 shadow-sm'
-                              : 'text-slate-400 hover:text-slate-200'
+                              ? 'bg-white text-amber-700 border border-slate-200 shadow-sm dark:bg-amber-400/20 dark:text-amber-300 dark:border-amber-400/30'
+                              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                           }`}
                         >
                           <Bell className="w-3 h-3" />
                           <span>Inbox</span>
                           {unreadCount > 0 && (
-                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-400/30 text-[9px] font-bold text-amber-300">
+                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-400/30 text-[9px] font-bold dark:text-amber-300">
                               {unreadCount}
                             </span>
                           )}
@@ -1432,14 +1437,14 @@ export const AppLayout: React.FC = () => {
                           }}
                           className={`px-2 py-0.5 rounded-md font-semibold transition-all flex items-center gap-1 cursor-pointer ${
                             notificationTab === 'trash'
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
-                              : 'text-slate-400 hover:text-slate-200'
+                              ? 'bg-white text-rose-600 border border-slate-200 shadow-sm dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30'
+                              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                           }`}
                         >
                           <Trash2 className="w-3 h-3" />
                           <span>Trash</span>
                           {trashedNotifications.length > 0 && (
-                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-rose-500/30 text-[9px] font-bold text-rose-300">
+                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-500/30 text-[9px] font-bold dark:text-rose-300">
                               {trashedNotifications.length}
                             </span>
                           )}
@@ -1453,7 +1458,7 @@ export const AppLayout: React.FC = () => {
                             <button
                               type="button"
                               onClick={markAllNotificationsRead}
-                              className="text-[10.5px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-0.5 cursor-pointer transition-colors"
+                              className="text-[10.5px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-0.5 cursor-pointer transition-colors"
                               title="Mark all notifications as read"
                             >
                               <CheckCheck className="w-3 h-3" />
@@ -1464,7 +1469,7 @@ export const AppLayout: React.FC = () => {
                             <button
                               type="button"
                               onClick={clearBellAll}
-                              className="text-[10.5px] font-semibold text-slate-400 hover:text-rose-400 flex items-center gap-0.5 cursor-pointer transition-colors"
+                              className="text-[10.5px] font-semibold text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 flex items-center gap-0.5 cursor-pointer transition-colors"
                               title="Clear bell: move all notifications to trash"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -1477,7 +1482,7 @@ export const AppLayout: React.FC = () => {
                           <button
                             type="button"
                             onClick={emptyNotificationTrash}
-                            className="text-[10.5px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20"
+                            className="text-[10.5px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-500/10 border border-rose-300 dark:border-rose-500/20"
                             title="Permanently remove all junk notifications"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -1491,12 +1496,12 @@ export const AppLayout: React.FC = () => {
                     {notificationTab === 'inbox' ? (
                       <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-0.5">
                         {notifications.length === 0 ? (
-                          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
+                          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-400 dark:text-slate-500">
                             <Bell className="w-5 h-5 opacity-40 text-slate-400" />
-                            <span className="text-xs font-medium text-slate-400">
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                               No new notifications
                             </span>
-                            <span className="text-[11px] text-slate-500">
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
                               Activity and reminders will appear here
                             </span>
                           </div>
@@ -1507,8 +1512,8 @@ export const AppLayout: React.FC = () => {
                               onClick={() => handleNotificationClick(n)}
                               className={`group p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
                                 n.read
-                                  ? 'bg-white/[0.02] border-white/[0.05] text-slate-400 hover:bg-white/[0.05]'
-                                  : 'bg-amber-400/[0.07] border-amber-400/25 text-slate-200 hover:bg-amber-400/[0.12] shadow-[0_0_12px_rgba(250,204,21,0.08)]'
+                                  ? 'bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100 dark:bg-white/[0.02] dark:border-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.05]'
+                                  : 'bg-amber-50/80 border-amber-300/80 text-slate-800 hover:bg-amber-100/80 dark:bg-amber-400/[0.07] dark:border-amber-400/25 dark:text-slate-200 dark:hover:bg-amber-400/[0.12] shadow-sm'
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2">
@@ -1528,28 +1533,28 @@ export const AppLayout: React.FC = () => {
                                                 ? '⏰'
                                                 : '🔔'}
                                   </span>
-                                  <span className="text-xs font-bold text-white truncate">
+                                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                                     {n.title}
                                   </span>
                                   {!n.read && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <span className="text-[10px] text-slate-500 font-mono">
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                                     {n.time}
                                   </span>
                                   <button
                                     type="button"
                                     onClick={(e) => trashNotification(n, e)}
-                                    className="opacity-0 group-hover:opacity-100 hover:bg-rose-500/20 p-1 rounded-md text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                                    className="opacity-0 group-hover:opacity-100 hover:bg-rose-100 dark:hover:bg-rose-500/20 p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-all cursor-pointer"
                                     title="Move to trash"
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-[11px] text-slate-300 mt-1 leading-normal pl-5">
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-normal pl-5">
                                 {n.description}
                               </p>
                             </div>
@@ -1563,10 +1568,10 @@ export const AppLayout: React.FC = () => {
                             Loading trash items...
                           </div>
                         ) : trashedNotifications.length === 0 ? (
-                          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
+                          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-400 dark:text-slate-500">
                             <Trash2 className="w-5 h-5 opacity-40 text-slate-400" />
-                            <span className="text-xs font-medium text-slate-400">Trash is empty</span>
-                            <span className="text-[11px] text-slate-500">
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Trash is empty</span>
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
                               Cleared notifications are kept here for 30 days
                             </span>
                           </div>
@@ -1574,12 +1579,12 @@ export const AppLayout: React.FC = () => {
                           trashedNotifications.map((n) => (
                             <div
                               key={n.id}
-                              className="group p-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-all select-none"
+                              className="group p-2.5 rounded-xl border border-slate-200 dark:border-white/[0.06] bg-slate-50 dark:bg-white/[0.02] hover:bg-slate-100/80 dark:hover:bg-white/[0.04] transition-all select-none"
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span className="text-xs shrink-0 opacity-60">🗑️</span>
-                                  <span className="text-xs font-bold text-slate-300 truncate">
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-300 truncate">
                                     {n.title}
                                   </span>
                                 </div>
@@ -1587,7 +1592,7 @@ export const AppLayout: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={(e) => restoreNotification(n, e)}
-                                    className="p-1 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/15 transition-all cursor-pointer"
+                                    className="p-1 rounded-md text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/15 transition-all cursor-pointer"
                                     title="Restore to active inbox"
                                   >
                                     <RotateCcw className="w-3 h-3" />
@@ -1595,17 +1600,17 @@ export const AppLayout: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={(e) => permanentlyDeleteNotification(n.id, e)}
-                                    className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition-all cursor-pointer"
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-all cursor-pointer"
                                     title="Delete forever"
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-[11px] text-slate-400 mt-1 leading-normal pl-5">
+                              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-normal pl-5">
                                 {n.description}
                               </p>
-                              <div className="text-[9.5px] text-slate-500 mt-1 pl-5 font-mono">
+                              <div className="text-[9.5px] text-slate-400 dark:text-slate-500 mt-1 pl-5 font-mono">
                                 Trashed • Auto-purges in 30 days
                               </div>
                             </div>
@@ -1623,17 +1628,17 @@ export const AppLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openAuthModal('manual', 'signup')}
-                className="group h-10 rounded-full bg-[#10192D] border border-white/[0.08] hover:border-amber-400/50 shadow-sm px-3 sm:px-4 flex items-center gap-2 transition-all hover:bg-[#141F33] hover:shadow-[0_0_20px_rgba(250,204,21,0.18)] cursor-pointer select-none shrink-0"
+                className="group h-10 rounded-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.08] hover:border-amber-400/50 shadow-sm px-3 sm:px-4 flex items-center gap-2 transition-all hover:bg-slate-50 dark:hover:bg-[#141F33] hover:shadow-[0_0_20px_rgba(250,204,21,0.18)] cursor-pointer select-none shrink-0"
                 title={`Guest mode: ${guestItemCount}/${GUEST_ITEM_LIMIT} items stored. Click to sign in and save progress.`}
               >
-                <div className="w-5 h-5 rounded-full bg-amber-400/15 flex items-center justify-center text-amber-400 shrink-0">
-                  <Sparkles className="w-3 h-3 text-amber-400" />
+                <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-400/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  <Sparkles className="w-3 h-3 text-amber-500 dark:text-amber-400" />
                 </div>
-                <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                   <span className="hidden xs:inline">Save progress </span>
-                  <span className="text-[#FACC15] font-bold">Sign In</span>
+                  <span className="text-amber-600 dark:text-[#FACC15] font-bold">Sign In</span>
                 </span>
-                <span className="text-[10px] font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-1.5 py-0.5 rounded-full shrink-0">
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-400/15 border border-amber-300 dark:border-amber-400/30 px-1.5 py-0.5 rounded-full shrink-0">
                   {guestItemCount}/{GUEST_ITEM_LIMIT}
                 </span>
               </button>
@@ -1695,10 +1700,10 @@ export const AppLayout: React.FC = () => {
                     onClick={
                       activeDropdown !== 'profile' ? () => setActiveDropdown('profile') : undefined
                     }
-                    className={`bg-[#10192D]/98 backdrop-blur-xl border transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
+                    className={`bg-white dark:bg-[#10192D] backdrop-blur-xl border transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
                       activeDropdown === 'profile'
-                        ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl border-[#FACC15] shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
-                        : 'absolute right-0 top-0 w-full h-10 rounded-full border-white/[0.08] hover:border-white/[0.2] shadow-sm px-4 flex items-center justify-between hover:bg-[#141F33]'
+                        ? 'fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top,0px))] sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:w-80 rounded-3xl border-amber-500 dark:border-[#FACC15] shadow-2xl dark:shadow-[0_0_32px_rgba(250,204,21,0.28),0_25px_60px_rgba(0,0,0,0.92)] p-4'
+                        : 'absolute right-0 top-0 w-full h-10 rounded-full border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2] shadow-sm px-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-[#141F33]'
                     }`}
                   >
                     {/* Top Bar Trigger Row */}
@@ -1709,9 +1714,9 @@ export const AppLayout: React.FC = () => {
                       }}
                       className="flex items-center justify-between gap-2.5 cursor-pointer select-none group w-full h-full"
                     >
-                      <span className="text-xs font-semibold text-slate-200 whitespace-nowrap">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
                         {getGreeting()},{' '}
-                        <span className="text-[#FACC15] font-bold">{firstName}</span> 👏
+                        <span className="text-amber-600 dark:text-[#FACC15] font-bold">{firstName}</span> 👏
                       </span>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -1719,19 +1724,19 @@ export const AppLayout: React.FC = () => {
                           <img
                             src={avatarSrc}
                             alt={displayName}
-                            className="w-7 h-7 rounded-full object-cover border border-white/10"
+                            className="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-white/10"
                             onError={(e) => {
                               e.currentTarget.src = defaultAvatar;
                             }}
                           />
-                          <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
+                          <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 ring-2 ring-white dark:ring-[#10192D]" />
                         </div>
 
                         <div
                           className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 ${
                             activeDropdown === 'profile'
-                              ? 'bg-amber-400/15 text-[#FACC15]'
-                              : 'text-slate-400 group-hover:text-[#FACC15]'
+                              ? 'bg-amber-500/15 dark:bg-amber-400/15 text-amber-600 dark:text-[#FACC15]'
+                              : 'text-slate-400 group-hover:text-amber-600 dark:group-hover:text-[#FACC15]'
                           }`}
                         >
                           <ChevronDown
@@ -1753,7 +1758,7 @@ export const AppLayout: React.FC = () => {
                     >
                       <div className="overflow-hidden flex flex-col gap-3 text-left">
                         {/* Divider below trigger row */}
-                        <div className="border-t border-white/[0.08] mt-3" />
+                        <div className="border-t border-slate-200 dark:border-white/[0.08] mt-3" />
 
                         {/* User Profile Header */}
                         <div className="flex items-center justify-between pb-1">
@@ -1762,22 +1767,22 @@ export const AppLayout: React.FC = () => {
                               <img
                                 src={avatarSrc}
                                 alt={displayName}
-                                className="w-11 h-11 rounded-xl object-cover border border-white/10"
+                                className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-white/10"
                                 onError={(e) => {
                                   e.currentTarget.src = defaultAvatar;
                                 }}
                               />
-                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 ring-2 ring-white dark:ring-[#10192D]" />
                             </div>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-white truncate">
+                              <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
                                 {displayName}
                               </span>
-                              <span className="text-xs text-slate-400 truncate">{email}</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{email}</span>
                             </div>
                           </div>
 
-                          <span className="bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9.5px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase shrink-0">
+                          <span className="bg-amber-100 dark:bg-amber-400/10 border border-amber-300 dark:border-amber-400/30 text-amber-700 dark:text-amber-400 text-[9.5px] font-extrabold px-2 py-0.5 rounded-full tracking-wider uppercase shrink-0">
                             PRO ACTIVE
                           </span>
                         </div>
@@ -1790,13 +1795,13 @@ export const AppLayout: React.FC = () => {
                               setActiveDropdown(null);
                               setIsProfileSettingsOpen(true);
                             }}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2.5">
-                              <UserIcon className="w-4 h-4 text-slate-400" />
+                              <UserIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                               <span>Profile Settings</span>
                             </div>
-                            <span className="text-[10px] font-mono text-slate-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded">
                               ⌘P
                             </span>
                           </button>
@@ -1807,13 +1812,13 @@ export const AppLayout: React.FC = () => {
                               setActiveDropdown(null);
                               setIsTrashOpen(true);
                             }}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer group/trash"
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors cursor-pointer group/trash"
                           >
                             <div className="flex items-center gap-2.5">
-                              <Trash2 className="w-4 h-4 text-slate-400 group-hover/trash:text-rose-400 transition-colors" />
+                              <Trash2 className="w-4 h-4 text-slate-500 dark:text-slate-400 group-hover/trash:text-rose-500 dark:group-hover/trash:text-rose-400 transition-colors" />
                               <span>Trash & Recovery (30 Days)</span>
                             </div>
-                            <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-mono text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-400/10 border border-amber-300 dark:border-amber-400/20 px-1.5 py-0.5 rounded">
                               30d TTL
                             </span>
                           </button>
@@ -1824,35 +1829,95 @@ export const AppLayout: React.FC = () => {
                               setActiveDropdown(null);
                               setIsNotificationModalOpen(true);
                             }}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2.5">
-                              <Bell className="w-4 h-4 text-slate-400" />
+                              <Bell className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                               <span>Notification Preferences</span>
                             </div>
                           </button>
                         </div>
 
                         {/* Divider */}
-                        <div className="border-t border-white/[0.06]" />
+                        <div className="border-t border-slate-200 dark:border-white/[0.06]" />
 
-                        {/* Section 2: Appearance & Preferences */}
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setActiveDropdown(null)}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
-                          >
+                        {/* Section 2: Interactive Appearance Controller */}
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                             <div className="flex items-center gap-2.5">
-                              <Moon className="w-4 h-4 text-slate-400" />
-                              <span>Appearance</span>
+                              {resolvedTheme === 'dark' ? (
+                                <Moon className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                              ) : (
+                                <Sun className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                              )}
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">Appearance</span>
                             </div>
-                            <span className="text-xs font-semibold text-amber-400">Dark Slate</span>
-                          </button>
+                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                              {theme === 'system'
+                                ? 'System Auto'
+                                : resolvedTheme === 'dark'
+                                  ? 'Dark Slate'
+                                  : 'Daylight'}
+                            </span>
+                          </div>
+
+                          {/* 3-Way Segmented Control */}
+                          <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-black/35 p-1 rounded-xl border border-slate-200 dark:border-white/[0.06] text-xs">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTheme('light');
+                              }}
+                              className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                theme === 'light'
+                                  ? 'bg-white text-amber-700 shadow-sm border border-slate-200 dark:bg-amber-400/20 dark:text-amber-300 dark:border-amber-400/30'
+                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                              title="Kinetic Daylight (Light Mode)"
+                            >
+                              <Sun className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Light</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTheme('dark');
+                              }}
+                              className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                theme === 'dark'
+                                  ? 'bg-white text-amber-700 shadow-sm border border-slate-200 dark:bg-amber-400/20 dark:text-amber-300 dark:border-amber-400/30'
+                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                              title="Kinetic Midnight (Dark Mode)"
+                            >
+                              <Moon className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Dark</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTheme('system');
+                              }}
+                              className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                theme === 'system'
+                                  ? 'bg-white text-amber-700 shadow-sm border border-slate-200 dark:bg-amber-400/20 dark:text-amber-300 dark:border-amber-400/30'
+                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                              title="System (Auto Match OS)"
+                            >
+                              <Laptop className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                              <span>Auto</span>
+                            </button>
+                          </div>
                         </div>
 
                         {/* Divider */}
-                        <div className="border-t border-white/[0.06]" />
+                        <div className="border-t border-slate-200 dark:border-white/[0.06]" />
 
                         {/* Section 3: Session Actions */}
                         <div className="flex flex-col gap-0.5">
@@ -1862,10 +1927,10 @@ export const AppLayout: React.FC = () => {
                               setActiveDropdown(null);
                               handleSignOut();
                             }}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2.5">
-                              <LogOut className="w-4 h-4 text-rose-400" />
+                              <LogOut className="w-4 h-4 text-rose-500 dark:text-rose-400" />
                               <span>Sign Out</span>
                             </div>
                           </button>
@@ -1882,14 +1947,14 @@ export const AppLayout: React.FC = () => {
         {/* 3. Main Workspace Container - Full height touching bottom 0 aligned with topbar */}
         <main
           id="main-workspace"
-          className="flex-1 bg-[#0E1628] border-t md:border-l border-white/[0.06] rounded-t-3xl md:rounded-tr-none md:rounded-tl-3xl sm:md:rounded-tl-[2.5rem] overflow-y-auto overflow-x-hidden w-full max-w-full min-w-0 px-3 sm:px-8 py-4 sm:py-6 pb-24 md:pb-6 relative custom-scrollbar"
+          className="flex-1 bg-slate-50/70 dark:bg-[#0E1628] border-t md:border-l border-slate-200/80 dark:border-white/[0.06] rounded-t-3xl md:rounded-tr-none md:rounded-tl-3xl sm:md:rounded-tl-[2.5rem] overflow-y-auto overflow-x-hidden w-full max-w-full min-w-0 px-3 sm:px-8 py-4 sm:py-6 pb-24 md:pb-6 relative custom-scrollbar"
         >
           <Outlet />
         </main>
       </div>
 
       {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
-      <nav className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B132B]/95 backdrop-blur-xl border-t border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none">
+      <nav className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B132B]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -1900,19 +1965,19 @@ export const AppLayout: React.FC = () => {
               key={item.to}
               to={item.to}
               className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all ${
-                isActive ? 'text-[#FACC15]' : 'text-slate-400 hover:text-slate-200'
+                isActive ? 'text-amber-600 dark:text-[#FACC15]' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                   isActive
-                    ? 'bg-[#232115] border border-[#544310] shadow-[0_0_12px_rgba(250,204,21,0.2)]'
-                    : 'hover:bg-white/[0.04]'
+                    ? 'bg-amber-50 border border-amber-300 shadow-[0_0_12px_rgba(217,119,6,0.15)] dark:bg-[#232115] dark:border-[#544310] dark:shadow-[0_0_12px_rgba(250,204,21,0.2)]'
+                    : 'hover:bg-slate-100 dark:hover:bg-white/[0.04]'
                 }`}
               >
                 <Icon
                   className={`w-5 h-5 transition-transform ${
-                    isActive ? 'text-[#FACC15] stroke-[2.2]' : 'stroke-[1.8]'
+                    isActive ? 'text-amber-600 dark:text-[#FACC15] stroke-[2.2]' : 'stroke-[1.8]'
                   }`}
                 />
               </div>

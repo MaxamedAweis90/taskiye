@@ -249,28 +249,28 @@ export const TrashModal: React.FC = () => {
   const currentFolderCount = activeTab === 'tasks' ? trashedTasks.length : trashedHabits.length;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-hidden pb-[env(safe-area-inset-bottom,0px)] animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[10000] bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100 flex flex-col justify-between select-none overflow-hidden pb-[env(safe-area-inset-bottom,0px)] animate-in fade-in duration-200">
       {/* Top Bar with Profile Settings style top-left X button and iOS notch/island safe area */}
-      <div className="w-full flex items-center justify-between px-4 sm:px-10 pt-[calc(0.875rem+env(safe-area-inset-top,0px))] pb-3.5 sm:py-4 border-b border-white/[0.08] bg-[#080E1E]/95 backdrop-blur-md shrink-0">
+      <div className="w-full flex items-center justify-between px-4 sm:px-10 pt-[calc(0.875rem+env(safe-area-inset-top,0px))] pb-3.5 sm:py-4 border-b border-slate-200 dark:border-white/[0.08] bg-white/95 dark:bg-[#080E1E]/95 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
           <button
             type="button"
             onClick={() => setIsTrashOpen(false)}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer shrink-0"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-200/60 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.08] transition-all cursor-pointer shrink-0"
             title="Close Trash"
           >
             <X className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
           </button>
 
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.15)] shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/25 dark:border-amber-400/25 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-sm dark:shadow-[0_0_12px_rgba(250,204,21,0.15)] shrink-0">
               <Trash2 className="w-4 h-4 stroke-[2.2]" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase flex items-center gap-1.5 sm:gap-2 truncate">
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wider uppercase flex items-center gap-1.5 sm:gap-2 truncate">
                 <span className="hidden sm:inline">Taskiye Drive</span>
-                <span className="hidden sm:inline text-slate-600">/</span>
-                <span className="text-slate-200 font-bold truncate">Trash & Recovery</span>
+                <span className="hidden sm:inline text-slate-400 dark:text-slate-600">/</span>
+                <span className="text-slate-900 dark:text-slate-200 font-bold truncate">Trash & Recovery</span>
               </div>
             </div>
           </div>
@@ -278,7 +278,7 @@ export const TrashModal: React.FC = () => {
 
         {/* Top Right: 30-Day TTL Badge & Empty Action */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 text-xs font-semibold">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/20 text-amber-800 dark:text-amber-300 text-xs font-semibold">
             <Clock className="w-3.5 h-3.5" />
             <span>30-Day Auto-Prune</span>
           </div>
@@ -288,7 +288,7 @@ export const TrashModal: React.FC = () => {
               type="button"
               onClick={() => setShowEmptyConfirm(true)}
               disabled={emptyTrashMutation.isPending}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Empty {activeTab === 'tasks' ? 'Tasks' : 'Habits'}</span>
@@ -300,11 +300,11 @@ export const TrashModal: React.FC = () => {
       {/* Main Layout: Google Drive Style (Left Folder Navigation + Right File View) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar: Google Drive Folders (Desktop only) */}
-        <aside className="hidden md:flex w-64 sm:w-72 shrink-0 border-r border-white/[0.08] bg-[#070E1C]/90 flex-col justify-between p-4 sm:p-5">
+        <aside className="hidden md:flex w-64 sm:w-72 shrink-0 border-r border-slate-200 dark:border-white/[0.08] bg-slate-100/60 dark:bg-[#070E1C]/90 flex-col justify-between p-4 sm:p-5">
           <div className="flex flex-col gap-5">
             {/* Section Header */}
             <div>
-              <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase px-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase px-2">
                 Trash Folders
               </span>
             </div>
@@ -319,16 +319,16 @@ export const TrashModal: React.FC = () => {
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer group ${
                   activeTab === 'tasks'
-                    ? 'bg-gradient-to-r from-amber-400/20 via-amber-400/10 to-transparent border border-amber-400/30 text-amber-200 shadow-[0_0_20px_rgba(250,204,21,0.12)]'
-                    : 'text-slate-300 hover:text-white hover:bg-white/[0.04] border border-transparent'
+                    ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent dark:from-amber-400/20 dark:via-amber-400/10 dark:to-transparent border border-amber-500/40 dark:border-amber-400/30 text-amber-900 dark:text-amber-200 shadow-sm dark:shadow-[0_0_20px_rgba(250,204,21,0.12)]'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/[0.04] border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
                       activeTab === 'tasks'
-                        ? 'bg-amber-400 text-slate-950 shadow-[0_0_12px_rgba(250,204,21,0.4)]'
-                        : 'bg-white/[0.06] text-amber-400 group-hover:bg-amber-400/20'
+                        ? 'bg-amber-500 text-slate-950 dark:bg-amber-400 dark:text-slate-950 shadow-sm dark:shadow-[0_0_12px_rgba(250,204,21,0.4)]'
+                        : 'bg-slate-200/70 text-slate-600 group-hover:bg-amber-500/20 group-hover:text-amber-700 dark:bg-white/[0.06] dark:text-amber-400 dark:group-hover:bg-amber-400/20'
                     }`}
                   >
                     {activeTab === 'tasks' ? (
@@ -339,7 +339,7 @@ export const TrashModal: React.FC = () => {
                   </div>
                   <div className="text-left">
                     <span className="block text-xs font-bold tracking-tight">Tasks</span>
-                    <span className="block text-[10px] font-medium text-slate-400">
+                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400">
                       Daily actions
                     </span>
                   </div>
@@ -348,8 +348,8 @@ export const TrashModal: React.FC = () => {
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10.5px] font-extrabold ${
                     activeTab === 'tasks'
-                      ? 'bg-amber-400 text-slate-950'
-                      : 'bg-white/[0.08] text-slate-300'
+                      ? 'bg-amber-500 text-slate-950 dark:bg-amber-400 dark:text-slate-950'
+                      : 'bg-slate-200 text-slate-600 dark:bg-white/[0.08] dark:text-slate-300'
                   }`}
                 >
                   {trashedTasks.length}
@@ -365,16 +365,16 @@ export const TrashModal: React.FC = () => {
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer group ${
                   activeTab === 'habits'
-                    ? 'bg-gradient-to-r from-amber-400/20 via-amber-400/10 to-transparent border border-amber-400/30 text-amber-200 shadow-[0_0_20px_rgba(250,204,21,0.12)]'
-                    : 'text-slate-300 hover:text-white hover:bg-white/[0.04] border border-transparent'
+                    ? 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent dark:from-amber-400/20 dark:via-amber-400/10 dark:to-transparent border border-amber-500/40 dark:border-amber-400/30 text-amber-900 dark:text-amber-200 shadow-sm dark:shadow-[0_0_20px_rgba(250,204,21,0.12)]'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/[0.04] border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
                       activeTab === 'habits'
-                        ? 'bg-amber-400 text-slate-950 shadow-[0_0_12px_rgba(250,204,21,0.4)]'
-                        : 'bg-white/[0.06] text-amber-400 group-hover:bg-amber-400/20'
+                        ? 'bg-amber-500 text-slate-950 dark:bg-amber-400 dark:text-slate-950 shadow-sm dark:shadow-[0_0_12px_rgba(250,204,21,0.4)]'
+                        : 'bg-slate-200/70 text-slate-600 group-hover:bg-amber-500/20 group-hover:text-amber-700 dark:bg-white/[0.06] dark:text-amber-400 dark:group-hover:bg-amber-400/20'
                     }`}
                   >
                     {activeTab === 'habits' ? (
@@ -385,7 +385,7 @@ export const TrashModal: React.FC = () => {
                   </div>
                   <div className="text-left">
                     <span className="block text-xs font-bold tracking-tight">Habits</span>
-                    <span className="block text-[10px] font-medium text-slate-400">
+                    <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400">
                       Routines & streaks
                     </span>
                   </div>
@@ -394,8 +394,8 @@ export const TrashModal: React.FC = () => {
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10.5px] font-extrabold ${
                     activeTab === 'habits'
-                      ? 'bg-amber-400 text-slate-950'
-                      : 'bg-white/[0.08] text-slate-300'
+                      ? 'bg-amber-500 text-slate-950 dark:bg-amber-400 dark:text-slate-950'
+                      : 'bg-slate-200 text-slate-600 dark:bg-white/[0.08] dark:text-slate-300'
                   }`}
                 >
                   {trashedHabits.length}
@@ -405,15 +405,15 @@ export const TrashModal: React.FC = () => {
           </div>
 
           {/* Drive Storage Policy Box (Google Drive style storage card at bottom) */}
-          <div className="p-4 rounded-2xl bg-[#0F1829] border border-white/[0.08] shadow-inner flex flex-col gap-2.5">
-            <div className="flex items-center gap-2 text-amber-400">
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#0F1829] border border-slate-200 dark:border-white/[0.08] shadow-sm dark:shadow-inner flex flex-col gap-2.5">
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
               <HardDrive className="w-4 h-4" />
-              <span className="text-xs font-bold text-white tracking-tight">TTL Storage Engine</span>
+              <span className="text-xs font-bold text-slate-900 dark:text-white tracking-tight">TTL Storage Engine</span>
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed font-normal">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
               Deleted items sit here for <strong>30 days</strong>. MongoDB Time-To-Live indexes automatically hard-purge expired records 24/7.
             </p>
-            <div className="flex items-center gap-1.5 text-[10.5px] text-emerald-400 font-semibold mt-1">
+            <div className="flex items-center gap-1.5 text-[10.5px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Self-pruning protected</span>
             </div>
@@ -421,10 +421,10 @@ export const TrashModal: React.FC = () => {
         </aside>
 
         {/* Right Main Content Area: Google Drive File Browser */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-[#0B132B]">
+        <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0B132B]">
           {/* Mobile Folder Selector Tabs (< md) */}
-          <div className="flex md:hidden items-center gap-2 px-4 py-3 bg-[#0A1124]/70 border-b border-white/[0.06]">
-            <div className="grid grid-cols-2 gap-2 w-full p-1 bg-[#070E1C] rounded-xl border border-white/[0.08]">
+          <div className="flex md:hidden items-center gap-2 px-4 py-3 bg-white/70 dark:bg-[#0A1124]/70 border-b border-slate-200 dark:border-white/[0.06]">
+            <div className="grid grid-cols-2 gap-2 w-full p-1 bg-slate-100 dark:bg-[#070E1C] rounded-xl border border-slate-200 dark:border-white/[0.08]">
               <button
                 type="button"
                 onClick={() => {
@@ -433,15 +433,15 @@ export const TrashModal: React.FC = () => {
                 }}
                 className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === 'tasks'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-amber-500 dark:bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <CheckSquare className="w-3.5 h-3.5" />
                 <span>Tasks</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeTab === 'tasks' ? 'bg-slate-950/20 text-slate-950' : 'bg-white/10 text-slate-300'
+                    activeTab === 'tasks' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300'
                   }`}
                 >
                   {trashedTasks.length}
@@ -456,15 +456,15 @@ export const TrashModal: React.FC = () => {
                 }}
                 className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                   activeTab === 'habits'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-amber-500 dark:bg-amber-400 text-slate-950 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Repeat className="w-3.5 h-3.5" />
                 <span>Habits</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeTab === 'habits' ? 'bg-slate-950/20 text-slate-950' : 'bg-white/10 text-slate-300'
+                    activeTab === 'habits' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300'
                   }`}
                 >
                   {trashedHabits.length}
@@ -474,19 +474,19 @@ export const TrashModal: React.FC = () => {
           </div>
 
           {/* Top Folder Header & Search Filter */}
-          <div className="px-4 sm:px-8 py-3.5 sm:py-4 border-b border-white/[0.06] bg-[#0A1124]/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-4 sm:px-8 py-3.5 sm:py-4 border-b border-slate-200 dark:border-white/[0.06] bg-white/50 dark:bg-[#0A1124]/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/25 dark:border-amber-400/25 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                 {activeTab === 'tasks' ? <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" /> : <Repeat className="w-4 h-4 sm:w-5 sm:h-5" />}
               </div>
               <div>
-                <h2 className="text-sm sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                   <span>{activeTab === 'tasks' ? 'Tasks Folder' : 'Habits Folder'}</span>
-                  <span className="text-xs font-medium text-slate-400">
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     ({activeTab === 'tasks' ? filteredTasks.length : filteredHabits.length} items)
                   </span>
                 </h2>
-                <p className="text-[10.5px] sm:text-[11px] text-slate-400 hidden xs:block">
+                <p className="text-[10.5px] sm:text-[11px] text-slate-500 dark:text-slate-400 hidden xs:block">
                   Select items to restore them back to active workflows or delete permanently
                 </p>
               </div>
@@ -500,13 +500,13 @@ export const TrashModal: React.FC = () => {
                 placeholder={`Search in ${activeTab}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#10192D] border border-white/[0.08] hover:border-white/[0.15] focus:border-amber-400/60 rounded-xl py-1.5 pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400/30 transition-all"
+                className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15] focus:border-amber-500 dark:focus:border-amber-400/60 rounded-xl py-1.5 pl-9 pr-3 text-xs text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500/30 dark:focus:ring-amber-400/30 transition-all shadow-sm dark:shadow-none"
               />
             </div>
           </div>
 
           {/* Files List / Grid Header */}
-          <div className="px-4 sm:px-8 py-2.5 border-b border-white/[0.06] bg-[#080E1C]/40 text-[10.5px] font-bold text-slate-400 uppercase tracking-wider grid grid-cols-12 gap-2 sm:gap-4 shrink-0">
+          <div className="px-4 sm:px-8 py-2.5 border-b border-slate-200 dark:border-white/[0.06] bg-slate-100/70 dark:bg-[#080E1C]/40 text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider grid grid-cols-12 gap-2 sm:gap-4 shrink-0">
             <div className="col-span-7 sm:col-span-5">Name</div>
             <div className="col-span-3 sm:col-span-3 hidden sm:block">Category / Routine</div>
             <div className="col-span-2 hidden xs:block sm:col-span-2">Retention</div>
@@ -516,28 +516,28 @@ export const TrashModal: React.FC = () => {
           {/* Files List Container */}
           <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-3 space-y-2">
             {!isAuthenticated ? (
-              <div className="py-20 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
-                <HardDrive className="w-10 h-10 opacity-30 text-amber-400 mb-1" />
-                <p className="text-sm font-semibold text-white">Sign In Required</p>
-                <p className="text-xs text-slate-400 max-w-sm">
+              <div className="py-20 text-center flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
+                <HardDrive className="w-10 h-10 opacity-30 text-amber-500 dark:text-amber-400 mb-1" />
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Sign In Required</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
                   Cloud-backed 30-day trash and recovery drive is active for registered accounts.
                 </p>
               </div>
             ) : (activeTab === 'tasks' && isLoadingTasks) || (activeTab === 'habits' && isLoadingHabits) ? (
-              <div className="py-20 text-center flex flex-col items-center justify-center gap-2 text-slate-400 animate-pulse">
-                <Clock className="w-7 h-7 text-amber-400 animate-spin" />
+              <div className="py-20 text-center flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400 animate-pulse">
+                <Clock className="w-7 h-7 text-amber-500 dark:text-amber-400 animate-spin" />
                 <p className="text-xs">Loading {activeTab} folder contents...</p>
               </div>
             ) : activeTab === 'tasks' ? (
               filteredTasks.length === 0 ? (
-                <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-500">
-                  <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-slate-400">
-                    <CheckCircle2 className="w-7 h-7 text-emerald-400/60" />
+                <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-400 dark:text-slate-500">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.06] flex items-center justify-center text-slate-400">
+                    <CheckCircle2 className="w-7 h-7 text-emerald-500/80 dark:text-emerald-400/60" />
                   </div>
-                  <h4 className="text-base font-bold text-slate-200">
+                  <h4 className="text-base font-bold text-slate-900 dark:text-slate-200">
                     {searchQuery ? 'No matching tasks found' : 'Tasks Trash is Empty'}
                   </h4>
-                  <p className="text-xs text-slate-400 max-w-sm">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
                     {searchQuery
                       ? 'Try adjusting your search query.'
                       : 'Deleted tasks will sit in this folder for 30 days before being automatically pruned.'}
@@ -549,15 +549,15 @@ export const TrashModal: React.FC = () => {
                   return (
                     <div
                       key={task._id}
-                      className="p-3 sm:px-4 rounded-2xl bg-[#121C2E] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#152238] transition-all grid grid-cols-12 gap-2 sm:gap-4 items-center group"
+                      className="p-3 sm:px-4 rounded-2xl bg-white dark:bg-[#121C2E] border border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.15] hover:bg-slate-50 dark:hover:bg-[#152238] shadow-sm dark:shadow-none transition-all grid grid-cols-12 gap-2 sm:gap-4 items-center group"
                     >
                       {/* Name Column */}
                       <div className="col-span-7 xs:col-span-7 sm:col-span-5 flex items-center gap-2.5 sm:gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-slate-800 border border-white/[0.08] flex items-center justify-center text-slate-400 shrink-0 group-hover:text-amber-300 group-hover:bg-amber-400/10 transition-colors">
+                        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/[0.08] flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-300 group-hover:bg-amber-500/10 dark:group-hover:bg-amber-400/10 transition-colors">
                           <CheckSquare className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-amber-200 transition-colors">
+                          <h4 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white truncate group-hover:text-amber-700 dark:group-hover:text-amber-200 transition-colors">
                             {task.title}
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -567,7 +567,7 @@ export const TrashModal: React.FC = () => {
                                 <span>{new Date(task.date).toLocaleDateString()}</span>
                               </span>
                             )}
-                            <span className="xs:hidden text-[10px] text-amber-300/90 font-medium">
+                            <span className="xs:hidden text-[10px] text-amber-700 dark:text-amber-300/90 font-medium">
                               {daysLeft}d left
                             </span>
                           </div>
@@ -577,11 +577,11 @@ export const TrashModal: React.FC = () => {
                       {/* Category Column */}
                       <div className="col-span-3 sm:col-span-3 hidden sm:flex items-center gap-2">
                         {task.category ? (
-                          <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-lg bg-white/[0.06] text-slate-300 border border-white/[0.05]">
+                          <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.05]">
                             {task.category}
                           </span>
                         ) : (
-                          <span className="text-[11px] text-slate-500 italic">General</span>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 italic">General</span>
                         )}
                       </div>
 
@@ -590,8 +590,8 @@ export const TrashModal: React.FC = () => {
                         <span
                           className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1.5 ${
                             daysLeft <= 5
-                              ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                              : 'bg-amber-400/10 text-amber-300 border border-amber-400/20'
+                              ? 'bg-rose-500/10 text-rose-700 border border-rose-500/25 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
+                              : 'bg-amber-500/10 text-amber-800 border border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20'
                           }`}
                         >
                           <Clock className="w-3 h-3" />
@@ -605,7 +605,7 @@ export const TrashModal: React.FC = () => {
                           type="button"
                           onClick={() => restoreTaskMutation.mutate(task._id)}
                           disabled={restoreTaskMutation.isPending}
-                          className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95 shrink-0"
+                          className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 dark:bg-amber-400 dark:hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95 shrink-0"
                           title="Restore task to active checklist"
                         >
                           <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -621,7 +621,7 @@ export const TrashModal: React.FC = () => {
                               title: task.title,
                             })
                           }
-                          className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          className="p-2 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                           title="Delete permanently"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -632,14 +632,14 @@ export const TrashModal: React.FC = () => {
                 })
               )
             ) : filteredHabits.length === 0 ? (
-              <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-500">
-                <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-slate-400">
-                  <CheckCircle2 className="w-7 h-7 text-emerald-400/60" />
+              <div className="py-24 text-center flex flex-col items-center justify-center gap-3 text-slate-400 dark:text-slate-500">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.06] flex items-center justify-center text-slate-400">
+                  <CheckCircle2 className="w-7 h-7 text-emerald-500/80 dark:text-emerald-400/60" />
                 </div>
-                <h4 className="text-base font-bold text-slate-200">
+                <h4 className="text-base font-bold text-slate-900 dark:text-slate-200">
                   {searchQuery ? 'No matching habits found' : 'Habits Trash is Empty'}
                 </h4>
-                <p className="text-xs text-slate-400 max-w-sm">
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
                   {searchQuery
                     ? 'Try adjusting your search query.'
                     : 'Deleted habits and preserved streak records will sit here for 30 days before permanent pruning.'}
@@ -651,25 +651,25 @@ export const TrashModal: React.FC = () => {
                 return (
                   <div
                     key={habit._id}
-                    className="p-3 sm:px-4 rounded-2xl bg-[#121C2E] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#152238] transition-all grid grid-cols-12 gap-2 sm:gap-4 items-center group"
+                    className="p-3 sm:px-4 rounded-2xl bg-white dark:bg-[#121C2E] border border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.15] hover:bg-slate-50 dark:hover:bg-[#152238] shadow-sm dark:shadow-none transition-all grid grid-cols-12 gap-2 sm:gap-4 items-center group"
                   >
                     {/* Name Column */}
                     <div className="col-span-7 xs:col-span-7 sm:col-span-5 flex items-center gap-2.5 sm:gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-300 shrink-0 group-hover:text-amber-300 group-hover:bg-amber-400/10 transition-colors">
+                      <div className="w-8 h-8 rounded-xl bg-violet-500/10 dark:bg-violet-500/15 border border-violet-500/25 dark:border-violet-500/30 flex items-center justify-center text-violet-600 dark:text-violet-300 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-300 group-hover:bg-amber-500/10 dark:group-hover:bg-amber-400/10 transition-colors">
                         <Repeat className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-amber-200 transition-colors">
+                        <h4 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white truncate group-hover:text-amber-700 dark:group-hover:text-amber-200 transition-colors">
                           {habit.title}
                         </h4>
                         <div className="flex items-center gap-2 mt-0.5">
                           {typeof habit.streakDays === 'number' && habit.streakDays > 0 && (
-                            <span className="text-[10px] text-amber-300 font-bold flex items-center gap-1">
-                              <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
+                            <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
+                              <Flame className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-500 dark:fill-amber-400" />
                               <span>{habit.streakDays}d streak</span>
                             </span>
                           )}
-                          <span className="xs:hidden text-[10px] text-amber-300/90 font-medium">
+                          <span className="xs:hidden text-[10px] text-amber-700 dark:text-amber-300/90 font-medium">
                             {daysLeft}d left
                           </span>
                         </div>
@@ -679,11 +679,11 @@ export const TrashModal: React.FC = () => {
                     {/* Category Column */}
                     <div className="col-span-3 sm:col-span-3 hidden sm:flex items-center gap-2">
                       {habit.category ? (
-                        <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-lg bg-white/[0.06] text-slate-300 border border-white/[0.05]">
+                        <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.05]">
                           {habit.category}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-slate-500 italic">Routine</span>
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 italic">Routine</span>
                       )}
                     </div>
 
@@ -692,8 +692,8 @@ export const TrashModal: React.FC = () => {
                       <span
                         className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1.5 ${
                           daysLeft <= 5
-                            ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                            : 'bg-amber-400/10 text-amber-300 border border-amber-400/20'
+                            ? 'bg-rose-500/10 text-rose-700 border border-rose-500/25 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30'
+                            : 'bg-amber-500/10 text-amber-800 border border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20'
                         }`}
                       >
                         <Clock className="w-3 h-3" />
@@ -707,7 +707,7 @@ export const TrashModal: React.FC = () => {
                         type="button"
                         onClick={() => restoreHabitMutation.mutate(habit._id)}
                         disabled={restoreHabitMutation.isPending}
-                        className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95 shrink-0"
+                        className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 dark:bg-amber-400 dark:hover:bg-amber-300 shadow-sm transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none active:scale-95 shrink-0"
                         title="Restore habit and resume streak tracking"
                       >
                         <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -723,7 +723,7 @@ export const TrashModal: React.FC = () => {
                             title: habit.title,
                           })
                         }
-                        className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                         title="Delete permanently (cascade)"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -742,32 +742,32 @@ export const TrashModal: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150"
+          className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150"
           onClick={() => setItemToPermanentDelete(null)}
         >
           <div
-            className="bg-[#152033] border border-rose-500/30 rounded-3xl p-6 max-w-sm w-full shadow-[0_24px_70px_rgba(0,0,0,0.9)] flex flex-col gap-3 relative animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#152033] border border-rose-500/30 rounded-3xl p-6 max-w-sm w-full shadow-2xl dark:shadow-[0_24px_70px_rgba(0,0,0,0.9)] flex flex-col gap-3 relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.25)]">
+              <div className="w-11 h-11 rounded-2xl bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 shadow-sm dark:shadow-[0_0_15px_rgba(244,63,94,0.25)]">
                 <AlertTriangle className="w-6 h-6 stroke-[2.2]" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-white tracking-tight">Permanently Delete?</h4>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Permanently Delete?</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   This action cannot be undone.
                 </p>
               </div>
             </div>
 
-            <div className="bg-[#0D1424] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 truncate mt-1">
-              <span className="text-slate-400 mr-1.5">{itemToPermanentDelete.type === 'task' ? 'Task:' : 'Habit:'}</span>
-              <span className="font-semibold text-white">{itemToPermanentDelete.title}</span>
+            <div className="bg-slate-100 dark:bg-[#0D1424] border border-slate-200 dark:border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-200 truncate mt-1">
+              <span className="text-slate-500 dark:text-slate-400 mr-1.5">{itemToPermanentDelete.type === 'task' ? 'Task:' : 'Habit:'}</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{itemToPermanentDelete.title}</span>
             </div>
 
             {itemToPermanentDelete.type === 'habit' && (
-              <p className="text-[11px] text-amber-300/90 leading-snug">
+              <p className="text-[11px] text-amber-700 dark:text-amber-300/90 leading-snug">
                 All daily habit instance tasks and historical streak records will also be permanently purged.
               </p>
             )}
@@ -776,14 +776,14 @@ export const TrashModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setItemToPermanentDelete(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmPermanentDelete}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-[0_0_15px_rgba(225,29,72,0.4)] transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-sm dark:shadow-[0_0_15px_rgba(225,29,72,0.4)] transition-all cursor-pointer"
               >
                 Yes, Delete Forever
               </button>
@@ -797,22 +797,22 @@ export const TrashModal: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150"
+          className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150"
           onClick={() => setShowEmptyConfirm(false)}
         >
           <div
-            className="bg-[#152033] border border-rose-500/30 rounded-3xl p-6 max-w-sm w-full shadow-[0_24px_70px_rgba(0,0,0,0.9)] flex flex-col gap-3 relative animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-[#152033] border border-rose-500/30 rounded-3xl p-6 max-w-sm w-full shadow-2xl dark:shadow-[0_24px_70px_rgba(0,0,0,0.9)] flex flex-col gap-3 relative animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.25)]">
+              <div className="w-11 h-11 rounded-2xl bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 shadow-sm dark:shadow-[0_0_15px_rgba(244,63,94,0.25)]">
                 <AlertTriangle className="w-6 h-6 stroke-[2.2]" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-white tracking-tight">
+                <h4 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                   Empty {activeTab === 'tasks' ? 'Tasks' : 'Habits'} Trash?
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   This will permanently destroy all {currentFolderCount} items in this folder.
                 </p>
               </div>
@@ -822,7 +822,7 @@ export const TrashModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowEmptyConfirm(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -830,7 +830,7 @@ export const TrashModal: React.FC = () => {
                 type="button"
                 onClick={() => emptyTrashMutation.mutate()}
                 disabled={emptyTrashMutation.isPending}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-[0_0_15px_rgba(225,29,72,0.4)] transition-all cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-sm dark:shadow-[0_0_15px_rgba(225,29,72,0.4)] transition-all cursor-pointer disabled:opacity-50"
               >
                 {emptyTrashMutation.isPending ? 'Emptying...' : 'Yes, Empty Folder'}
               </button>

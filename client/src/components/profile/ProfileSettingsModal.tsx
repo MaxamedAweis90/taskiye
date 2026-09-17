@@ -11,8 +11,12 @@ import {
   AlertTriangle,
   RotateCcw,
   Bell,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { useSession, authClient } from '../../lib/auth-client';
+import { useThemeStore } from '../../store/useThemeStore';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -40,6 +44,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   onOpenNotificationPreferences,
 }) => {
   const { data: session } = useSession();
+  const { theme, setTheme } = useThemeStore();
 
   const [initialData, setInitialData] = useState<ProfileData>(initialProfile);
   const [name, setName] = useState('');
@@ -398,19 +403,19 @@ function compressAvatarImage(file: File): Promise<Blob> {
   const isSaveDisabled = !hasChanges || isSaving || !name.trim();
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0B132B] text-slate-100 flex flex-col justify-between select-none overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom,0px))] animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100 flex flex-col justify-between select-none overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom,0px))] animate-in fade-in duration-200">
       {/* Top Bar with Duolingo-style top-left X button */}
       <div className="w-full flex items-center justify-between p-6 sm:px-10 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <button
           type="button"
           onClick={handleAttemptClose}
-          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition-all cursor-pointer"
           title="Close Settings"
         >
           <X className="w-6 h-6 stroke-[2.5]" />
         </button>
 
-        <div className="text-xs font-semibold text-slate-400 tracking-wider uppercase">
+        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wider uppercase">
           Profile Settings
         </div>
       </div>
@@ -418,7 +423,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
       {/* Centered Main Content Area */}
       <div className="w-full max-w-md mx-auto px-4 py-8 flex flex-col items-center">
         {/* Title */}
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-6 text-center">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-6 text-center">
           Profile Settings
         </h1>
 
@@ -431,7 +436,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
             <img
               src={avatarUrl || defaultAvatar}
               alt="Avatar"
-              className="w-24 h-24 rounded-full object-cover border-4 border-amber-400/40 shadow-[0_0_24px_rgba(250,204,21,0.25)]"
+              className="w-24 h-24 rounded-full object-cover border-4 border-amber-500/30 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.25)]"
               onError={(e) => {
                 e.currentTarget.src = defaultAvatar;
               }}
@@ -450,7 +455,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
           />
 
           <div className="mt-3 text-center">
-            <h2 className="text-base font-bold text-white">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">
               {name || session?.user?.name || 'User'}
             </h2>
             <div className="flex items-center gap-3 justify-center mt-1">
@@ -458,7 +463,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
                 type="button"
                 disabled={isUploading}
                 onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors uppercase tracking-wider cursor-pointer"
+                className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors uppercase tracking-wider cursor-pointer"
               >
                 {isUploading ? 'Optimizing...' : 'Change Avatar'}
               </button>
@@ -467,7 +472,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
                   type="button"
                   disabled={isUploading}
                   onClick={handleRemoveAvatar}
-                  className="text-xs font-semibold text-rose-400 hover:text-rose-300 transition-colors uppercase tracking-wider cursor-pointer"
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors uppercase tracking-wider cursor-pointer"
                 >
                   Remove
                 </button>
@@ -478,13 +483,13 @@ function compressAvatarImage(file: File): Promise<Blob> {
 
         {/* Error / Success Notifications */}
         {errorMsg && (
-          <div className="w-full mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs text-center">
+          <div className="w-full mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs text-center">
             {errorMsg}
           </div>
         )}
 
         {successMsg && (
-          <div className="w-full mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs text-center flex items-center justify-center gap-1.5">
+          <div className="w-full mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs text-center flex items-center justify-center gap-1.5">
             <CheckCircle2 className="w-4 h-4" />
             <span>{successMsg}</span>
           </div>
@@ -493,7 +498,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
         {/* User Info Form */}
         <form onSubmit={handleFormSubmit} className="w-full space-y-4">
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Display Name
             </label>
             <input
@@ -501,13 +506,13 @@ function compressAvatarImage(file: File): Promise<Blob> {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your Name"
-              className="w-full bg-[#10192D] border border-white/[0.12] focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none transition-all"
+              className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.12] focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 rounded-2xl px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition-all shadow-sm"
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Username (@handle)
             </label>
             <input
@@ -515,38 +520,83 @@ function compressAvatarImage(file: File): Promise<Blob> {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="username"
-              className="w-full bg-[#10192D] border border-white/[0.12] focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none transition-all"
+              className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.12] focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 rounded-2xl px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition-all shadow-sm"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Email Address
             </label>
             <input
               type="email"
               disabled
               value={session?.user?.email || ''}
-              className="w-full bg-[#10192D]/60 border border-white/[0.06] rounded-2xl px-4 py-3 text-sm text-slate-400 cursor-not-allowed"
+              className="w-full bg-slate-100 dark:bg-[#10192D]/60 border border-slate-200 dark:border-white/[0.06] rounded-2xl px-4 py-3 text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed"
             />
           </div>
 
+          {/* Theme / Appearance Selection */}
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              Appearance Theme
+            </label>
+            <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.08] rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setTheme('light')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 font-black'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sun className="w-3.5 h-3.5 text-amber-500" />
+                <span>Light</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('dark')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-slate-800 text-white shadow-sm border border-white/10 font-black'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Moon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Dark</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('system')}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  theme === 'system'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200/80 dark:border-white/10 font-black'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5 text-sky-500" />
+                <span>Auto</span>
+              </button>
+            </div>
+          </div>
+
           {/* OTP Setup Section */}
-          <div className="p-4 rounded-2xl bg-[#10192D] border border-white/[0.1] space-y-3 mt-5">
+          <div className="p-4 rounded-2xl bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.1] space-y-3 mt-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-white">Phone OTP Security</span>
+                <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-xs font-bold text-slate-900 dark:text-white">Phone OTP Security</span>
               </div>
               {otpStep === 'verified' && (
-                <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
                   Enabled
                 </span>
               )}
             </div>
 
             <div className="space-y-1">
-              <label className="block text-[10.5px] font-semibold text-slate-400 uppercase tracking-wider">
+              <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 Phone Number (for SMS OTP)
               </label>
               <div className="flex gap-2">
@@ -557,14 +607,14 @@ function compressAvatarImage(file: File): Promise<Blob> {
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     placeholder="+1 (555) 000-0000"
-                    className="w-full bg-[#0A101D] border border-white/[0.08] focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-[#0A101D] border border-slate-200 dark:border-white/[0.08] focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition-all"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={handleSendPhoneOtp}
                   disabled={isSendingOtp}
-                  className="px-4 py-2.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 text-amber-300 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                  className="px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-400/15 dark:hover:bg-amber-400/25 border border-amber-500/30 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
                 >
                   {isSendingOtp ? 'Sending...' : otpStep === 'code_sent' ? 'Resend OTP' : 'Verify Phone'}
                 </button>
@@ -573,7 +623,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
 
             {otpStep === 'code_sent' && (
               <div className="space-y-1 pt-1">
-                <label className="block text-[10.5px] font-semibold text-slate-400 uppercase tracking-wider">
+                <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                   Enter 6-Digit OTP Code
                 </label>
                 <div className="flex gap-2">
@@ -585,7 +635,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
                       placeholder="123456"
-                      className="w-full bg-[#0A101D] border border-white/[0.08] focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none transition-all font-mono tracking-widest"
+                      className="w-full bg-slate-50 dark:bg-[#0A101D] border border-slate-200 dark:border-white/[0.08] focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition-all font-mono tracking-widest"
                     />
                   </div>
                   <button
@@ -608,25 +658,25 @@ function compressAvatarImage(file: File): Promise<Blob> {
               <button
                 type="button"
                 onClick={onOpenNotificationPreferences}
-                className="w-full p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-amber-400/40 hover:bg-white/[0.06] transition-all flex items-center justify-between gap-3 text-left cursor-pointer group"
+                className="w-full p-3.5 rounded-2xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] hover:border-amber-500/40 dark:hover:border-amber-400/40 hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-all flex items-center justify-between gap-3 text-left cursor-pointer group shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/25 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                     <Bell className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-200 group-hover:text-white flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-slate-950 dark:group-hover:text-white flex items-center gap-1.5">
                       <span>Test & Simulate Notifications</span>
-                      <span className="bg-amber-400/20 text-amber-300 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">
+                      <span className="bg-amber-500/15 dark:bg-amber-400/20 text-amber-700 dark:text-amber-300 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">
                         TEST LAB
                       </span>
                     </span>
-                    <span className="text-[10.5px] text-slate-400 mt-0.5">
+                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5">
                       Simulate morning, streak, task, achievement & trash alerts
                     </span>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-400 transition-colors shrink-0" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors shrink-0" />
               </button>
             </div>
           )}
@@ -638,15 +688,15 @@ function compressAvatarImage(file: File): Promise<Blob> {
               disabled={isSaveDisabled}
               className={`w-full py-3.5 rounded-2xl font-extrabold text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-wider ${
                 isSaveDisabled
-                  ? 'bg-amber-400/20 text-amber-400/40 border border-amber-400/20 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 shadow-[0_0_24px_rgba(250,204,21,0.3)] hover:shadow-[0_0_32px_rgba(250,204,21,0.45)] cursor-pointer'
+                  ? 'bg-amber-400/20 text-amber-600/40 dark:text-amber-400/40 border border-amber-400/20 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 shadow-md dark:shadow-[0_0_24px_rgba(250,204,21,0.3)] hover:brightness-105 cursor-pointer'
               }`}
             >
               <Save className="w-4 h-4 stroke-[2.5]" />
               <span>{isSaving ? 'Saving Changes...' : 'Save Profile Changes'}</span>
             </button>
             {hasChanges && (
-              <p className="text-[11px] text-amber-400/80 text-center mt-2 font-medium">
+              <p className="text-[11px] text-amber-600 dark:text-amber-400/80 text-center mt-2 font-medium">
                 Unsaved changes detected. Click save to apply.
               </p>
             )}
@@ -656,16 +706,16 @@ function compressAvatarImage(file: File): Promise<Blob> {
 
       {/* Unsaved Changes Confirmation Dialog Modal */}
       {showUnsavedPrompt && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-sm rounded-3xl bg-[#0F172A] border border-amber-400/30 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(250,204,21,0.15)] flex flex-col items-center text-center">
-            <div className="w-12 h-12 rounded-2xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-300 mb-3.5">
+        <div className="fixed inset-0 z-[100] bg-slate-950/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-amber-400/30 p-6 shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(250,204,21,0.15)] flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-400/15 border border-amber-500/20 dark:border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 mb-3.5">
               <AlertTriangle className="w-6 h-6" />
             </div>
 
-            <h3 className="text-lg font-bold text-slate-100 tracking-tight">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               Unsaved Changes
             </h3>
-            <p className="text-xs text-slate-300 leading-relaxed mt-2 font-normal">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-2 font-normal">
               You have unsaved modifications to your profile. Would you like to save your changes or discard them?
             </p>
 
@@ -683,7 +733,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
               <button
                 type="button"
                 onClick={handleDiscardChanges}
-                className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/20 dark:border-rose-500/30 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Discard Changes</span>
@@ -692,7 +742,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
               <button
                 type="button"
                 onClick={() => setShowUnsavedPrompt(false)}
-                className="w-full py-2 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                className="w-full py-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Keep Editing
               </button>

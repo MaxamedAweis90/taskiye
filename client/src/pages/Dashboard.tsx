@@ -887,14 +887,14 @@ export const Dashboard: React.FC = () => {
       <div className="flex flex-wrap items-end justify-between gap-4 pt-1 w-full min-w-0">
         <div className="flex items-start sm:items-end justify-between gap-3 w-full sm:w-auto">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 block mb-1">
               Total Habit & Task Completion
             </span>
             <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
-              <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-white tracking-tight leading-none">
+              <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 dark:text-white tracking-tight leading-none">
                 {completionRate}%
               </h1>
-              <div className="inline-flex items-center gap-1 bg-[#092B21] border border-emerald-500/30 text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full">
+              <div className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-[#092B21] dark:border-emerald-500/30 dark:text-emerald-400 text-xs font-bold px-2.5 py-0.5 rounded-full">
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span>{completedCount} completed today</span>
               </div>
@@ -911,7 +911,7 @@ export const Dashboard: React.FC = () => {
               setIsQuickActionModalOpen(true);
               setTimeout(() => modalTitleInputRef.current?.focus(), 80);
             }}
-            className="flex lg:hidden items-center gap-1.5 bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-[0_0_15px_rgba(250,204,21,0.25)] active:scale-95 transition-all cursor-pointer shrink-0 select-none mt-1"
+            className="flex lg:hidden items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#FACC15] dark:hover:bg-[#EAB308] dark:text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-md dark:shadow-[0_0_15px_rgba(250,204,21,0.25)] active:scale-95 transition-all cursor-pointer shrink-0 select-none mt-1"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>Add Task</span>
@@ -919,9 +919,9 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Right Active Sprint Tag */}
-        <div className="text-xs sm:text-sm text-slate-400 font-medium">
+        <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
           Daily Cadence:{' '}
-          <span className="text-amber-400 font-bold">{pendingTasksCount === 0 && totalItemsCount > 0 ? 'All Done' : `${pendingTasksCount} remaining`}</span>
+          <span className="text-amber-600 dark:text-amber-400 font-bold">{pendingTasksCount === 0 && totalItemsCount > 0 ? 'All Done' : `${pendingTasksCount} remaining`}</span>
         </div>
       </div>
 
@@ -942,17 +942,17 @@ export const Dashboard: React.FC = () => {
           {/* 3 Stat Cards Row - 1 line on mobile (grid-cols-3), 3-col on desktop */}
           <div className="order-1 grid grid-cols-3 gap-1.5 xs:gap-2 sm:gap-4 w-full min-w-0">
             {/* Card 1: Today's Completion Rate */}
-            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden">
+            <div className="bg-white dark:bg-[#162032] border border-slate-200/80 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden shadow-sm dark:shadow-none">
               {/* Mobile View (< sm) */}
               <div className="flex sm:hidden flex-col items-center text-center gap-0.5">
                 <div className="flex items-center justify-center gap-1">
-                  <Clock className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-amber-400 shrink-0" />
-                  <span className="text-[9.5px] font-bold text-amber-300 uppercase tracking-wider">Today</span>
+                  <Clock className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Today</span>
                 </div>
-                <div className="text-base xs:text-lg font-black text-white tracking-tight leading-none mt-0.5">
+                <div className="text-base xs:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none mt-0.5">
                   {completionRate}%
                 </div>
-                <span className="text-[9.5px] text-slate-400 font-medium truncate w-full">
+                <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium truncate w-full">
                   {completedCount}/{totalItemsCount} Done
                 </span>
               </div>
@@ -960,28 +960,28 @@ export const Dashboard: React.FC = () => {
               {/* Desktop / Tablet View (sm:) */}
               <div className="hidden sm:flex sm:flex-col justify-between h-full">
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/20 dark:text-amber-400 flex items-center justify-center">
                     <Clock className="w-4 h-4 stroke-[2.2]" />
                   </div>
-                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/15 dark:border-amber-400/30 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Today
                   </span>
                 </div>
 
                 <div className="mt-3">
-                  <span className="text-xs text-slate-400 font-medium block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
                     Today's Completion
                   </span>
-                  <div className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-0.5">
+                  <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-0.5">
                     {completionRate}%
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs mt-3 pt-2.5 border-t border-white/[0.04]">
-                  <span className="text-slate-400 font-medium">
+                <div className="flex items-center justify-between text-xs mt-3 pt-2.5 border-t border-slate-100 dark:border-white/[0.04]">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">
                     {completedCount} of {totalItemsCount} items
                   </span>
-                  <span className="text-emerald-400 font-bold">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                     {totalItemsCount > 0 && completedCount === totalItemsCount ? 'Complete' : `${totalItemsCount - completedCount} left`}
                   </span>
                 </div>
@@ -989,17 +989,17 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* Card 2: Daily Habits */}
-            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden">
+            <div className="bg-white dark:bg-[#162032] border border-slate-200/80 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden shadow-sm dark:shadow-none">
               {/* Mobile View (< sm) */}
               <div className="flex sm:hidden flex-col items-center text-center gap-0.5">
                 <div className="flex items-center justify-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-[9.5px] font-bold text-emerald-300 uppercase tracking-wider">Routines</span>
+                  <CheckCircle2 className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[9.5px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">Routines</span>
                 </div>
-                <div className="text-base xs:text-lg font-black text-white tracking-tight leading-none mt-0.5">
+                <div className="text-base xs:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none mt-0.5">
                   {habitsDoneCount}/{habitsTodayTotalCount}
                 </div>
-                <span className="text-[9.5px] text-slate-400 font-medium truncate w-full">
+                <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium truncate w-full">
                   {habitsTodayTotalCount > 0 ? `${Math.round((habitsDoneCount / habitsTodayTotalCount) * 100)}% Done` : '0 Routines'}
                 </span>
               </div>
@@ -1007,36 +1007,36 @@ export const Dashboard: React.FC = () => {
               {/* Desktop / Tablet View (sm:) */}
               <div className="hidden sm:flex sm:flex-col justify-between h-full">
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 dark:bg-emerald-400/10 dark:border-emerald-400/20 dark:text-emerald-400 flex items-center justify-center">
                     <CheckCircle2 className="w-4 h-4 stroke-[2.2]" />
                   </div>
-                  <span className="bg-emerald-400/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-400/15 dark:border-emerald-400/30 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Routines
                   </span>
                 </div>
 
                 <div className="mt-3">
-                  <span className="text-xs text-slate-400 font-medium block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
                     Daily Habits
                   </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                       {habitsDoneCount}
                     </span>
-                    <span className="text-slate-400 font-semibold text-base">
+                    <span className="text-slate-500 dark:text-slate-400 font-semibold text-base">
                       / {habitsTodayTotalCount} Done
                     </span>
                   </div>
                 </div>
 
                 <div className="mt-3">
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-emerald-400 rounded-full transition-all duration-300"
+                      className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-300"
                       style={{ width: `${habitsTodayTotalCount > 0 ? Math.round((habitsDoneCount / habitsTodayTotalCount) * 100) : 0}%` }}
                     />
                   </div>
-                  <span className="text-xs text-slate-400 mt-2 block font-medium">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 mt-2 block font-medium">
                     {habitsTodayTotalCount > 0 ? `${Math.round((habitsDoneCount / habitsTodayTotalCount) * 100)}% consistency rate today` : 'No routines scheduled'}
                   </span>
                 </div>
@@ -1044,17 +1044,17 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* Card 3: Tasks Left */}
-            <div className="bg-[#162032] border border-white/[0.06] hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden">
+            <div className="bg-white dark:bg-[#162032] border border-slate-200/80 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.1] rounded-xl sm:rounded-2xl p-2 sm:p-5 flex flex-col justify-between transition-all min-w-0 w-full overflow-hidden shadow-sm dark:shadow-none">
               {/* Mobile View (< sm) */}
               <div className="flex sm:hidden flex-col items-center text-center gap-0.5">
                 <div className="flex items-center justify-center gap-1">
-                  <AlertCircle className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-amber-400 shrink-0" />
-                  <span className="text-[9.5px] font-bold text-amber-300 uppercase tracking-wider">Pending</span>
+                  <AlertCircle className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Pending</span>
                 </div>
-                <div className="text-base xs:text-lg font-black text-amber-400 tracking-tight leading-none mt-0.5">
+                <div className="text-base xs:text-lg font-black text-amber-600 dark:text-amber-400 tracking-tight leading-none mt-0.5">
                   {pendingTasksCount}
                 </div>
-                <span className="text-[9.5px] text-slate-400 font-medium truncate w-full">
+                <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium truncate w-full">
                   {highPriorityPendingCount > 0 ? `${highPriorityPendingCount} High` : `${pendingTasksCount} Left`}
                 </span>
               </div>
@@ -1062,38 +1062,38 @@ export const Dashboard: React.FC = () => {
               {/* Desktop / Tablet View (sm:) */}
               <div className="hidden sm:flex sm:flex-col justify-between h-full">
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/20 dark:text-amber-400 flex items-center justify-center">
                     <AlertCircle className="w-4 h-4 stroke-[2.2]" />
                   </div>
-                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/15 dark:border-amber-400/30 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Pending
                   </span>
                 </div>
 
                 <div className="mt-3">
-                  <span className="text-xs text-slate-400 font-medium block">Tasks Left</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">Tasks Left</span>
                   <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                       {pendingTasksCount}
                     </span>
-                    <span className="text-amber-400 font-bold text-base sm:text-lg">
+                    <span className="text-amber-600 dark:text-amber-400 font-bold text-base sm:text-lg">
                       Pending
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-white/[0.04]">
+                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-white/[0.04]">
                   <div className="flex items-center gap-3 text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-300 font-medium">
+                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                       <span>{highPriorityPendingCount} High Priority</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
+                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" />
                       <span>{normalPriorityPendingCount} Normal</span>
                     </div>
                   </div>
-                  <span className="text-[11px] text-slate-500 mt-1 block">
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 block">
                     {pendingTasksCount === 0 ? 'All caught up!' : `${pendingTasksCount} item${pendingTasksCount === 1 ? '' : 's'} remaining`}
                   </span>
                 </div>
@@ -1116,19 +1116,19 @@ export const Dashboard: React.FC = () => {
         {/* Right Column (4 cols on Desktop, Order 4 on Mobile): Quick Action at top + Active Goals */}
         <div className="order-4 lg:order-2 lg:col-span-4 flex flex-col gap-6 w-full min-w-0">
           {/* Widget 1: QUICK ACTION (Visible on desktop, hidden on mobile) */}
-          <div className="hidden lg:block bg-[#162032] border border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-white/[0.1]">
+          <div className="hidden lg:block bg-white dark:bg-[#162032] border border-slate-200/80 dark:border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-slate-300 dark:hover:border-white/[0.1] shadow-sm dark:shadow-none">
             {/* Header with Task Indicator or Editing Indicator */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-100 uppercase">
+                <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-900 dark:text-slate-100 uppercase">
                   {editingTask ? 'Edit Task' : 'Quick Action'}
                 </h3>
                 {editingTask ? (
-                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/15 dark:border-amber-400/30 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
                     Editing
                   </span>
                 ) : (
-                  <span className="bg-amber-400/10 border border-amber-400/25 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase">
+                  <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/10 dark:border-amber-400/25 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase">
                     Task
                   </span>
                 )}
@@ -1138,7 +1138,7 @@ export const Dashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleCancelEdit}
-                  className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors cursor-pointer underline"
+                  className="text-xs text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-300 font-medium transition-colors cursor-pointer underline"
                 >
                   Cancel
                 </button>
@@ -1148,7 +1148,7 @@ export const Dashboard: React.FC = () => {
             {/* Quick Form */}
             <form onSubmit={handleAddItem} className="flex flex-col gap-3">
               <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                <label className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
                   Title
                 </label>
                 <input
@@ -1157,25 +1157,25 @@ export const Dashboard: React.FC = () => {
                   value={itemTitle}
                   onChange={(e) => setItemTitle(e.target.value)}
                   placeholder="e.g. Review Q3 Roadmap"
-                  className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40 transition-all"
+                  className="w-full bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500/40 dark:focus:ring-amber-400/40 transition-all"
                 />
               </div>
 
               {/* 2-Column Selects: Category & Priority */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
                     Category
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
+                    className="w-full bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                   >
                     {APP_CATEGORIES.map((cat) => {
                       const style = getCategoryBadgeStyle(cat);
                       return (
-                        <option key={cat} value={cat}>
+                        <option key={cat} value={cat} className="bg-white dark:bg-[#101827] text-slate-800 dark:text-slate-200">
                           {style.icon} {cat}
                         </option>
                       );
@@ -1184,16 +1184,16 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
                     Priority
                   </label>
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as 'normal' | 'high')}
-                    className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
+                    className="w-full bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                   >
-                    <option value="normal">Normal</option>
-                    <option value="high">High Priority</option>
+                    <option value="normal" className="bg-white dark:bg-[#101827] text-slate-800 dark:text-slate-200">Normal</option>
+                    <option value="high" className="bg-white dark:bg-[#101827] text-slate-800 dark:text-slate-200">High Priority</option>
                   </select>
                 </div>
               </div>
@@ -1201,7 +1201,7 @@ export const Dashboard: React.FC = () => {
               {/* Submit CTA Button */}
               <button
                 type="submit"
-                className="w-full bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-sm py-3 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#FACC15] dark:hover:bg-[#EAB308] dark:text-slate-950 font-extrabold text-sm py-3 rounded-xl shadow-md dark:shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-lg dark:hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-2 cursor-pointer"
               >
                 {editingTask ? (
                   <>
@@ -1219,20 +1219,20 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Widget 2: ACTIVE ROUTINES & GOALS */}
-          <div className="bg-[#162032] border border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-white/[0.1]">
+          <div className="bg-white dark:bg-[#162032] border border-slate-200/80 dark:border-white/[0.06] rounded-2xl p-4 sm:p-6 transition-all hover:border-slate-300 dark:hover:border-white/[0.1] shadow-sm dark:shadow-none">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-100 uppercase">
+                <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-900 dark:text-slate-100 uppercase">
                   Active Routines
                 </h3>
-                <span className="text-xs text-slate-400 font-medium">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                   {habitsList.filter((h) => !h.isArchived).length} {habitsList.filter((h) => !h.isArchived).length === 1 ? 'Target' : 'Targets'}
                 </span>
               </div>
 
               <Link
                 to="/habits"
-                className="text-amber-400 hover:text-amber-300 text-xs font-bold transition-colors cursor-pointer"
+                className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 text-xs font-bold transition-colors cursor-pointer"
               >
                 Manage
               </Link>
@@ -1241,17 +1241,17 @@ export const Dashboard: React.FC = () => {
             {/* List of Active Habits / Goals */}
             <div className="relative">
               {habitsList.filter((h) => !h.isArchived).length === 0 ? (
-                <div className="py-7 px-3 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
-                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                <div className="py-7 px-3 text-center flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-400/10 dark:border-amber-400/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-bold text-white">No active targets</span>
-                  <span className="text-[11px] text-slate-400 max-w-[200px]">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">No active targets</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 max-w-[200px]">
                     Add recurring habits or routines to track your consistency
                   </span>
                   <Link
                     to="/habits"
-                    className="text-xs text-amber-400 hover:text-amber-300 font-bold underline mt-1"
+                    className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline mt-1"
                   >
                     + Create Routine
                   </Link>
@@ -1281,30 +1281,30 @@ export const Dashboard: React.FC = () => {
                         return (
                           <div
                             key={habitId}
-                            className="bg-[#111A2E] border border-white/[0.05] rounded-xl p-3.5 flex flex-col gap-2 shrink-0"
+                            className="bg-slate-50 dark:bg-[#111A2E] border border-slate-200/80 dark:border-white/[0.05] rounded-xl p-3.5 flex flex-col gap-2 shrink-0"
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-lg bg-amber-950/60 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
                                   <Sparkles className="w-3.5 h-3.5" />
                                 </div>
-                                <span className="text-sm font-semibold text-slate-100 truncate max-w-[170px]">
+                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[170px]">
                                   {habit.title}
                                 </span>
                               </div>
-                              <span className="text-xs font-bold text-amber-400">
+                              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
                                 {streak > 0 ? `${streak}d streak` : isDoneToday ? 'Done' : 'Pending'}
                               </span>
                             </div>
 
-                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-[#FACC15] rounded-full transition-all duration-300"
+                                className="h-full bg-amber-500 dark:bg-[#FACC15] rounded-full transition-all duration-300"
                                 style={{ width: `${isDoneToday ? 100 : progressPercent}%` }}
                               />
                             </div>
 
-                            <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
+                            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-0.5">
                               <span>{habit.category || 'Routine'}</span>
                               <span>{isDoneToday ? 'Done today' : 'Scheduled today'}</span>
                             </div>
@@ -1315,8 +1315,8 @@ export const Dashboard: React.FC = () => {
 
                   {/* Bottom Fade Mask with Scroll Indicator */}
                   {habitsList.filter((h) => !h.isArchived).length > 2 && (
-                    <div className="pointer-events-none absolute -bottom-1 left-0 right-0 h-10 bg-gradient-to-t from-[#162032] via-[#162032]/85 to-transparent flex items-end justify-center pb-0.5">
-                      <div className="flex items-center gap-1 text-[10px] text-amber-400/90 font-bold tracking-wide">
+                    <div className="pointer-events-none absolute -bottom-1 left-0 right-0 h-10 bg-gradient-to-t from-white via-white/85 dark:from-[#162032] dark:via-[#162032]/85 to-transparent flex items-end justify-center pb-0.5">
+                      <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400/90 font-bold tracking-wide">
                         <ChevronDown className="w-3 h-3 animate-bounce" />
                         <span>Scroll for more</span>
                       </div>
@@ -1327,9 +1327,9 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* Quarterly Pace Footer */}
-            <div className="flex items-center justify-between text-xs border-t border-white/[0.04] mt-4 pt-3">
-              <span className="text-slate-400 font-medium">Daily cadence:</span>
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
+            <div className="flex items-center justify-between text-xs border-t border-slate-100 dark:border-white/[0.04] mt-4 pt-3">
+              <span className="text-slate-500 dark:text-slate-400 font-medium">Daily cadence:</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                 <span>{habitsTodayTotalCount > 0 ? `${habitsDoneCount}/${habitsTodayTotalCount} Routines` : '0/0 Routines'}</span>
               </span>
             </div>
@@ -1358,7 +1358,7 @@ export const Dashboard: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 lg:hidden">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-black/60 dark:bg-black/70 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
             onClick={() => {
               setIsQuickActionModalOpen(false);
               if (editingTask) handleCancelEdit();
@@ -1366,22 +1366,22 @@ export const Dashboard: React.FC = () => {
           />
 
           {/* Modal Content Box */}
-          <div className="relative bg-[#162032] border border-white/10 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl w-full sm:max-w-md z-10 animate-in slide-in-from-bottom-6 duration-200">
+          <div className="relative bg-white dark:bg-[#162032] border border-slate-200 dark:border-white/10 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl w-full sm:max-w-md z-10 animate-in slide-in-from-bottom-6 duration-200">
             {/* Mobile Sheet Handle */}
-            <div className="w-10 h-1 bg-slate-700/80 rounded-full mx-auto mb-4 sm:hidden" />
+            <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700/80 rounded-full mx-auto mb-4 sm:hidden" />
 
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold tracking-wider text-slate-100 uppercase">
+                <h3 className="text-sm sm:text-base font-bold tracking-wider text-slate-900 dark:text-slate-100 uppercase">
                   {editingTask ? 'Edit Task' : 'Quick Action'}
                 </h3>
                 {editingTask ? (
-                  <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/15 dark:border-amber-400/30 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
                     Editing
                   </span>
                 ) : (
-                  <span className="bg-amber-400/10 border border-amber-400/25 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase">
+                  <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/10 dark:border-amber-400/25 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase">
                     Task
                   </span>
                 )}
@@ -1392,7 +1392,7 @@ export const Dashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors cursor-pointer underline mr-1"
+                    className="text-xs text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-300 font-medium transition-colors cursor-pointer underline mr-1"
                   >
                     Cancel
                   </button>
@@ -1403,7 +1403,7 @@ export const Dashboard: React.FC = () => {
                     setIsQuickActionModalOpen(false);
                     if (editingTask) handleCancelEdit();
                   }}
-                  className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
                   aria-label="Close modal"
                 >
                   <X className="w-4 h-4" />
@@ -1414,7 +1414,7 @@ export const Dashboard: React.FC = () => {
             {/* Quick Action Form (Exact replica of desktop widget) */}
             <form onSubmit={handleAddItem} className="flex flex-col gap-3.5">
               <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                <label className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
                   Title
                 </label>
                 <input
@@ -1423,7 +1423,7 @@ export const Dashboard: React.FC = () => {
                   value={itemTitle}
                   onChange={(e) => setItemTitle(e.target.value)}
                   placeholder="e.g. Review Q3 Roadmap"
-                  className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40 transition-all"
+                  className="w-full bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500/40 dark:focus:ring-amber-400/40 transition-all"
                   autoFocus
                 />
               </div>
@@ -1431,18 +1431,18 @@ export const Dashboard: React.FC = () => {
               {/* 2-Column Selects: Category & Priority */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
                     Category
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
+                    className="w-full bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                   >
                     {APP_CATEGORIES.map((cat) => {
                       const style = getCategoryBadgeStyle(cat);
                       return (
-                        <option key={cat} value={cat}>
+                        <option key={cat} value={cat} className="bg-white dark:bg-[#101827] text-slate-800 dark:text-slate-200">
                           {style.icon} {cat}
                         </option>
                       );
@@ -1451,16 +1451,16 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase block mb-1.5">
                     Priority
                   </label>
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as 'normal' | 'high')}
-                    className="w-full bg-[#101827] border border-white/10 hover:border-white/20 focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none cursor-pointer"
+                    className="w-full bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-2.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                   >
-                    <option value="normal">Normal</option>
-                    <option value="high">High Priority</option>
+                    <option value="normal" className="bg-white dark:bg-[#101827] text-slate-800 dark:text-slate-200">Normal</option>
+                    <option value="high" className="bg-white dark:bg-[#101827] text-slate-800 dark:text-slate-200">High Priority</option>
                   </select>
                 </div>
               </div>
@@ -1468,7 +1468,7 @@ export const Dashboard: React.FC = () => {
               {/* Submit CTA Button */}
               <button
                 type="submit"
-                className="w-full bg-[#FACC15] hover:bg-[#EAB308] text-slate-950 font-extrabold text-sm py-3 rounded-xl shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white dark:bg-[#FACC15] dark:hover:bg-[#EAB308] dark:text-slate-950 font-extrabold text-sm py-3 rounded-xl shadow-md dark:shadow-[0_0_20px_rgba(250,204,21,0.25)] hover:shadow-lg dark:hover:shadow-[0_0_25px_rgba(250,204,21,0.4)] transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-2 cursor-pointer"
               >
                 {editingTask ? (
                   <>

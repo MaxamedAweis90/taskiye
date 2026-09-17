@@ -334,9 +334,9 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
         onDragEnd={handleDragEnd}
         className={`group rounded-2xl transition-all duration-300 relative overflow-hidden flex flex-col w-full min-w-0 ${
           isDragging
-            ? 'opacity-40 scale-[0.98] border-dashed border-amber-400/80 bg-[#162238]'
+            ? 'opacity-40 scale-[0.98] border-dashed border-amber-500 dark:border-amber-400/80 bg-amber-50/50 dark:bg-[#162238]'
             : isDragOver
-            ? 'border-2 border-amber-400 bg-amber-400/10 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+            ? 'border-2 border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-400/10 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
             : isSwipingOut
             ? 'animate-task-swipe-left z-20'
             : isCompleted
@@ -344,39 +344,39 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             : ''
         } ${
           isCreating
-            ? 'bg-[#111A2E] border border-amber-400/80 shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
+            ? 'bg-amber-50/80 dark:bg-[#111A2E] border border-amber-400 dark:border-amber-400/80 shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
             : isUpdating
             ? 'blur-[2px] opacity-40 scale-[0.99] border border-amber-400/40 pointer-events-none'
             : isHighlighted
-            ? 'bg-[#111A2E] border border-amber-400/50 shadow-[0_0_14px_rgba(250,204,21,0.15)]'
+            ? 'bg-amber-50/60 dark:bg-[#111A2E] border border-amber-400/50 shadow-[0_0_14px_rgba(250,204,21,0.15)]'
             : isHabit
-            ? 'bg-[#121a30] hover:bg-[#16223e] border border-violet-500/25 hover:border-violet-500/40 shadow-[0_2px_12px_rgba(139,92,246,0.06)]'
-            : 'bg-[#111A2E] hover:bg-[#15223C] border border-white/[0.06] hover:border-white/[0.12]'
+            ? 'bg-purple-50/30 hover:bg-purple-50/60 dark:bg-[#121a30] dark:hover:bg-[#16223e] border border-violet-200/80 hover:border-violet-300 dark:border-violet-500/25 dark:hover:border-violet-500/40 shadow-sm dark:shadow-[0_2px_12px_rgba(139,92,246,0.06)]'
+            : 'bg-white hover:bg-slate-50/80 dark:bg-[#111A2E] dark:hover:bg-[#15223C] border border-slate-200/90 hover:border-slate-300 dark:border-white/[0.06] dark:hover:border-white/[0.12] shadow-sm dark:shadow-none'
         }`}
       >
         {/* Left Accent Indicator Bar */}
         <div
           className={`absolute left-0 top-0 bottom-0 rounded-l-2xl transition-all duration-300 ${
             isHabit
-              ? 'w-1 bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]'
+              ? 'w-1 bg-violet-500 dark:bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.5)]'
               : item.priority === 'high'
               ? 'w-1 bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
               : isCreating
-              ? 'w-1.5 bg-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.7)]'
+              ? 'w-1.5 bg-amber-500 dark:bg-amber-400 shadow-[0_0_12px_rgba(250,204,21,0.7)]'
               : isHighlighted
-              ? 'w-1.5 bg-amber-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
-              : 'w-1 bg-amber-400/80'
+              ? 'w-1.5 bg-amber-500 dark:bg-amber-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
+              : 'w-1 bg-amber-500 dark:bg-amber-400/80'
           }`}
         />
 
         {/* Creation luminous gradient tint overlay */}
         {isCreating && (
-          <div className="absolute inset-0 bg-gradient-to-r from-amber-400/[0.07] via-amber-400/[0.02] to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-400/[0.12] via-amber-400/[0.04] to-transparent pointer-events-none" />
         )}
         {/* Loading overlay when updating */}
         {isUpdating && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-[1px] rounded-2xl z-10 pointer-events-none">
-            <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/10 dark:bg-slate-950/20 backdrop-blur-[1px] rounded-2xl z-10 pointer-events-none">
+            <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-500 dark:border-amber-400/30 dark:border-t-amber-400 rounded-full animate-spin" />
           </div>
         )}
 
@@ -388,7 +388,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
           {/* Left: Drag Handle, Checkbox, Type Badge & Title */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <div
-              className="hidden sm:block text-slate-600 group-hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors shrink-0 p-1 -ml-1 rounded hover:bg-white/[0.04]"
+              className="hidden sm:block text-slate-400 hover:text-amber-600 dark:text-slate-600 dark:group-hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors shrink-0 p-1 -ml-1 rounded hover:bg-slate-100 dark:hover:bg-white/[0.04]"
               title="Drag to reorder"
               onClick={(e) => e.stopPropagation()}
             >
@@ -398,8 +398,8 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             {/* Distinct Checkbox: Circular for Habits, Squircle for Tasks */}
             <div onClick={(e) => e.stopPropagation()} className="shrink-0">
               {isCreating ? (
-                <div className="w-6 h-6 rounded-lg border border-amber-400/60 bg-amber-400/20 flex items-center justify-center shrink-0">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <div className="w-6 h-6 rounded-lg border border-amber-500/60 bg-amber-500/20 dark:border-amber-400/60 dark:bg-amber-400/20 flex items-center justify-center shrink-0">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-ping" />
                 </div>
               ) : isHabit ? (
                 <button
@@ -409,7 +409,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                   className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all duration-100 cursor-pointer ${
                     isCompleted
                       ? 'bg-gradient-to-tr from-violet-500 to-indigo-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.5)] scale-100'
-                      : 'border-2 border-violet-400/50 hover:border-violet-400 bg-violet-500/5 hover:bg-violet-500/15'
+                      : 'border-2 border-violet-400/60 hover:border-violet-500 bg-violet-50/50 hover:bg-violet-100/50 dark:border-violet-400/50 dark:hover:border-violet-400 dark:bg-violet-500/5 dark:hover:bg-violet-500/15'
                   }`}
                 >
                   {isCompleted && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -421,10 +421,10 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                   title={isCompleted ? 'Mark task as incomplete' : 'Mark task as complete'}
                   className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all duration-75 cursor-pointer ${
                     isCompleted
-                      ? 'bg-[#FACC15] text-slate-950 shadow-[0_0_14px_rgba(250,204,21,0.45)]'
+                      ? 'bg-amber-500 text-white dark:bg-[#FACC15] dark:text-slate-950 shadow-sm dark:shadow-[0_0_14px_rgba(250,204,21,0.45)]'
                       : item.priority === 'high'
-                      ? 'border border-amber-400/50 hover:border-amber-400 bg-transparent'
-                      : 'border border-slate-600 hover:border-amber-400/70 bg-transparent'
+                      ? 'border border-amber-500/60 hover:border-amber-500 bg-transparent'
+                      : 'border border-slate-300 hover:border-amber-500 dark:border-slate-600 dark:hover:border-amber-400/70 bg-transparent'
                   }`}
                 >
                   {isCompleted && <Check className="w-4 h-4 stroke-[3]" />}
@@ -435,14 +435,14 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             {/* Type Badge: Habit vs Task */}
             {isHabit ? (
               <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 border border-violet-500/30 text-violet-300 shadow-[0_0_8px_rgba(167,139,250,0.12)]">
-                  <Sparkles className="w-2.5 h-2.5 text-violet-400" />
+                <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-violet-50 border border-violet-200 text-violet-700 dark:bg-violet-500/15 dark:border-violet-500/30 dark:text-violet-300 shadow-sm dark:shadow-[0_0_8px_rgba(167,139,250,0.12)]">
+                  <Sparkles className="w-2.5 h-2.5 text-violet-500 dark:text-violet-400" />
                   Habit
                 </span>
 
                 {item.isStreakFrozen ? (
                   <span
-                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-1.5 sm:px-2 py-0.5 rounded-full"
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 dark:text-cyan-300 dark:bg-cyan-500/15 dark:border-cyan-500/30 px-1.5 sm:px-2 py-0.5 rounded-full"
                     title="Streak Frozen (Vacation Mode)"
                   >
                     <span>❄️</span>
@@ -450,7 +450,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                   </span>
                 ) : typeof item.streakDays === 'number' && (
                   <span
-                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 sm:px-2 py-0.5 rounded-full"
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 dark:text-amber-300 dark:bg-amber-500/10 dark:border-amber-500/20 px-1.5 sm:px-2 py-0.5 rounded-full"
                     title={`Active Streak: ${item.streakDays} days`}
                   >
                     <span>🔥</span>
@@ -460,7 +460,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
                 {!isCompleted && item.warnings === 1 && (
                   <span
-                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-300 dark:text-amber-300 dark:bg-amber-500/15 dark:border-amber-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
                     title="Missed 1 day! Streak is frozen. Complete today to clear warning."
                   >
                     <span>⚠️</span>
@@ -470,7 +470,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
                 {!isCompleted && item.warnings === 2 && (
                   <span
-                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-300 bg-rose-500/20 border border-rose-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
+                    className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-300 dark:text-rose-300 dark:bg-rose-500/20 dark:border-rose-500/40 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse"
                     title="Missed 2 days! Final notice before streak resets to 0. Complete today to save streak!"
                   >
                     <span>🚨</span>
@@ -479,7 +479,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                 )}
               </div>
             ) : (
-              <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/25 text-amber-300 shrink-0">
+              <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-500/10 dark:border-amber-500/25 dark:text-amber-300 shrink-0">
                 Task
               </span>
             )}
@@ -492,23 +492,23 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                 onFinish={() => onCreationAnimationComplete?.(item.id)}
                 className={`text-sm select-none transition-colors duration-75 truncate ${
                   isCompleted
-                    ? 'line-through text-slate-400 font-normal'
+                    ? 'line-through text-slate-400 dark:text-slate-500 font-normal'
                     : isCreating
-                    ? 'text-amber-200 font-bold'
+                    ? 'text-amber-600 dark:text-amber-200 font-bold'
                     : isHabit
-                    ? 'text-slate-100 font-semibold'
-                    : 'text-slate-100 font-medium'
+                    ? 'text-slate-900 dark:text-slate-100 font-semibold'
+                    : 'text-slate-900 dark:text-slate-100 font-medium'
                 }`}
               />
 
               {isCreating && (
-                <span className="bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse shrink-0">
+                <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/20 dark:border-amber-400/40 dark:text-amber-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse shrink-0">
                   Writing...
                 </span>
               )}
 
               {item.priority === 'high' && !isCompleted && !isCreating && (
-                <span className="bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0">
+                <span className="bg-rose-50 border border-rose-200 text-rose-700 dark:bg-rose-500/20 dark:border-rose-500/40 dark:text-rose-300 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0">
                   HIGH
                 </span>
               )}
@@ -526,25 +526,25 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             </span>
 
             {item.timeTag && (
-              <span className="text-xs text-slate-400 font-medium min-w-[55px] text-right hidden sm:inline-block">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium min-w-[55px] text-right hidden sm:inline-block">
                 {item.timeTag}
               </span>
             )}
 
             {/* Desktop Actions: Habit retains Habit Manager link; Tasks have Edit and Delete buttons */}
             {isHabit ? (
-              <div className="hidden sm:flex items-center border-l border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
+              <div className="hidden sm:flex items-center border-l border-slate-200 dark:border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
                 <Link
                   to="/habits"
                   title="Habits are managed in the Habit Manager. Click to view or edit in Habit Manager."
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-violet-300 hover:bg-violet-500/10 border border-white/[0.05] hover:border-violet-500/30 transition-all cursor-pointer group/habit"
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-slate-500 hover:text-violet-600 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 dark:text-slate-400 dark:hover:text-violet-300 dark:hover:bg-violet-500/10 dark:border-white/[0.05] dark:hover:border-violet-500/30 transition-all cursor-pointer group/habit"
                 >
-                  <Repeat className="w-3.5 h-3.5 text-violet-400 group-hover/habit:rotate-180 transition-transform duration-300" />
+                  <Repeat className="w-3.5 h-3.5 text-violet-500 dark:text-violet-400 group-hover/habit:rotate-180 transition-transform duration-300" />
                   <span className="hidden md:inline">Habits</span>
                 </Link>
               </div>
             ) : (
-              <div className="hidden sm:flex items-center gap-1 border-l border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
+              <div className="hidden sm:flex items-center gap-1 border-l border-slate-200 dark:border-white/[0.08] pl-1.5 sm:pl-2" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -553,7 +553,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                   }}
                   title="Edit task"
                   aria-label={`Edit ${item.title}`}
-                  className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-all active:scale-95 cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:text-amber-400 dark:hover:bg-amber-400/10 transition-all active:scale-95 cursor-pointer"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -566,7 +566,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                   }}
                   title="Remove task"
                   aria-label={`Remove ${item.title}`}
-                  className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 transition-all active:scale-95 cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:text-rose-400 dark:hover:bg-rose-400/10 transition-all active:scale-95 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -574,10 +574,10 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             )}
 
             {/* Expand/Collapse Chevron Indicator - Always visible on task/habit for both mobile and desktop */}
-            <div className="p-1 text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+            <div className="p-1 text-slate-400 hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors shrink-0">
               <ChevronDown
                 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 ${
-                  isExpanded ? 'rotate-180 text-amber-400' : ''
+                  isExpanded ? 'rotate-180 text-amber-600 dark:text-amber-400' : ''
                 }`}
               />
             </div>
@@ -586,12 +586,12 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
         {/* Expandable Content Drawer (revealed on tap/click) */}
         {isExpanded && (
-          <div className="px-3.5 sm:px-5 pb-3.5 pt-2 border-t border-white/[0.06] bg-[#0A1124]/75 flex flex-col gap-2.5 animate-in slide-in-from-top-2 duration-150">
+          <div className="px-3.5 sm:px-5 pb-3.5 pt-2 border-t border-slate-200 dark:border-white/[0.06] bg-slate-50/80 dark:bg-[#0A1124]/75 flex flex-col gap-2.5 animate-in slide-in-from-top-2 duration-150">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {isHabit ? 'Routine & Commitment:' : 'Full Task Content:'}
               </span>
-              <p className="text-sm font-semibold text-white whitespace-normal leading-relaxed break-words select-text">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-normal leading-relaxed break-words select-text">
                 {item.title}
               </p>
             </div>
@@ -602,27 +602,27 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                 {getCategoryBadgeStyle(item.category).icon} {normalizeCategory(item.category)}
               </span>
               {item.priority === 'high' && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/30">
                   🚨 High Priority
                 </span>
               )}
               {item.timeTag && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-1">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-white/10 flex items-center gap-1">
                   <Clock className="w-3 h-3" />
                   <span>{item.timeTag}</span>
                 </span>
               )}
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-400/15 text-amber-300 border border-amber-400/30'}`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isCompleted ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30' : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/30'}`}>
                 {isCompleted ? '✓ Completed Today' : '⏳ Pending Today'}
               </span>
             </div>
 
             {/* Drawer Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/80 dark:border-white/[0.04]">
               {isHabit ? (
                 <Link
                   to="/habits"
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-violet-300 bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 dark:text-violet-300 dark:bg-violet-500/15 dark:hover:bg-violet-500/25 dark:border-violet-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Repeat className="w-3.5 h-3.5" />
                   <span>Manage in Habit Library</span>
@@ -635,7 +635,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                       e.stopPropagation();
                       onEdit?.(item);
                     }}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 dark:text-amber-300 dark:bg-amber-400/10 dark:hover:bg-amber-400/20 dark:border-amber-400/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                     <span>Edit Task</span>
@@ -646,7 +646,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                       e.stopPropagation();
                       setItemToDelete(item);
                     }}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 dark:text-rose-300 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Move to Trash</span>
@@ -663,15 +663,15 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
   return (
     <div
       id="today-checklist-container"
-      className="bg-[#162032] border border-white/[0.06] rounded-2xl p-3 sm:p-6 transition-all hover:border-white/[0.1] w-full max-w-full min-w-0 overflow-hidden"
+      className="bg-white dark:bg-[#162032] border border-slate-200/80 dark:border-white/[0.06] rounded-2xl p-3 sm:p-6 transition-all hover:border-slate-300 dark:hover:border-white/[0.1] shadow-sm dark:shadow-none w-full max-w-full min-w-0 overflow-hidden"
     >
       {/* Header Row */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-100 uppercase">
+          <h3 className="text-xs sm:text-sm font-bold tracking-wider text-slate-900 dark:text-slate-100 uppercase">
             Today's Focus & Routine
           </h3>
-          <span className="bg-[#1C263A] border border-amber-400/30 text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
+          <span className="bg-amber-50 dark:bg-[#1C263A] border border-amber-300 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
             {completedCount} / {totalCount} Complete
           </span>
         </div>
@@ -682,18 +682,18 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             <button
               type="button"
               onClick={() => setShowFilterMenu(!showFilterMenu)}
-              className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 transition-colors font-medium cursor-pointer"
+              className="flex items-center gap-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 transition-colors font-medium cursor-pointer"
             >
               <FilterIcon className="w-3.5 h-3.5" />
               <span>Filter</span>
               {filterMode !== 'all' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" />
               )}
             </button>
 
             {/* Filter Flyout */}
             {showFilterMenu && (
-              <div className="absolute right-0 top-full mt-2 w-32 bg-[#1E293B] border border-white/[0.1] rounded-xl p-1.5 shadow-2xl z-30 flex flex-col gap-1">
+              <div className="absolute right-0 top-full mt-2 w-32 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-white/[0.1] rounded-xl p-1.5 shadow-xl dark:shadow-2xl z-30 flex flex-col gap-1">
                 {(['all', 'active', 'completed'] as const).map((mode) => (
                   <button
                     key={mode}
@@ -704,8 +704,8 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                     }}
                     className={`text-left text-xs px-2.5 py-1.5 rounded-lg capitalize transition-colors ${
                       filterMode === mode
-                        ? 'bg-amber-400/20 text-amber-300 font-bold'
-                        : 'text-slate-300 hover:bg-white/[0.06]'
+                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 font-bold'
+                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/[0.06]'
                     }`}
                   >
                     {mode} items
@@ -715,24 +715,24 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             )}
           </div>
 
-          <span className="text-slate-600 select-none">•</span>
+          <span className="text-slate-300 dark:text-slate-600 select-none">•</span>
 
           <button
             type="button"
             onClick={onQuickTaskClick}
-            className="flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Quick Task</span>
           </button>
 
-          <span className="text-slate-600 select-none">•</span>
+          <span className="text-slate-300 dark:text-slate-600 select-none">•</span>
 
           <button
             type="button"
             onClick={() => setIsTrashOpen(true)}
             title="View 30-Day Trash & Recovery"
-            className="flex items-center gap-1 text-slate-400 hover:text-rose-300 font-medium transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 font-medium transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span className="hidden xs:inline">Trash</span>
@@ -743,7 +743,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
       {/* Active Checklist Items */}
       <div className="flex flex-col gap-2.5 overflow-hidden transition-all duration-300">
         {filterMode === 'completed' ? null : activeItems.length === 0 ? (
-          <div className="py-8 text-center text-slate-400 text-xs">
+          <div className="py-8 text-center text-slate-500 dark:text-slate-400 text-xs">
             {completedItems.length > 0
               ? '✨ All tasks and habits completed for today! Awesome job!'
               : 'No items in this view. Use the Quick Action widget to add one!'}
@@ -755,27 +755,27 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
 
       {/* Completed Section (Collapsible) */}
       {(completedItems.length > 0 || filterMode === 'completed') && (
-        <div className="mt-4 pt-3.5 border-t border-white/[0.08] flex flex-col gap-2.5 transition-all duration-300">
+        <div className="mt-4 pt-3.5 border-t border-slate-200/80 dark:border-white/[0.08] flex flex-col gap-2.5 transition-all duration-300">
           <button
             type="button"
             onClick={() => setIsCompletedOpen((prev) => !prev)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] text-slate-400 hover:text-slate-200 transition-all cursor-pointer group select-none"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-600 hover:text-slate-900 dark:bg-white/[0.02] dark:hover:bg-white/[0.05] dark:border-white/[0.05] dark:text-slate-400 dark:hover:text-slate-200 transition-all cursor-pointer group select-none"
           >
             <div className="flex items-center gap-2">
               <ChevronDown
-                className={`w-4 h-4 text-slate-400 group-hover:text-amber-400 transition-transform duration-200 ${
+                className={`w-4 h-4 text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-transform duration-200 ${
                   isCompletedOpen || filterMode === 'completed' ? 'rotate-0' : '-rotate-90'
                 }`}
               />
-              <span className="text-xs font-bold text-slate-200 tracking-wider uppercase">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 tracking-wider uppercase">
                 Completed
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/10 text-amber-300 border border-amber-400/25">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/25">
                 {completedItems.length}
               </span>
             </div>
 
-            <span className="text-[11px] font-semibold text-slate-400 group-hover:text-slate-200 transition-colors">
+            <span className="text-[11px] font-semibold text-slate-500 group-hover:text-slate-800 dark:text-slate-400 dark:group-hover:text-slate-200 transition-colors">
               {isCompletedOpen || filterMode === 'completed' ? 'Hide' : 'Show'}
             </span>
           </button>
@@ -784,7 +784,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
           {(isCompletedOpen || filterMode === 'completed') && (
             <div className="flex flex-col gap-2.5 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
               {completedItems.length === 0 ? (
-                <div className="py-4 text-center text-slate-500 text-xs">
+                <div className="py-4 text-center text-slate-400 dark:text-slate-500 text-xs">
                   No completed items yet today.
                 </div>
               ) : (
@@ -800,41 +800,41 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={() => setItemToDelete(null)}
         >
           <div
-            className="bg-[#162032] border border-amber-400/20 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
+            className="bg-white dark:bg-[#162032] border border-slate-200 dark:border-amber-400/20 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
             <button
               type="button"
               onClick={() => setItemToDelete(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
             {/* Trash Icon & Heading with clear 30-day instruction */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/25 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
                 <Trash2 className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-white leading-tight">
+                <h4 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
                   Move to Trash?
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5 leading-normal">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal">
                   Retained in 30-Day Trash. You can restore it anytime.
                 </p>
               </div>
             </div>
 
             {/* Target Item Preview */}
-            <div className="bg-[#101827] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 truncate">
+            <div className="bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 dark:text-slate-200 truncate">
               <span className="text-slate-400 mr-1.5">Task:</span>
-              <span className="font-semibold text-slate-100">{itemToDelete.title}</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{itemToDelete.title}</span>
             </div>
 
             {/* Actions: Cancel & Move to Trash */}
@@ -842,7 +842,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:hover:text-white dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -859,7 +859,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
                     setSwipingOutTaskId((curr) => (curr === targetId ? null : curr));
                   }, 380);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white dark:text-slate-950 bg-amber-500 hover:bg-amber-600 dark:bg-gradient-to-r dark:from-amber-400 dark:to-yellow-400 dark:hover:from-amber-300 dark:hover:to-yellow-300 shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Move to Trash</span>

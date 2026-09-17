@@ -80,24 +80,24 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-[#0F172A] border border-amber-400/30 rounded-3xl p-5 sm:p-6 shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(250,204,21,0.15)] flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+        className="w-full max-w-lg bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-amber-400/30 rounded-3xl p-5 sm:p-6 shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(250,204,21,0.15)] flex flex-col gap-4 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/[0.08]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-400">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-400/15 border border-amber-500/20 dark:border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {taskToEdit ? 'Edit Task' : 'Create Task'}
               </h3>
-              <p className="text-[11px] text-slate-400 font-medium">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {taskToEdit ? 'Modify scheduled parameters and details' : 'Schedule a focus item or priority'}
               </p>
             </div>
@@ -105,7 +105,7 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-all cursor-pointer"
           >
             <X className="w-4 h-4 stroke-[2.5]" />
           </button>
@@ -115,7 +115,7 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
           {/* Title Input */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-300">Task Title</label>
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Task Title</label>
             <input
               type="text"
               required
@@ -123,15 +123,15 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Q4 Architecture Strategy Review"
-              className="w-full bg-[#152033] border border-white/[0.1] hover:border-white/[0.2] focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400 transition-all"
+              className="w-full bg-slate-50 dark:bg-[#152033] border border-slate-200 dark:border-white/[0.1] hover:border-slate-300 dark:hover:border-white/[0.2] focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 transition-all"
             />
           </div>
 
           {/* Date & Time Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 <span>Scheduled Date</span>
               </label>
               <input
@@ -139,13 +139,13 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#152033] border border-white/[0.1] hover:border-white/[0.2] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-semibold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                className="w-full bg-slate-50 dark:bg-[#152033] border border-slate-200 dark:border-white/[0.1] hover:border-slate-300 dark:hover:border-white/[0.2] focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 cursor-pointer"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 <span>Time Tag (Optional)</span>
               </label>
               <input
@@ -153,7 +153,7 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
                 value={timeTag}
                 onChange={(e) => setTimeTag(e.target.value)}
                 placeholder="e.g. 09:30 AM or Continuous"
-                className="w-full bg-[#152033] border border-white/[0.1] hover:border-white/[0.2] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                className="w-full bg-slate-50 dark:bg-[#152033] border border-slate-200 dark:border-white/[0.1] hover:border-slate-300 dark:hover:border-white/[0.2] focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400"
               />
             </div>
           </div>
@@ -161,16 +161,16 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
           {/* Category & Priority Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-300">Category</label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-[#152033] border border-white/[0.1] hover:border-white/[0.2] focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                className="w-full bg-slate-50 dark:bg-[#152033] border border-slate-200 dark:border-white/[0.1] hover:border-slate-300 dark:hover:border-white/[0.2] focus:border-amber-500 dark:focus:border-amber-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 cursor-pointer"
               >
                 {CATEGORIES.map((c) => {
                   const style = getCategoryBadgeStyle(c);
                   return (
-                    <option key={c} value={c} className="bg-[#0F172A] text-slate-200">
+                    <option key={c} value={c} className="bg-white dark:bg-[#0F172A] text-slate-800 dark:text-slate-200">
                       {style.icon} {c}
                     </option>
                   );
@@ -179,15 +179,15 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-300">Priority</label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Priority</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setPriority('normal')}
                   className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                     priority === 'normal'
-                      ? 'bg-slate-800 border-white/20 text-white'
-                      : 'bg-[#152033] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                      ? 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-white/20 text-slate-900 dark:text-white'
+                      : 'bg-slate-50 dark:bg-[#152033] border-slate-200 dark:border-white/[0.06] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
                   Normal
@@ -197,8 +197,8 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
                   onClick={() => setPriority('high')}
                   className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition-all cursor-pointer ${
                     priority === 'high'
-                      ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.2)]'
-                      : 'bg-[#152033] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                      ? 'bg-rose-500/10 dark:bg-rose-500/20 border-rose-500/30 dark:border-rose-500/50 text-rose-700 dark:text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.15)]'
+                      : 'bg-slate-50 dark:bg-[#152033] border-slate-200 dark:border-white/[0.06] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
                   🚨 High
@@ -208,18 +208,18 @@ export const TaskEditCreateModal: React.FC<TaskEditCreateModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.08] mt-2">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-white/[0.08] mt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !title.trim()}
-              className="px-5 py-2 rounded-xl text-xs font-extrabold text-slate-950 bg-[#FACC15] hover:bg-[#EAB308] shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+              className="px-5 py-2 rounded-xl text-xs font-extrabold text-slate-950 bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-[#EAB308] shadow-[0_0_15px_rgba(250,204,21,0.25)] transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Check className="w-3.5 h-3.5 stroke-[3]" />
               <span>{isSubmitting ? 'Saving...' : taskToEdit ? 'Save Changes' : 'Create Task'}</span>

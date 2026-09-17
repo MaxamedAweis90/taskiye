@@ -83,13 +83,13 @@ export const PwaInstallOnboarding: React.FC = () => {
   if (!isVisible || !deviceType) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none flex items-end sm:items-center justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="pointer-events-auto w-full max-w-sm bg-[#10192D] border border-amber-400/25 rounded-3xl p-5 sm:p-6 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(250,204,21,0.15)] flex flex-col relative animate-in slide-in-from-bottom-6 duration-300">
+    <div className="fixed inset-0 z-50 pointer-events-none flex items-end sm:items-center justify-center p-3 sm:p-6 bg-slate-950/40 dark:bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="pointer-events-auto w-full max-w-sm bg-white dark:bg-[#10192D] border border-amber-500/30 dark:border-amber-400/25 rounded-3xl p-5 sm:p-6 shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(250,204,21,0.15)] flex flex-col relative animate-in slide-in-from-bottom-6 duration-300">
         {/* Top Dismiss Button */}
         <button
           type="button"
           onClick={handleDismiss}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all cursor-pointer"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 transition-all cursor-pointer"
           title="Dismiss"
         >
           <X className="w-4 h-4" />
@@ -97,42 +97,42 @@ export const PwaInstallOnboarding: React.FC = () => {
 
         {/* Header Badge & Icon */}
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(250,204,21,0.2)]">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 dark:bg-amber-400/15 border border-amber-500/30 dark:border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.2)]">
             <Smartphone className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400">
               <Sparkles className="w-3 h-3" />
               <span>Install Web App</span>
             </div>
-            <h3 className="text-base font-bold text-white tracking-tight">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
               Get Taskiye on your Phone
             </h3>
           </div>
         </div>
 
-        <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+        <p className="text-xs text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
           Install Taskiye to your home screen for instant streak alerts, habit notifications, and offline access.
         </p>
 
         {/* iOS Step-by-Step Onboarding */}
         {deviceType === 'ios' && (
-          <div className="flex flex-col gap-2.5 mb-5 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5">
-            <div className="flex items-center gap-3 text-xs text-slate-200">
-              <div className="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+          <div className="flex flex-col gap-2.5 mb-5 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.06] rounded-2xl p-3.5">
+            <div className="flex items-center gap-3 text-xs text-slate-700 dark:text-slate-200">
+              <div className="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                 <Share className="w-3.5 h-3.5" />
               </div>
               <span>
-                1. Tap the <strong className="text-white">Share</strong> button in Safari's toolbar.
+                1. Tap the <strong className="text-slate-950 dark:text-white">Share</strong> button in Safari's toolbar.
               </span>
             </div>
 
-            <div className="flex items-center gap-3 text-xs text-slate-200">
-              <div className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-3 text-xs text-slate-700 dark:text-slate-200">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/20 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
                 <PlusSquare className="w-3.5 h-3.5" />
               </div>
               <span>
-                2. Scroll down and tap <strong className="text-white">Add to Home Screen</strong>.
+                2. Scroll down and tap <strong className="text-slate-950 dark:text-white">Add to Home Screen</strong>.
               </span>
             </div>
           </div>
@@ -145,14 +145,14 @@ export const PwaInstallOnboarding: React.FC = () => {
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="flex-1 py-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-white/5 transition-all cursor-pointer"
+                className="flex-1 py-3 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 transition-all cursor-pointer"
               >
                 Not Now
               </button>
               <button
                 type="button"
                 onClick={handleAndroidInstall}
-                className="flex-1 py-3 rounded-xl text-xs font-bold text-slate-950 bg-[#FACC15] hover:bg-[#EAB308] shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 py-3 rounded-xl text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 dark:bg-[#FACC15] dark:hover:bg-[#EAB308] shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Install App</span>
@@ -162,7 +162,7 @@ export const PwaInstallOnboarding: React.FC = () => {
             <button
               type="button"
               onClick={handleDismiss}
-              className="w-full py-3 rounded-xl text-xs font-bold text-slate-950 bg-[#FACC15] hover:bg-[#EAB308] shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all cursor-pointer text-center"
+              className="w-full py-3 rounded-xl text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 dark:bg-[#FACC15] dark:hover:bg-[#EAB308] shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all cursor-pointer text-center"
             >
               Got it, thanks!
             </button>

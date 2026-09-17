@@ -3,7 +3,69 @@
 @tailwind utilities;
 
 :root {
-  /* Kinetic Midnight - Surface & Canvas Tokens */
+  /* Kinetic Daylight (Light Mode) Tokens from plan/colors/lighmode.md */
+  --surface: #f8fafc;
+  --surface-dim: #edf2f7;
+  --surface-bright: #ffffff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #ffffff;
+  --surface-container: #f1f5f9;
+  --surface-container-high: #e2e8f0;
+  --surface-container-highest: #cbd5e1;
+  --surface-variant: #e0e3e5;
+
+  --canvas-base: #f8fafc;
+  --app-canvas: #ffffff;
+  --surface-card: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-highlight: #f1f5f9;
+
+  /* On-Surface Contrast */
+  --on-surface: #090d16;
+  --on-surface-variant: #475569;
+  --inverse-surface: #0f172a;
+  --inverse-on-surface: #f8fafc;
+
+  /* Outlines & Borders */
+  --outline: #cbd5e1;
+  --outline-variant: #e2e8f0;
+  --border-default: #e2e8f0;
+  --border-subdued: #cbd5e1;
+  --border-active-glow: rgba(217, 119, 6, 0.25);
+
+  /* Primary Accent: Kinetic Amber */
+  --primary: #d97706;
+  --on-primary: #ffffff;
+  --primary-container: #fef3c7;
+  --on-primary-container: #78350f;
+  --primary-dim: #b45309;
+  --surface-tint: #d97706;
+
+  /* Secondary Accent: Kinetic Emerald */
+  --secondary: #059669;
+  --on-secondary: #ffffff;
+  --secondary-container: #d1fae5;
+  --on-secondary-container: #064e3b;
+  --secondary-emerald: #059669;
+
+  /* Heatmap Color Tokens */
+  --heatmap-0: #e2e8f0;
+  --heatmap-1: #fde68a;
+  --heatmap-2: #f59e0b;
+  --heatmap-3: #d97706;
+
+  /* Text Hierarchy */
+  --text-white: #090d16;
+  --text-primary: #090d16;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
+}
+
+.dark {
+  /* Kinetic Midnight (Dark Mode) Tokens */
   --surface: #0b1326;
   --surface-dim: #0b1326;
   --surface-bright: #31394d;
@@ -49,10 +111,10 @@
   --secondary-emerald: #10b981;
 
   /* Heatmap Color Tokens */
-  --heatmap-0: #232734; /* 0% - 10% (Default / Gray) */
-  --heatmap-1: #715814; /* 11% - 50% (Faded Yellow) */
-  --heatmap-2: #ca8a04; /* 51% - 99% (Medium Yellow) */
-  --heatmap-3: #facc15; /* 100% (Solid Bright Yellow) */
+  --heatmap-0: #232734;
+  --heatmap-1: #715814;
+  --heatmap-2: #ca8a04;
+  --heatmap-3: #facc15;
 
   /* Text Hierarchy */
   --text-white: #ffffff;
@@ -60,7 +122,6 @@
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
 
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color-scheme: dark;
 }
 
@@ -75,6 +136,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
@@ -90,7 +152,7 @@ body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* Custom Sleek Dark Scrollbar System */
+/* Custom Sleek Scrollbar System */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -101,12 +163,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(100, 116, 139, 0.25);
   border-radius: 9999px;
   transition: background-color 0.2s ease;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 ::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 119, 6, 0.45);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(250, 204, 21, 0.45);
 }
 
@@ -117,6 +187,10 @@ body {
 /* Firefox scrollbar support */
 * {
   scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.25) transparent;
+}
+
+.dark * {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
@@ -126,11 +200,19 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(100, 116, 139, 0.25);
   border-radius: 9999px;
 }
 
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 119, 6, 0.5);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(250, 204, 21, 0.5);
 }
 

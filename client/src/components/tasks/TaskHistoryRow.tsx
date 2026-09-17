@@ -191,14 +191,14 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
         isSwipingOut
           ? 'animate-task-swipe-left z-20 pointer-events-none'
           : isCreating
-          ? 'bg-[#111A2E] border border-amber-400/80 shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
+          ? 'bg-amber-500/10 dark:bg-[#111A2E] border-amber-500 dark:border-amber-400/80 shadow-[0_0_22px_rgba(245,158,11,0.2)] dark:shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
           : isHighlighted
-          ? 'bg-[#111A2E] border border-amber-400/50 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+          ? 'bg-amber-500/5 dark:bg-[#111A2E] border-amber-500/50 dark:border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.15)] dark:shadow-[0_0_15px_rgba(250,204,21,0.2)]'
           : isMissed
-          ? 'bg-[#15101E]/90 border-rose-500/30 hover:border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.06)]'
+          ? 'bg-rose-500/[0.04] dark:bg-[#15101E]/90 border-rose-200 dark:border-rose-500/30 hover:border-rose-300 dark:hover:border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.06)]'
           : isCompleted
-          ? 'bg-[#0E1528]/80 border-white/[0.05] hover:border-white/[0.1]'
-          : 'bg-[#10192D] border-white/[0.08] hover:border-white/[0.15] shadow-sm'
+          ? 'bg-slate-50/60 dark:bg-[#0E1528]/80 border-slate-200/60 dark:border-white/[0.05] hover:border-slate-300 dark:hover:border-white/[0.1]'
+          : 'bg-white dark:bg-[#10192D] border-slate-200/80 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15] shadow-sm'
       }`}
     >
       {/* Main Row */}
@@ -225,10 +225,10 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
               }
               className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all duration-150 shrink-0 ${
                 isCompleted
-                  ? 'bg-[#FACC15] border-amber-400 text-slate-950 shadow-[0_0_10px_rgba(250,204,21,0.4)]'
+                  ? 'bg-amber-500 dark:bg-[#FACC15] border-amber-500 dark:border-amber-400 text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.3)] dark:shadow-[0_0_10px_rgba(250,204,21,0.4)]'
                   : isMissed
-                  ? 'border-rose-500/50 hover:border-rose-400 bg-rose-500/10 text-rose-400'
-                  : 'border-white/20 hover:border-amber-400/80 bg-white/[0.02]'
+                  ? 'border-rose-400 dark:border-rose-500/50 hover:border-rose-500 dark:hover:border-rose-400 bg-rose-500/10 text-rose-500 dark:text-rose-400'
+                  : 'border-slate-300 dark:border-white/20 hover:border-amber-500 dark:hover:border-amber-400/80 bg-slate-50 dark:bg-white/[0.02]'
               } ${isPast ? 'cursor-help' : 'cursor-pointer'}`}
             >
               {isCompleted ? (
@@ -242,25 +242,25 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
             {isPast && showPastTooltip && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-full left-0 mb-2.5 z-50 min-w-[210px] max-w-[280px] p-3 rounded-xl bg-[#141E33] border border-white/20 shadow-2xl shadow-black/90 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 text-left pointer-events-auto"
+                className="absolute bottom-full left-0 mb-2.5 z-50 min-w-[210px] max-w-[280px] p-3 rounded-xl bg-white dark:bg-[#141E33] border border-slate-200 dark:border-white/20 shadow-2xl shadow-slate-900/10 dark:shadow-black/90 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 text-left pointer-events-auto"
               >
                 <div className="flex items-start gap-2">
                   {isMissed ? (
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
                   ) : (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
                   )}
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                    <p className="text-xs text-slate-200 leading-snug font-medium">
+                    <p className="text-xs text-slate-700 dark:text-slate-200 leading-snug font-medium">
                       {isMissed ? (
                         <>
-                          This task already <span className="text-rose-400 font-bold">missed</span> on{' '}
-                          <span className="font-semibold text-white">{formattedPastDate}</span>.
+                          This task already <span className="text-rose-600 dark:text-rose-400 font-bold">missed</span> on{' '}
+                          <span className="font-semibold text-slate-900 dark:text-white">{formattedPastDate}</span>.
                         </>
                       ) : (
                         <>
-                          This task already <span className="text-emerald-400 font-bold">completed</span> on{' '}
-                          <span className="font-semibold text-white">{formattedPastDate}</span>.
+                          This task already <span className="text-emerald-600 dark:text-emerald-400 font-bold">completed</span> on{' '}
+                          <span className="font-semibold text-slate-900 dark:text-white">{formattedPastDate}</span>.
                         </>
                       )}
                     </p>
@@ -272,7 +272,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                           setShowPastTooltip(false);
                           onOpenReschedule(task);
                         }}
-                        className="mt-0.5 self-start px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-300 bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/35 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+                        className="mt-0.5 self-start px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-400/15 hover:bg-amber-500/20 dark:hover:bg-amber-400/25 border border-amber-500/30 dark:border-amber-400/35 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
                       >
                         <RotateCcw className="w-3 h-3 stroke-[2.5]" />
                         <span>Reschedule</span>
@@ -285,13 +285,13 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                       e.stopPropagation();
                       setShowPastTooltip(false);
                     }}
-                    className="text-slate-400 hover:text-white p-0.5 rounded transition-colors"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-0.5 rounded transition-colors"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
                 {/* Tooltip pointer triangle */}
-                <div className="absolute top-full left-2.5 -mt-[1px] w-0 h-0 border-x-4 border-x-transparent border-t-[5px] border-t-[#141E33]" />
+                <div className="absolute top-full left-2.5 -mt-[1px] w-0 h-0 border-x-4 border-x-transparent border-t-[5px] border-t-white dark:border-t-[#141E33]" />
               </div>
             )}
           </div>
@@ -304,10 +304,10 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
               onFinish={() => onCreationAnimationComplete?.(task.id)}
               className={`text-sm truncate select-none transition-colors ${
                 isCompleted
-                  ? 'line-through text-slate-400 font-normal'
+                  ? 'line-through text-slate-400 dark:text-slate-500 font-normal'
                   : isMissed
-                  ? 'text-slate-100 font-semibold'
-                  : 'text-slate-100 font-medium'
+                  ? 'text-slate-900 dark:text-slate-100 font-semibold'
+                  : 'text-slate-900 dark:text-slate-100 font-medium'
               }`}
             />
 
@@ -320,7 +320,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
 
             {/* Priority Badge */}
             {task.priority === 'high' && !isCompleted && (
-              <span className="bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded shrink-0">
+              <span className="bg-rose-500/10 dark:bg-rose-500/20 border border-rose-500/30 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded shrink-0">
                 HIGH
               </span>
             )}
@@ -331,22 +331,22 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Scheduled Time Tag */}
           {task.timeTag && (
-            <span className="text-xs text-slate-400 font-medium hidden md:inline-block">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden md:inline-block">
               {task.timeTag}
             </span>
           )}
 
           {/* Status Badge */}
           {isCompleted ? (
-            <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30">
               Completed
             </span>
           ) : isMissed ? (
-            <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+            <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/10 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 dark:border-rose-500/40">
               Missed
             </span>
           ) : (
-            <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10">
+            <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10">
               Pending
             </span>
           )}
@@ -360,7 +360,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                 onOpenReschedule(task);
               }}
               title="Reschedule to upcoming plan"
-              className="px-2.5 py-1 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-[0_0_12px_rgba(250,204,21,0.12)]"
+              className="px-2.5 py-1 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-400/10 hover:bg-amber-500/20 dark:hover:bg-amber-400/20 border border-amber-500/30 dark:border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-[0_0_12px_rgba(245,158,11,0.1)] dark:shadow-[0_0_12px_rgba(250,204,21,0.12)]"
             >
               <RotateCcw className="w-3 h-3 stroke-[2.5]" />
               <span className="hidden sm:inline">Reschedule</span>
@@ -368,10 +368,10 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
           )}
 
           {/* Expand Chevron */}
-          <div className="p-1 text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+          <div className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-amber-400 transition-colors shrink-0">
             <ChevronDown
               className={`w-4 h-4 transition-transform duration-200 ${
-                isExpanded ? 'rotate-180 text-amber-400' : ''
+                isExpanded ? 'rotate-180 text-amber-600 dark:text-amber-400' : ''
               }`}
             />
           </div>
@@ -380,12 +380,12 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
 
       {/* Expanded Details Drawer */}
       {isExpanded && (
-        <div className="px-4 sm:px-6 py-3 border-t border-white/[0.06] bg-[#0A1020]/90 flex flex-col gap-2.5 animate-in slide-in-from-top-2 duration-150">
+        <div className="px-4 sm:px-6 py-3 border-t border-slate-100 dark:border-white/[0.06] bg-slate-50/70 dark:bg-[#0A1020]/90 flex flex-col gap-2.5 animate-in slide-in-from-top-2 duration-150">
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Task Details & Scheduling:
             </span>
-            <p className="text-sm font-semibold text-white leading-relaxed break-words select-text">
+            <p className="text-sm font-semibold text-slate-900 dark:text-white leading-relaxed break-words select-text">
               {task.title}
             </p>
           </div>
@@ -395,24 +395,24 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
               {categoryStyle.icon} {categoryName}
             </span>
             {task.priority === 'high' && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/20 dark:border-rose-500/30">
                 🚨 High Priority
               </span>
             )}
             {task.timeTag && (
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10 flex items-center gap-1">
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 <span>{task.timeTag}</span>
               </span>
             )}
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-white/10 flex items-center gap-1">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10 flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               <span>{task.date}</span>
             </span>
           </div>
 
           {/* Drawer Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.04]">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60 dark:border-white/[0.04]">
             {!isCompleted && (
               <button
                 type="button"
@@ -420,7 +420,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                   e.stopPropagation();
                   onOpenReschedule(task);
                 }}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/10 dark:bg-amber-400/10 hover:bg-amber-500/20 dark:hover:bg-amber-400/20 border border-amber-500/30 dark:border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
                 <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Reschedule Plan</span>
@@ -433,7 +433,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                 e.stopPropagation();
                 onEdit(task);
               }}
-              className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.1] border border-slate-200 dark:border-white/[0.08] transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <Pencil className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Edit</span>
@@ -445,7 +445,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
                 e.stopPropagation();
                 onDelete(task);
               }}
-              className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold text-rose-700 hover:text-rose-800 dark:text-rose-300 dark:hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Trash</span>

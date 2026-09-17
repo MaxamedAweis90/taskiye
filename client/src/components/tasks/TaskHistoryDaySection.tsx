@@ -58,38 +58,38 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
           <span
             className={`text-xs font-black uppercase tracking-wider ${
               day.isToday
-                ? 'text-amber-400'
+                ? 'text-amber-600 dark:text-amber-400'
                 : day.isTomorrow
-                ? 'text-sky-400'
-                : 'text-slate-300'
+                ? 'text-sky-600 dark:text-sky-400'
+                : 'text-slate-700 dark:text-slate-300'
             }`}
           >
             {day.label}
           </span>
 
-          <span className="text-slate-500 text-xs">•</span>
+          <span className="text-slate-400 dark:text-slate-500 text-xs">•</span>
 
-          <span className="text-xs text-slate-400 font-medium">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
             {day.formattedDate}
           </span>
 
           {/* Special Context Badges */}
           {day.isTomorrow && (
-            <span className="bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
+            <span className="bg-sky-500/10 dark:bg-sky-500/15 border border-sky-500/20 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
               Upcoming
             </span>
           )}
 
           {day.isToday && (
-            <span className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full ml-1 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+            <span className="bg-amber-500/10 dark:bg-amber-400/15 border border-amber-500/20 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full ml-1 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 animate-ping" />
               <span>Active</span>
             </span>
           )}
 
           {hasMissed && (
-            <span className="bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 flex items-center gap-1">
-              <AlertTriangle className="w-2.5 h-2.5 text-rose-400" />
+            <span className="bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 flex items-center gap-1">
+              <AlertTriangle className="w-2.5 h-2.5 text-rose-500 dark:text-rose-400" />
               <span>Missed Items</span>
             </span>
           )}
@@ -98,11 +98,11 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
         {/* Right: Metrics / Ratio Badge */}
         <div className="flex items-center gap-2">
           {day.isTomorrow ? (
-            <span className="text-xs text-slate-400 font-semibold">
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
               {day.totalCount} Scheduled
             </span>
           ) : isAllCompleted ? (
-            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-500/30 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
               <span>
                 {day.completedCount} / {day.totalCount} Completed (100%)
@@ -110,15 +110,15 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
             </span>
           ) : day.totalCount > 0 ? (
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-400 font-semibold">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
                 {day.completedCount} / {day.totalCount} Complete
               </span>
-              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/30">
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300 border border-amber-500/20 dark:border-amber-400/30">
                 {day.completionPercentage}%
               </span>
             </div>
           ) : (
-            <span className="text-xs text-slate-500 italic">No tasks scheduled</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 italic">No tasks scheduled</span>
           )}
 
           {/* Quick Add for Tomorrow / Today */}
@@ -127,7 +127,7 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
               type="button"
               onClick={() => onAddTaskForDay(day.date)}
               title={`Add task for ${day.isTomorrow ? 'Tomorrow' : 'Today'}`}
-              className="p-1 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-400/10 transition-all cursor-pointer"
+              className="p-1 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10 dark:hover:bg-amber-400/10 transition-all cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             </button>
@@ -158,13 +158,13 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
             />
           ))
         ) : (
-          <div className="py-4 px-5 rounded-2xl bg-[#10192D]/40 border border-dashed border-white/[0.06] text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+          <div className="py-4 px-5 rounded-2xl bg-slate-50/50 dark:bg-[#10192D]/40 border border-dashed border-slate-200 dark:border-white/[0.06] text-center text-xs text-slate-500 flex items-center justify-center gap-2">
             <span>No tasks logged for this day.</span>
             {(day.isTomorrow || day.isToday) && onAddTaskForDay && (
               <button
                 type="button"
                 onClick={() => onAddTaskForDay(day.date)}
-                className="text-amber-400 hover:underline font-semibold cursor-pointer"
+                className="text-amber-600 dark:text-amber-400 hover:underline font-semibold cursor-pointer"
               >
                 + Schedule one now
               </button>

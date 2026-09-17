@@ -289,40 +289,40 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
     <div className="fixed inset-0 z-50 flex sm:hidden items-center justify-center p-0 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
       {/* Mobile-Only Fullscreen Container */}
       <div
-        className="w-full h-full bg-[#0A101D] p-5 flex flex-col justify-between text-left relative overflow-y-auto"
+        className="w-full h-full bg-slate-50 dark:bg-[#0A101D] p-5 flex flex-col justify-between text-left relative overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col gap-4">
           {/* Top Bar Header */}
-          <div className="flex items-center justify-between border-b border-white/[0.08] pb-3 pt-2">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/[0.08] pb-3 pt-2">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-[#FACC15] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-400/20 text-amber-600 dark:text-[#FACC15] flex items-center justify-center">
                 <QrCode className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-black text-white leading-tight">Taskiye League QR</h3>
-                <p className="text-xs text-slate-400">Scan or share your profile to connect</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">Taskiye League QR</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Scan or share your profile to connect</p>
               </div>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer"
+              className="w-8 h-8 rounded-full bg-slate-200/60 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Tab Switcher: My QR Code vs Scan Camera */}
-          <div className="flex p-1 bg-[#060A14] border border-white/10 rounded-xl">
+          <div className="flex p-1 bg-slate-200/80 dark:bg-[#060A14] border border-slate-300 dark:border-white/10 rounded-xl">
             <button
               type="button"
               onClick={() => setActiveTab('my_code')}
               className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 activeTab === 'my_code'
-                  ? 'bg-[#FACC15] text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-amber-400 dark:bg-[#FACC15] text-slate-950 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <QrCode className="w-3.5 h-3.5" />
@@ -334,8 +334,8 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
               onClick={() => setActiveTab('scan')}
               className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                 activeTab === 'scan'
-                  ? 'bg-[#FACC15] text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-amber-400 dark:bg-[#FACC15] text-slate-950 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               <Scan className="w-3.5 h-3.5" />
@@ -347,9 +347,9 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
           {activeTab === 'my_code' && (
             <div className="flex flex-col items-center gap-4 text-center py-2">
               {/* Profile Card with Real QR Code */}
-              <div className="w-full bg-gradient-to-b from-[#131D33] to-[#0A101E] border border-amber-400/30 rounded-3xl p-5 flex flex-col items-center gap-3.5 shadow-lg">
+              <div className="w-full bg-white dark:bg-gradient-to-b dark:from-[#131D33] dark:to-[#0A101E] border border-slate-200 dark:border-amber-400/30 rounded-3xl p-5 flex flex-col items-center gap-3.5 shadow-md dark:shadow-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-[#FACC15] bg-slate-800 shrink-0">
+                  <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-amber-400 dark:ring-[#FACC15] bg-slate-100 dark:bg-slate-800 shrink-0">
                     <img
                       src={userAvatar}
                       alt={userName}
@@ -357,13 +357,13 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
                     />
                   </div>
                   <div className="text-left">
-                    <div className="text-base font-black text-white">{userName}</div>
-                    <div className="text-xs text-[#FACC15] font-bold">@{cleanHandle}</div>
+                    <div className="text-base font-black text-slate-900 dark:text-white">{userName}</div>
+                    <div className="text-xs text-amber-600 dark:text-[#FACC15] font-bold">@{cleanHandle}</div>
                   </div>
                 </div>
 
                 {/* Real High-Resolution Vector QR Code with Instant Canvas Rendering */}
-                <div className="p-3 bg-white rounded-2xl shadow-[0_0_24px_rgba(250,204,21,0.25)] flex items-center justify-center">
+                <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 dark:border-transparent dark:shadow-[0_0_24px_rgba(250,204,21,0.25)] flex items-center justify-center">
                   {qrSvg && qrSvg.includes('<svg') ? (
                     <div
                       dangerouslySetInnerHTML={{ __html: qrSvg }}
@@ -377,7 +377,7 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
                   )}
                 </div>
 
-                <p className="text-xs text-slate-300 font-medium max-w-xs leading-relaxed">
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium max-w-xs leading-relaxed">
                   Show this real QR code to any camera to connect on Taskiye.
                 </p>
               </div>
@@ -387,7 +387,7 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
           {/* TAB 2: SCAN CAMERA */}
           {activeTab === 'scan' && (
             <div className="flex flex-col items-center gap-3 text-center py-2">
-              <div className="w-full h-72 sm:h-64 rounded-2xl bg-black border-2 border-dashed border-[#FACC15]/60 flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="w-full h-72 sm:h-64 rounded-2xl bg-black border-2 border-dashed border-amber-500 dark:border-[#FACC15]/60 flex flex-col items-center justify-center relative overflow-hidden">
                 <video
                   ref={videoRef}
                   className="w-full h-full object-cover"
@@ -396,48 +396,48 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
 
                 {/* Viewfinder Target Box */}
                 <div className="absolute inset-8 sm:inset-10 border-2 border-white/40 rounded-xl pointer-events-none flex items-center justify-center">
-                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-[#FACC15]" />
-                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-[#FACC15]" />
-                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-[#FACC15]" />
-                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-[#FACC15]" />
+                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-amber-400 dark:border-[#FACC15]" />
+                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-amber-400 dark:border-[#FACC15]" />
+                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-amber-400 dark:border-[#FACC15]" />
+                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-amber-400 dark:border-[#FACC15]" />
 
                   {isScanning && (
-                    <div className="w-full h-0.5 bg-[#FACC15] shadow-[0_0_12px_#FACC15] animate-pulse" />
+                    <div className="w-full h-0.5 bg-amber-400 dark:bg-[#FACC15] shadow-[0_0_12px_#FACC15] animate-pulse" />
                   )}
                 </div>
 
                 {cameraError && (
-                  <div className="absolute inset-0 bg-[#0A101D]/95 p-4 flex flex-col items-center justify-center gap-2 text-center">
-                    <AlertCircle className="w-8 h-8 text-amber-400" />
+                  <div className="absolute inset-0 bg-slate-900/95 dark:bg-[#0A101D]/95 p-4 flex flex-col items-center justify-center gap-2 text-center">
+                    <AlertCircle className="w-8 h-8 text-amber-500 dark:text-amber-400" />
                     <span className="text-xs font-bold text-white">Camera Access</span>
-                    <span className="text-[11px] text-slate-400 max-w-xs">{cameraError}</span>
+                    <span className="text-[11px] text-slate-300 dark:text-slate-400 max-w-xs">{cameraError}</span>
                   </div>
                 )}
               </div>
 
               {selfScanNotice ? (
-                <div className="w-full p-3.5 rounded-2xl bg-amber-400/15 border border-amber-400/35 text-amber-300 text-xs font-bold flex items-center justify-center gap-2.5 animate-in fade-in shadow-md text-left">
+                <div className="w-full p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-400/15 border border-amber-500/30 dark:border-amber-400/35 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center justify-center gap-2.5 animate-in fade-in shadow-md text-left">
                   <span className="text-xl">👋</span>
                   <div className="flex flex-col">
-                    <span className="text-white font-extrabold">That's you!</span>
-                    <span className="text-[11px] text-amber-200/90 font-medium leading-tight">
+                    <span className="text-slate-900 dark:text-white font-extrabold">That's you!</span>
+                    <span className="text-[11px] text-amber-700 dark:text-amber-200/90 font-medium leading-tight">
                       This is your personal streak code. Switching to your QR card to share...
                     </span>
                   </div>
                 </div>
               ) : invalidNotice ? (
-                <div className="w-full p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <div className="w-full p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500 dark:text-red-400" />
                   <span>{invalidNotice}</span>
                 </div>
               ) : scanResult ? (
-                <div className="w-full p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in">
+                <div className="w-full p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center justify-center gap-2 animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>Scanned {scanResult}! Connecting...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
-                  <Camera className="w-4 h-4 text-amber-400" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <Camera className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <span>Align a rival's Taskiye QR code inside the frame to connect</span>
                 </div>
               )}
@@ -446,11 +446,11 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
         </div>
 
         {/* Mobile bottom close button */}
-        <div className="sm:hidden pt-4 border-t border-white/[0.08]">
+        <div className="sm:hidden pt-4 border-t border-slate-200 dark:border-white/[0.08]">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 rounded-xl bg-white/10 text-white font-bold text-xs cursor-pointer"
+            className="w-full py-3 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-white/10 text-slate-900 dark:text-white font-bold text-xs cursor-pointer"
           >
             Close QR Scanner
           </button>

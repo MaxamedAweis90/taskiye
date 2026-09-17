@@ -1038,12 +1038,12 @@ export const Tasks: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="py-16 text-center flex flex-col items-center justify-center gap-3 rounded-3xl bg-[#10192D] border border-white/[0.08]">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
+        <div className="py-16 text-center flex flex-col items-center justify-center gap-3 rounded-3xl bg-white dark:bg-[#10192D] border border-slate-200/80 dark:border-white/[0.08] shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
             <Calendar className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-bold text-white">No tasks match your filters</h3>
-          <p className="text-xs text-slate-400 max-w-sm">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">No tasks match your filters</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
             Try adjusting your search criteria, category filters, or add a new scheduled task.
           </p>
           <button
@@ -1053,7 +1053,7 @@ export const Tasks: React.FC = () => {
               setSelectedCategory('All Categories');
               setHideCompleted(false);
             }}
-            className="mt-2 px-4 py-2 rounded-xl text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 hover:bg-amber-400/20 transition-all cursor-pointer"
+            className="mt-2 px-4 py-2 rounded-xl text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/30 dark:border-amber-400/30 hover:bg-amber-500/20 dark:hover:bg-amber-400/20 transition-all cursor-pointer"
           >
             Reset Filters
           </button>
@@ -1089,41 +1089,41 @@ export const Tasks: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150"
           onClick={() => setTaskToDelete(null)}
         >
           <div
-            className="bg-[#162032] border border-amber-400/20 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
+            className="bg-white dark:bg-[#162032] border border-slate-200 dark:border-amber-400/20 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4 relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
             <button
               type="button"
               onClick={() => setTaskToDelete(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
 
             {/* Trash Icon & Heading with clear 30-day instruction */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/25 text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(250,204,21,0.15)]">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/25 dark:border-amber-400/25 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.15)] dark:shadow-[0_0_12px_rgba(250,204,21,0.15)]">
                 <Trash2 className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-white leading-tight">
+                <h4 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
                   Move to Trash?
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5 leading-normal">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal">
                   Retained in 30-Day Trash. You can restore it anytime.
                 </p>
               </div>
             </div>
 
             {/* Target Item Preview */}
-            <div className="bg-[#101827] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 truncate">
+            <div className="bg-slate-50 dark:bg-[#101827] border border-slate-200 dark:border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 dark:text-slate-200 truncate">
               <span className="text-slate-400 mr-1.5">Task:</span>
-              <span className="font-semibold text-slate-100">{taskToDelete.title}</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{taskToDelete.title}</span>
             </div>
 
             {/* Actions: Cancel & Move to Trash */}
@@ -1131,7 +1131,7 @@ export const Tasks: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTaskToDelete(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
