@@ -21,6 +21,18 @@ export interface UserRankItem {
   isCurrentUser?: boolean;
 }
 
+interface CachedRankings {
+  timestamp: number;
+  items: Omit<UserRankItem, 'isCurrentUser'>[];
+}
+
+let cachedRankings: CachedRankings | null = null;
+const RANKINGS_CACHE_TTL_MS = 60 * 1000; // 60-second TTL cache
+
+export function invalidateRankingsCache(): void {
+  cachedRankings = null;
+}
+
 /**
  * GET /api/rankings
  * Query param: type = 'global' | 'friends'
@@ -31,86 +43,112 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     const type = (req.query.type as string) || 'friends';
     const currentUserId = req.user?.id;
 
-    // 1. Fetch real registered users from MongoDB user collection
-    const users = await mongoDb.collection('user').find({}).toArray();
+    // Cache-Control headers for client-side and CDN caching
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
 
-    // 2. Fetch all active habits (not archived, not deleted)
-    const habits = await Habit.find({
-      isArchived: { $ne: true },
-      deletedAt: null,
-    }).lean();
+    // 1. Check if we have fresh in-memory cached global rankings
+    const isCacheExpired = !cachedRankings || (Date.now() - cachedRankings.timestamp > RANKINGS_CACHE_TTL_MS);
 
-    // Group habits by userId
-    const habitsByUser = new Map<string, typeof habits>();
-    for (const habit of habits) {
-      if (!habit.userId) continue;
-      const list = habitsByUser.get(habit.userId) || [];
-      list.push(habit);
-      habitsByUser.set(habit.userId, list);
+    if (isCacheExpired) {
+      // Fetch real registered users from MongoDB user collection
+      const users = await mongoDb.collection('user').find({}).toArray();
+
+      // Fetch all active habits (not archived, not deleted)
+      const habits = await Habit.find({
+        isArchived: { $ne: true },
+        deletedAt: null,
+      }).lean();
+
+      // Group habits by userId
+      const habitsByUser = new Map<string, typeof habits>();
+      for (const habit of habits) {
+        if (!habit.userId) continue;
+        const list = habitsByUser.get(habit.userId) || [];
+        list.push(habit);
+        habitsByUser.set(habit.userId, list);
+      }
+
+      // Build ranking items for each user
+      const rawRankItems: Omit<UserRankItem, 'isCurrentUser'>[] = users.map((u) => {
+        const uId = (u.id as string) || u._id?.toString() || '';
+        const userHabits =
+          habitsByUser.get(uId) || habitsByUser.get(u._id?.toString() || '') || [];
+
+        // Streak rank factor: maximum active streak across user's active habits
+        const streakCount =
+          userHabits.length > 0
+            ? Math.max(...userHabits.map((h) => Number(h.streakDays) || 0))
+            : 0;
+
+        // Consistency: average consistencyRate across habits (default 100%)
+        const consistencyRate =
+          userHabits.length > 0
+            ? Math.round(
+                userHabits.reduce(
+                  (acc, h) =>
+                    acc + (typeof h.consistencyRate === 'number' ? h.consistencyRate : 100),
+                  0
+                ) / userHabits.length
+              )
+            : 100;
+
+        const totalCompletions = userHabits.reduce(
+          (acc, h) => acc + (Number(h.totalCompletions) || 0),
+          0
+        );
+
+        const name = (u.name as string) || (u.username as string) || 'User';
+        const rawHandle =
+          (u.username as string) || name.toLowerCase().replace(/\s+/g, '');
+        const handle = `@${rawHandle.replace(/^@/, '')}`;
+        const avatar = (u.avatarUrl as string) || (u.image as string) || '';
+        const initials =
+          name
+            .split(' ')
+            .filter(Boolean)
+            .map((p) => p[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase() || 'U';
+
+        return {
+          userId: uId,
+          rank: 0,
+          userName: name,
+          handle,
+          userAvatar: avatar,
+          initials,
+          streakCount,
+          consistencyRate,
+          totalCompletions,
+          isOnline: true,
+        };
+      });
+
+      // Sort strictly by streakCount descending, then consistencyRate descending
+      rawRankItems.sort((a, b) => {
+        if (b.streakCount !== a.streakCount) return b.streakCount - a.streakCount;
+        if (b.consistencyRate !== a.consistencyRate) return b.consistencyRate - a.consistencyRate;
+        return b.totalCompletions - a.totalCompletions;
+      });
+
+      // Assign continuous all-time ranks (1, 2, 3...)
+      rawRankItems.forEach((item, index) => {
+        item.rank = index + 1;
+      });
+
+      cachedRankings = {
+        timestamp: Date.now(),
+        items: rawRankItems,
+      };
     }
 
-    // 3. Build ranking items for each user
-    const allRankItems: UserRankItem[] = users.map((u) => {
-      const uId = (u.id as string) || u._id?.toString() || '';
-      const userHabits =
-        habitsByUser.get(uId) || habitsByUser.get(u._id?.toString() || '') || [];
-
-      // Streak rank factor: maximum active streak across user's active habits
-      const streakCount =
-        userHabits.length > 0
-          ? Math.max(...userHabits.map((h) => Number(h.streakDays) || 0))
-          : 0;
-
-      // Consistency: average consistencyRate across habits (default 100%)
-      const consistencyRate =
-        userHabits.length > 0
-          ? Math.round(
-              userHabits.reduce(
-                (acc, h) =>
-                  acc + (typeof h.consistencyRate === 'number' ? h.consistencyRate : 100),
-                0
-              ) / userHabits.length
-            )
-          : 100;
-
-      const totalCompletions = userHabits.reduce(
-        (acc, h) => acc + (Number(h.totalCompletions) || 0),
-        0
-      );
-
-      const name = (u.name as string) || (u.username as string) || 'User';
-      const rawHandle =
-        (u.username as string) || name.toLowerCase().replace(/\s+/g, '');
-      const handle = `@${rawHandle.replace(/^@/, '')}`;
-      const avatar = (u.avatarUrl as string) || (u.image as string) || '';
-      const initials =
-        name
-          .split(' ')
-          .filter(Boolean)
-          .map((p) => p[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase() || 'U';
-
-      const isCurrentUser = Boolean(
-        currentUserId &&
-          (uId === currentUserId || u._id?.toString() === currentUserId)
-      );
-
-      return {
-        userId: uId,
-        rank: 0,
-        userName: name,
-        handle,
-        userAvatar: avatar,
-        initials,
-        streakCount,
-        consistencyRate,
-        totalCompletions,
-        isOnline: true,
-        isCurrentUser,
-      };
-    });
+    // 2. Clone cached global list and map isCurrentUser for the requester
+    const cachedItems = cachedRankings?.items || [];
+    const allRankItems: UserRankItem[] = cachedItems.map((item) => ({
+      ...item,
+      isCurrentUser: Boolean(currentUserId && item.userId === currentUserId),
+    }));
 
     // If current logged-in user isn't in users list yet (e.g. freshly created session), include them
     if (currentUserId && !allRankItems.some((item) => item.isCurrentUser)) {
@@ -119,7 +157,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         (req.user as unknown as { image?: string })?.image || '';
       allRankItems.push({
         userId: currentUserId,
-        rank: 0,
+        rank: allRankItems.length + 1,
         userName: currentUserName,
         handle: `@${currentUserName.toLowerCase().replace(/\s+/g, '')}`,
         userAvatar: currentUserAvatar,
@@ -131,18 +169,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         isCurrentUser: true,
       });
     }
-
-    // 4. Sort strictly by streakCount descending, then consistencyRate descending
-    allRankItems.sort((a, b) => {
-      if (b.streakCount !== a.streakCount) return b.streakCount - a.streakCount;
-      if (b.consistencyRate !== a.consistencyRate) return b.consistencyRate - a.consistencyRate;
-      return b.totalCompletions - a.totalCompletions;
-    });
-
-    // Assign continuous all-time ranks (1, 2, 3...)
-    allRankItems.forEach((item, index) => {
-      item.rank = index + 1;
-    });
 
     // Identify current user item
     let currentUserItem = allRankItems.find((item) => item.isCurrentUser);

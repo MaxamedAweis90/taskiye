@@ -10,6 +10,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useSession } from '../../lib/auth-client';
+import { apiFetch } from '../../lib/api';
 
 interface AddFriendModalProps {
   isOpen: boolean;
@@ -54,9 +55,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
     const timeout = setTimeout(async () => {
       try {
         const clean = searchQuery.trim().replace(/^@/, '');
-        const res = await fetch(`/api/friends/search?q=${encodeURIComponent(clean)}`, {
-          credentials: 'include',
-        });
+        const res = await apiFetch(`/api/friends/search?q=${encodeURIComponent(clean)}`);
         const json = await res.json();
         if (!isCancelled && json.data) {
           setMembers(json.data);
@@ -91,10 +90,9 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
 
     setLoadingHandle(member.handle);
     try {
-      const res = await fetch('/api/friends/request', {
+      const res = await apiFetch('/api/friends/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ targetUsername: member.handle }),
       });
       const data = await res.json();

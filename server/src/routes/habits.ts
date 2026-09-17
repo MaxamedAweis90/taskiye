@@ -3,6 +3,7 @@ import { Router, Response } from 'express';
 import { Task } from '../models/Task.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { invalidateRankingsCache } from './rankings.js';
 
 const router = Router();
 
@@ -107,7 +108,8 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       filter.isArchived = false;
     }
 
-    const habits = await Habit.find(filter).sort({ createdAt: -1 });
+    // Slice completedDates to the most recent 30 entries to prevent memory and payload bloat
+    const habits = await Habit.find(filter, { completedDates: { $slice: -30 } }).sort({ createdAt: -1 });
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const evaluatedHabits = await Promise.all(
@@ -172,7 +174,9 @@ router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Respons
     const trashedHabits = await Habit.find({
       userId: req.user!.id,
       deletedAt: { $ne: null },
-    }).sort({ deletedAt: -1 });
+    })
+      .sort({ deletedAt: -1 })
+      .limit(100);
 
     return sendSuccess(res, trashedHabits, 'Trashed habits fetched successfully');
   } catch (error) {
@@ -454,6 +458,8 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
         { new: true }
       );
     }
+
+    invalidateRankingsCache();
 
     return sendSuccess(res, updatedHabit, 'Habit completion updated');
   } catch (error) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const FALLBACK_VAPID_KEY =
-  'BPqiFDbamgJZPy7vVjylHU2Tjyi0CuBXEX2QBtbendOCwA8x1GZv3XkIALf9gQKBo4AQN3y0SPWNGxjApAvZB0o';
+  'BDa5_97lKl35HcOpR1gJ6EHLTJIsEF2J9bjZc0Z1hOxuhFM0gjo3zk8cGPFnZqvevUzFCHmzdFZrc_JEbB9viwU';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -239,80 +239,147 @@ export function usePushNotifications() {
     [isSupported]
   );
 
-  const sendTestAlert = useCallback(async (): Promise<boolean> => {
-    let serverDispatched = false;
+  const sendTestAlert = useCallback(
+    async (
+      type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system' = 'system'
+    ): Promise<{
+      success: boolean;
+      data?: { title: string; body: string; type: string; url: string };
+    }> => {
+      let serverDispatched = false;
+      let notificationPayload: { title: string; body: string; type: string; url: string } | undefined;
 
-    // 1. Retrieve active subscription or query PushManager directly from registration
-    let endpoint = activeSubscription?.endpoint;
-    if (!endpoint && 'serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        const sub = await reg?.pushManager?.getSubscription();
-        if (sub?.endpoint) {
-          endpoint = sub.endpoint;
-          setActiveSubscription(sub);
-          setIsSubscribed(true);
+      // 1. Retrieve active subscription or query PushManager directly from registration
+      let endpoint = activeSubscription?.endpoint;
+      if (!endpoint && 'serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          const sub = await reg?.pushManager?.getSubscription();
+          if (sub?.endpoint) {
+            endpoint = sub.endpoint;
+            setActiveSubscription(sub);
+            setIsSubscribed(true);
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
 
-    // 2. Send server-side push notification & create in-app notification in MongoDB
-    try {
-      const res = await fetch('/api/notifications/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: endpoint || undefined }),
-      });
-      const json = await res.json();
-      if (json?.success) {
-        serverDispatched = Boolean(json.data?.dispatched);
-      }
-    } catch (err) {
-      console.warn('[Push] Server push test failed, attempting client notification:', err);
-    }
-
-    // 2. Direct Service Worker notification guarantee (fires native OS banner on iPhone PWA)
-    if ('serviceWorker' in navigator) {
+      // 2. Send server-side simulated notification
       try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg?.showNotification) {
-          await reg.showNotification('Taskiye Connected! 🔥', {
-            body: 'Your device is verified and ready for streak & daily habit alerts.',
-            icon: '/logo.png',
-            badge: '/logo.png',
-            tag: `taskiye-test-${Date.now()}`,
-            data: { url: '/' },
-          });
-          return true;
-        }
-      } catch (swErr) {
-        console.warn('[Push] Service worker showNotification failed:', swErr);
-      }
-    }
-
-    // 3. Fallback native browser Notification
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification('Taskiye Connected! 🔥', {
-          body: 'Your device is verified and ready for streak & daily habit alerts.',
-          icon: '/logo.png',
+        const res = await fetch('/api/notifications/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: endpoint || undefined, type }),
         });
-        return true;
-      } catch {
-        return serverDispatched;
+        const json = await res.json();
+        if (json?.success) {
+          serverDispatched = Boolean(json.data?.dispatched || json.data?.inAppSaved);
+          notificationPayload = json.data;
+        }
+      } catch (err) {
+        console.warn('[Push] Server push test failed:', err);
       }
-    }
 
-    return serverDispatched;
-  }, [activeSubscription]);
+      const simTitles: Record<string, { title: string; body: string; url: string }> = {
+        morning: {
+          title: '☀️ Good Morning, Champion!',
+          body: 'Start strong! 3 daily habits and your morning focus routine are ready.',
+          url: '/',
+        },
+        planning: {
+          title: '🎯 Task Planning Check-in',
+          body: 'Mid-day momentum: Time to organize priorities and conquer pending tasks.',
+          url: '/tasks',
+        },
+        streak: {
+          title: '🔥 Streak Protection Alert!',
+          body: 'Your streak is on the line! Complete at least 1 habit before midnight.',
+          url: '/habits',
+        },
+        achievement: {
+          title: '🏆 Milestone Conquest Unlocked!',
+          body: 'Outstanding consistency! All daily targets completed. Rank progress updated.',
+          url: '/rank',
+        },
+        trash: {
+          title: '🗑️ Trash Items Expiring Soon',
+          body: 'Soft-deleted tasks in your junk bin will be permanently purged in 48 hours.',
+          url: '/',
+        },
+        system: {
+          title: '⚡ Taskiye System Connected!',
+          body: 'Your device is verified and push notifications are fully operational.',
+          url: '/',
+        },
+      };
+
+      const fallbackInfo = simTitles[type] || simTitles.system;
+      const title = notificationPayload?.title || fallbackInfo.title;
+      const body = notificationPayload?.body || fallbackInfo.body;
+      const url = notificationPayload?.url || fallbackInfo.url;
+
+      // 3. Trigger immediate in-app bell update via custom event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('taskiye_refresh_notifications', {
+            detail: {
+              id: `test_sim_${type}_${Date.now()}`,
+              title,
+              description: body,
+              time: 'Just now',
+              read: false,
+              type,
+              url,
+              createdAt: new Date().toISOString(),
+            },
+          })
+        );
+      }
+
+      // 4. Fallback client-side notification if service worker is active
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg?.showNotification) {
+            await reg.showNotification(title, {
+              body,
+              icon: '/icons/icon-192.png',
+              badge: '/icons/icon-192.png',
+              tag: `taskiye-sim-${type}-${Date.now()}`,
+              data: { url },
+            });
+            return { success: true, data: { title, body, type, url } };
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      return {
+        success: serverDispatched,
+        data: { title, body, type, url },
+      };
+    },
+    [activeSubscription]
+  );
+
+  const isIos =
+    typeof navigator !== 'undefined' &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent || '') &&
+    !(window as unknown as { MSStream?: unknown }).MSStream;
+  const isStandalone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true);
+  const isIosNonStandalone = Boolean(isIos && !isStandalone);
 
   return {
     isSupported,
     permission,
     isSubscribed,
     isSyncing,
+    isIosNonStandalone,
     subscribe,
     sendTestAlert,
     sendWelcomeNotification,

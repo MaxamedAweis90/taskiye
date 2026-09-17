@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth.js';
 import { connectDB } from './db/connection.js';
+import { authLimiter, generalApiLimiter } from './middleware/rateLimiter.js';
+import { responseCompression } from './middleware/compression.js';
+import { idempotency } from './middleware/idempotency.js';
 import habitsRouter from './routes/habits.js';
 import tasksRouter from './routes/tasks.js';
 import rankingsRouter from './routes/rankings.js';
@@ -53,12 +56,24 @@ app.use(async (_req, _res, next) => {
   }
 });
 
-// 3. Mount Better Auth catch-all route BEFORE express.json() to prevent stream locking
+// 2.5 Response compression for JSON payloads > 1KB
+app.use(responseCompression());
+
+// 3. General API rate limiter across all endpoints
+app.use('/api/', generalApiLimiter);
+
+// 3.5 Idempotency guard for mutation operations
+app.use('/api/', idempotency);
+
+// 4. Strict Rate Limiting on Authentication endpoints
+app.use('/api/auth/*', authLimiter);
+
+// 5. Mount Better Auth catch-all route BEFORE express.json() to prevent stream locking
 app.all('/api/auth/*', toNodeHandler(auth));
 
-// 4. Body parsing for remaining application endpoints
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 6. Body parsing with strict payload boundary limits (512KB) to prevent memory exhaustion
+app.use(express.json({ limit: '512kb' }));
+app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 
 // 5. Health Check Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {

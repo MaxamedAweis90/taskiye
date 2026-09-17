@@ -16,7 +16,7 @@ configureWebPush();
 
 /**
  * GET /api/notifications
- * Retrieves unread count and latest 30 in-app notifications
+ * Retrieves unread count and latest 30 active (non-trashed) in-app notifications
  */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -28,9 +28,14 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       return sendSuccess(res, { notifications: [], unreadCount: 0 });
     }
 
-    const filter = userId
+    const userOrEndpoint = userId
       ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
       : { endpoint };
+
+    const filter = {
+      ...userOrEndpoint,
+      deletedAt: null,
+    };
 
     const [notifications, unreadCount] = await Promise.all([
       InAppNotification.find(filter).sort({ createdAt: -1 }).limit(30),
@@ -42,6 +47,42 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     const err = error as Error;
     console.error('[Notifications] Fetch failed:', err);
     return sendError(res, err?.message || 'Failed to fetch notifications', 500);
+  }
+});
+
+/**
+ * GET /api/notifications/trash
+ * Retrieves trashed in-app notifications
+ */
+router.get('/trash', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  try {
+    const userId = req.user?.id || null;
+    const endpoint = (req.query.endpoint as string | undefined) || null;
+
+    if (!userId && !endpoint) {
+      return sendSuccess(res, { notifications: [], totalCount: 0 });
+    }
+
+    const userOrEndpoint = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      : { endpoint };
+
+    const filter = {
+      ...userOrEndpoint,
+      deletedAt: { $ne: null },
+    };
+
+    const [notifications, totalCount] = await Promise.all([
+      InAppNotification.find(filter).sort({ deletedAt: -1 }).limit(50),
+      InAppNotification.countDocuments(filter),
+    ]);
+
+    return sendSuccess(res, { notifications, totalCount });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('[Notifications] Fetch trash failed:', err);
+    return sendError(res, err?.message || 'Failed to fetch notification trash', 500);
   }
 });
 
@@ -69,7 +110,7 @@ router.patch('/:id/read', optionalAuth, async (req: AuthenticatedRequest, res: R
 
 /**
  * POST /api/notifications/mark-all-read
- * Marks all notifications for user or endpoint as read
+ * Marks all active notifications for user or endpoint as read
  */
 router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -80,9 +121,15 @@ router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, re
       return sendSuccess(res, { modifiedCount: 0 });
     }
 
-    const filter = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])], isRead: false }
-      : { endpoint, isRead: false };
+    const userOrEndpoint = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      : { endpoint };
+
+    const filter = {
+      ...userOrEndpoint,
+      deletedAt: null,
+      isRead: false,
+    };
 
     const result = await InAppNotification.updateMany(filter, { isRead: true });
     return sendSuccess(res, { modifiedCount: result.modifiedCount }, 'All notifications marked as read');
@@ -93,14 +140,143 @@ router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, re
 });
 
 /**
+ * POST /api/notifications/clear-all
+ * Moves all active notifications to trash (Clear Bell)
+ */
+router.post('/clear-all', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || null;
+    const endpoint = (req.body.endpoint as string | undefined) || null;
+
+    if (!userId && !endpoint) {
+      return sendSuccess(res, { modifiedCount: 0 });
+    }
+
+    const userOrEndpoint = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      : { endpoint };
+
+    const filter = {
+      ...userOrEndpoint,
+      deletedAt: null,
+    };
+
+    const result = await InAppNotification.updateMany(filter, {
+      deletedAt: new Date(),
+      isRead: true,
+    });
+    return sendSuccess(
+      res,
+      { modifiedCount: result.modifiedCount },
+      'All notifications cleared and moved to trash'
+    );
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to clear notifications', 500);
+  }
+});
+
+/**
+ * PATCH /api/notifications/:id/trash
+ * Moves a single notification to trash (soft-delete)
+ */
+router.patch('/:id/trash', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updated = await InAppNotification.findByIdAndUpdate(
+      id,
+      { deletedAt: new Date(), isRead: true },
+      { new: true }
+    );
+    if (!updated) {
+      return sendError(res, 'Notification not found', 404);
+    }
+    return sendSuccess(res, updated, 'Notification moved to trash');
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to trash notification', 500);
+  }
+});
+
+/**
+ * POST /api/notifications/:id/restore
+ * Restores a trashed notification back to the active list
+ */
+router.post('/:id/restore', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updated = await InAppNotification.findByIdAndUpdate(
+      id,
+      { deletedAt: null },
+      { new: true }
+    );
+    if (!updated) {
+      return sendError(res, 'Notification not found', 404);
+    }
+    return sendSuccess(res, updated, 'Notification restored');
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to restore notification', 500);
+  }
+});
+
+/**
+ * DELETE /api/notifications/trash/empty
+ * Permanently purges all trashed notifications for the user (Remove Junk)
+ */
+router.delete('/trash/empty', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || null;
+    const endpoint = (req.body?.endpoint as string | undefined) || (req.query?.endpoint as string | undefined) || null;
+
+    if (!userId && !endpoint) {
+      return sendSuccess(res, { deletedCount: 0 });
+    }
+
+    const userOrEndpoint = userId
+      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      : { endpoint };
+
+    const filter = {
+      ...userOrEndpoint,
+      deletedAt: { $ne: null },
+    };
+
+    const result = await InAppNotification.deleteMany(filter);
+    return sendSuccess(
+      res,
+      { deletedCount: result.deletedCount },
+      'Notification trash emptied permanently'
+    );
+  } catch (error: unknown) {
+    const err = error as Error;
+    return sendError(res, err?.message || 'Failed to empty notification trash', 500);
+  }
+});
+
+/**
  * DELETE /api/notifications/:id
- * Removes a notification item
+ * Soft-deletes a notification to trash (or permanently if already trashed)
  */
 router.delete('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    await InAppNotification.findByIdAndDelete(id);
-    return sendSuccess(res, null, 'Notification removed');
+    const isPermanent = req.query.permanent === 'true';
+
+    const existing = await InAppNotification.findById(id);
+    if (!existing) {
+      return sendError(res, 'Notification not found', 404);
+    }
+
+    if (isPermanent || existing.deletedAt) {
+      await InAppNotification.findByIdAndDelete(id);
+      return sendSuccess(res, null, 'Notification permanently removed');
+    }
+
+    existing.deletedAt = new Date();
+    existing.isRead = true;
+    await existing.save();
+    return sendSuccess(res, existing, 'Notification moved to trash');
   } catch (error: unknown) {
     const err = error as Error;
     return sendError(res, err?.message || 'Failed to delete notification', 500);
@@ -242,35 +418,95 @@ router.post('/unsubscribe', async (req, res: Response) => {
   }
 });
 
+interface SimulationTemplate {
+  title: string;
+  body: string;
+  type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system';
+  url: string;
+}
+
+const DEFAULT_SIMULATION: SimulationTemplate = {
+  title: '⚡ Taskiye System Connected!',
+  body: 'Your device is verified and push notifications are fully operational.',
+  type: 'system',
+  url: '/',
+};
+
+const NOTIFICATION_SIMULATIONS: Record<string, SimulationTemplate> = {
+  morning: {
+    title: '☀️ Good Morning, Champion!',
+    body: 'Start strong! 3 daily habits and your morning focus routine are ready.',
+    type: 'morning',
+    url: '/',
+  },
+  planning: {
+    title: '🎯 Task Planning Check-in',
+    body: 'Mid-day momentum: Time to organize priorities and conquer pending tasks.',
+    type: 'planning',
+    url: '/tasks',
+  },
+  streak: {
+    title: '🔥 Streak Protection Alert!',
+    body: 'Your streak is on the line! Complete at least 1 habit before midnight.',
+    type: 'streak',
+    url: '/habits',
+  },
+  achievement: {
+    title: '🏆 Milestone Conquest Unlocked!',
+    body: 'Outstanding consistency! All daily targets completed. Rank progress updated.',
+    type: 'achievement',
+    url: '/rank',
+  },
+  trash: {
+    title: '🗑️ Trash Items Expiring Soon',
+    body: 'Soft-deleted tasks in your junk bin will be permanently purged in 48 hours.',
+    type: 'trash',
+    url: '/',
+  },
+  system: DEFAULT_SIMULATION,
+};
+
 /**
  * POST /api/notifications/test
- * Sends an immediate test notification to the requester's device and stores in-app notification
+ * Sends an immediate simulation test notification for any notification type
  */
 router.post('/test', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { endpoint } = req.body || {};
+    const { endpoint, type = 'system' } = req.body || {};
     const userId = req.user?.id || null;
+
+    const sim: SimulationTemplate = NOTIFICATION_SIMULATIONS[String(type)] ?? DEFAULT_SIMULATION;
 
     let sub = endpoint ? await PushSubscription.findOne({ endpoint }) : null;
     if (!sub && userId) {
       sub = await PushSubscription.findOne({ userId }).sort({ updatedAt: -1 });
     }
 
+    const tag = `taskiye-sim-${sim.type}-${Date.now()}`;
+
     const result = await dispatchUnifiedNotification({
       sub,
       userId,
       endpoint: endpoint || sub?.endpoint || null,
-      title: 'Taskiye Connected! 🔥',
-      body: 'Your device is verified and ready for daily task planning & streak alerts.',
-      type: 'system',
-      tag: 'taskiye-test-notification',
-      url: '/',
+      title: sim.title,
+      body: sim.body,
+      type: sim.type,
+      tag,
+      url: sim.url,
     });
 
     return sendSuccess(
       res,
-      { dispatched: result.pushSent, inAppSaved: result.inAppSaved },
-      'Test notification processed'
+      {
+        dispatched: result.pushSent,
+        inAppSaved: result.inAppSaved,
+        type: sim.type,
+        title: sim.title,
+        body: sim.body,
+        url: sim.url,
+        tag,
+      },
+      `Simulated ${sim.type} notification processed`
     );
   } catch (error: unknown) {
     const err = error as Error;

@@ -10,12 +10,14 @@ import {
   Hash,
   AlertTriangle,
   RotateCcw,
+  Bell,
 } from 'lucide-react';
 import { useSession, authClient } from '../../lib/auth-client';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenNotificationPreferences?: () => void;
 }
 
 interface ProfileData {
@@ -32,7 +34,11 @@ const initialProfile: ProfileData = {
   avatarUrl: '',
 };
 
-export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({ isOpen, onClose }) => {
+export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
+  isOpen,
+  onClose,
+  onOpenNotificationPreferences,
+}) => {
   const { data: session } = useSession();
 
   const [initialData, setInitialData] = useState<ProfileData>(initialProfile);
@@ -595,6 +601,35 @@ function compressAvatarImage(file: File): Promise<Blob> {
               </div>
             )}
           </div>
+
+          {/* Quick Notification Simulator Shortcut */}
+          {onOpenNotificationPreferences && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={onOpenNotificationPreferences}
+                className="w-full p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-amber-400/40 hover:bg-white/[0.06] transition-all flex items-center justify-between gap-3 text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center text-amber-400 shrink-0">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-200 group-hover:text-white flex items-center gap-1.5">
+                      <span>Test & Simulate Notifications</span>
+                      <span className="bg-amber-400/20 text-amber-300 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">
+                        TEST LAB
+                      </span>
+                    </span>
+                    <span className="text-[10.5px] text-slate-400 mt-0.5">
+                      Simulate morning, streak, task, achievement & trash alerts
+                    </span>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-400 transition-colors shrink-0" />
+              </button>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-4">

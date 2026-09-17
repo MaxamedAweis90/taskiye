@@ -56,21 +56,35 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       tasks?: GuestTaskInput[];
     };
 
-    const habitIdMap = new Map<string, string>();
-    const createdHabits = [];
+    // 1. Boundary Guard: Reject excessively large payloads to protect server memory
+    if (habits.length > 100 || tasks.length > 500) {
+      return sendError(
+        res,
+        'Sync payload exceeds limits (max 100 habits, 500 tasks per request)',
+        413
+      );
+    }
 
-    // 1. Migrate guest habits
+    const habitIdMap = new Map<string, string>();
+    let createdHabitsCount = 0;
+    let createdTasksCount = 0;
+
+    // 2. Optimized Habit Migration: Single DB query for all existing habits
+    const existingHabits = await Habit.find({ userId });
+    const existingHabitsMap = new Map(
+      existingHabits.map((h) => [h.title.toLowerCase().trim(), h])
+    );
+
+    const habitsToCreate: Array<Record<string, unknown>> = [];
+
     for (const item of habits) {
       if (!item.title || typeof item.title !== 'string') continue;
-
       const trimmedTitle = item.title.trim();
       const localKey = item.id || item.localId;
+      const existing = existingHabitsMap.get(trimmedTitle.toLowerCase());
 
-      // Check if habit already exists for user to ensure idempotency
-      let habitRecord = await Habit.findOne({ userId, title: trimmedTitle });
-
-      if (!habitRecord) {
-        habitRecord = await Habit.create({
+      if (!existing) {
+        habitsToCreate.push({
           userId,
           title: trimmedTitle,
           category: item.category?.trim() || 'Health & Fitness',
@@ -86,78 +100,122 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           completedDates: Array.isArray(item.completedDates) ? item.completedDates : [],
           activeDays: Array.isArray(item.activeDays) ? item.activeDays : [0, 1, 2, 3, 4, 5, 6],
           isArchived: Boolean(item.isArchived),
+          _localKey: localKey,
         });
-        createdHabits.push(habitRecord);
       } else {
-        // Merge completed dates and max streak if existing
+        if (localKey) {
+          habitIdMap.set(localKey, existing._id.toString());
+        }
+        // Merge streak & completed dates if needed
         if (Array.isArray(item.completedDates) && item.completedDates.length > 0) {
-          habitRecord.completedDates = Array.from(
-            new Set([...(habitRecord.completedDates || []), ...item.completedDates])
+          existing.completedDates = Array.from(
+            new Set([...(existing.completedDates || []), ...item.completedDates])
           );
-          habitRecord.streakDays = Math.max(habitRecord.streakDays || 0, item.streakDays || 0);
-          habitRecord.totalCompletions = Math.max(
-            habitRecord.totalCompletions || 0,
+          existing.streakDays = Math.max(existing.streakDays || 0, item.streakDays || 0);
+          existing.totalCompletions = Math.max(
+            existing.totalCompletions || 0,
             item.totalCompletions || 0
           );
-          await habitRecord.save();
+          await existing.save();
         }
-      }
-
-      if (localKey) {
-        habitIdMap.set(localKey, habitRecord._id.toString());
       }
     }
 
-    // 2. Migrate guest tasks
-    const createdTasks = [];
-    for (const item of tasks) {
-      if (!item.title || typeof item.title !== 'string') continue;
+    if (habitsToCreate.length > 0) {
+      const inserted = await Habit.insertMany(habitsToCreate);
+      createdHabitsCount = inserted.length;
+      for (const h of inserted) {
+        const localKey = (h as unknown as { _localKey?: string })._localKey;
+        if (localKey) {
+          habitIdMap.set(localKey, String((h as { _id?: unknown })._id));
+        }
+      }
+    }
 
-      const taskDate = item.date ? new Date(item.date) : new Date();
-      if (isNaN(taskDate.getTime())) continue;
+    // 3. Optimized Task Migration: Batch lookup and atomic bulk operations
+    const validTasks = tasks.filter((t) => t.title && typeof t.title === 'string');
+    if (validTasks.length > 0) {
+      const validDates = validTasks
+        .map((t) => new Date(t.date))
+        .filter((d) => !isNaN(d.getTime()));
 
-      // Link to newly created habit instance if habit ID was mapped
-      const habitKey = item.habitId || item.habitLocalId;
-      let resolvedHabitId = null;
-      if (habitKey && habitIdMap.has(habitKey)) {
-        resolvedHabitId = habitIdMap.get(habitKey);
+      const minDate = new Date(Math.min(...validDates.map((d) => d.getTime())));
+      minDate.setUTCHours(0, 0, 0, 0);
+      const maxDate = new Date(Math.max(...validDates.map((d) => d.getTime())));
+      maxDate.setUTCHours(23, 59, 59, 999);
+
+      // Single query for all existing tasks in the migration date span
+      const existingTasks = await Task.find({
+        userId,
+        date: { $gte: minDate, $lte: maxDate },
+      }).select('_id title date isCompleted habitId');
+
+      const existingTaskMap = new Map<string, typeof existingTasks[0]>();
+      for (const t of existingTasks) {
+        const dKey = t.date ? new Date(t.date).toISOString().slice(0, 10) : '';
+        existingTaskMap.set(`${t.title.toLowerCase().trim()}_${dKey}`, t);
       }
 
-      const startOfDay = new Date(taskDate);
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      const endOfDay = new Date(taskDate);
-      endOfDay.setUTCHours(23, 59, 59, 999);
+      const tasksToInsert: Array<Record<string, unknown>> = [];
+      const bulkUpdates: Array<{
+        updateOne: {
+          filter: { _id: Types.ObjectId };
+          update: { $set: Record<string, unknown> };
+        };
+      }> = [];
 
-      // Check if task already exists for that day to avoid duplicate entries
-      const existingTask = await Task.findOne({
-        userId,
-        title: item.title.trim(),
-        date: { $gte: startOfDay, $lte: endOfDay },
-      });
+      for (const item of validTasks) {
+        const taskDate = item.date ? new Date(item.date) : new Date();
+        if (isNaN(taskDate.getTime())) continue;
 
-      if (!existingTask) {
-        const newTask = await Task.create({
-          userId,
-          title: item.title.trim(),
-          date: taskDate,
-          isCompleted: Boolean(item.isCompleted),
-          isHabitInstance: Boolean(item.isHabitInstance),
-          habitId: resolvedHabitId ? new Types.ObjectId(resolvedHabitId) : null,
-          sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : 0,
-        });
+        const dateKey = taskDate.toISOString().slice(0, 10);
+        const mapKey = `${item.title.trim().toLowerCase()}_${dateKey}`;
+        const existing = existingTaskMap.get(mapKey);
 
-        createdTasks.push(newTask);
-      } else if (item.isCompleted && !existingTask.isCompleted) {
-        existingTask.isCompleted = true;
-        if (resolvedHabitId && !existingTask.habitId) {
-          existingTask.habitId = new Types.ObjectId(resolvedHabitId);
+        const habitKey = item.habitId || item.habitLocalId;
+        let resolvedHabitId = null;
+        if (habitKey && habitIdMap.has(habitKey)) {
+          resolvedHabitId = habitIdMap.get(habitKey);
         }
-        await existingTask.save();
+
+        if (!existing) {
+          tasksToInsert.push({
+            userId,
+            title: item.title.trim(),
+            date: taskDate,
+            isCompleted: Boolean(item.isCompleted),
+            isHabitInstance: Boolean(item.isHabitInstance),
+            habitId: resolvedHabitId ? new Types.ObjectId(resolvedHabitId) : null,
+            sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : 0,
+            category: item.category || 'Routine Activity',
+            priority: item.priority || 'normal',
+          });
+        } else if (item.isCompleted && !existing.isCompleted) {
+          const updateSet: Record<string, unknown> = { isCompleted: true };
+          if (resolvedHabitId && !existing.habitId) {
+            updateSet.habitId = new Types.ObjectId(resolvedHabitId);
+          }
+          bulkUpdates.push({
+            updateOne: {
+              filter: { _id: existing._id },
+              update: { $set: updateSet },
+            },
+          });
+        }
+      }
+
+      if (tasksToInsert.length > 0) {
+        const inserted = await Task.insertMany(tasksToInsert, { ordered: false });
+        createdTasksCount = inserted.length;
+      }
+
+      if (bulkUpdates.length > 0) {
+        await Task.bulkWrite(bulkUpdates);
       }
     }
 
     // Send account migration push notification if items were migrated
-    if (createdHabits.length > 0 || createdTasks.length > 0) {
+    if (createdHabitsCount > 0 || createdTasksCount > 0) {
       try {
         const sub = await PushSubscription.findOne({ userId });
         if (sub) {
@@ -179,9 +237,9 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     return sendSuccess(
       res,
       {
-        syncedHabitsCount: createdHabits.length,
-        syncedTasksCount: createdTasks.length,
-        totalItemsMigrated: createdHabits.length + createdTasks.length,
+        syncedHabitsCount: createdHabitsCount,
+        syncedTasksCount: createdTasksCount,
+        totalItemsMigrated: createdHabitsCount + createdTasksCount,
       },
       'Guest items synced successfully to account'
     );

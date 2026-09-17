@@ -3,6 +3,7 @@ import { Task } from '../models/Task.js';
 import { Habit } from '../models/Habit.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { invalidateRankingsCache } from './rankings.js';
 
 const router = Router();
 
@@ -110,28 +111,41 @@ router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Res
 
     const userId = req.user.id;
 
-    // Fetch tasks from the last 365 days
+    // Fetch task metrics from the last 365 days via native database aggregation
     const oneYearAgo = new Date();
     oneYearAgo.setDate(oneYearAgo.getDate() - 365);
     oneYearAgo.setUTCHours(0, 0, 0, 0);
 
-    const tasks = await Task.find({
-      userId,
-      deletedAt: null,
-      date: { $gte: oneYearAgo },
-    }).select('date isCompleted isHabitInstance habitId');
+    const taskStats = await Task.aggregate<{
+      _id: string;
+      totalCount: number;
+      completedCount: number;
+    }>([
+      {
+        $match: {
+          userId,
+          deletedAt: null,
+          date: { $gte: oneYearAgo },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+          totalCount: { $sum: 1 },
+          completedCount: {
+            $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] },
+          },
+        },
+      },
+    ]);
 
     const activityMap: Record<string, { completedCount: number; totalCount: number }> = {};
-
-    for (const task of tasks) {
-      if (!task.date) continue;
-      const dateStr = new Date(task.date).toISOString().slice(0, 10);
-      if (!activityMap[dateStr]) {
-        activityMap[dateStr] = { completedCount: 0, totalCount: 0 };
-      }
-      activityMap[dateStr].totalCount += 1;
-      if (task.isCompleted) {
-        activityMap[dateStr].completedCount += 1;
+    for (const stat of taskStats) {
+      if (stat._id) {
+        activityMap[stat._id] = {
+          completedCount: stat.completedCount,
+          totalCount: stat.totalCount,
+        };
       }
     }
 
@@ -693,6 +707,7 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
           }
         }
       }
+      invalidateRankingsCache();
     }
 
     return sendSuccess(res, task, 'Task updated successfully');
@@ -715,6 +730,7 @@ router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Respons
       habitId: null,
     })
       .sort({ deletedAt: -1 })
+      .limit(100)
       .populate('habitId', 'title category');
 
     return sendSuccess(res, trashedTasks, 'Trashed tasks fetched successfully');

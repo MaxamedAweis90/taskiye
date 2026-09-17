@@ -4,8 +4,10 @@ import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { Friendship } from '../models/Friendship.js';
 import { Habit } from '../models/Habit.js';
-import { InAppNotification } from '../models/InAppNotification.js';
+import { PushSubscription } from '../models/PushSubscription.js';
+import { dispatchUnifiedNotification } from '../lib/push.js';
 import { mongoDb } from '../db/connection.js';
+import { searchLimiter, socialLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -36,9 +38,13 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
  * GET /api/friends/search?q=...
  * Searches real registered users, strictly excluding the authenticated user
  */
-router.get('/search', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const rawQuery = ((req.query.q as string) || '').trim().replace(/^@/, '').toLowerCase();
+    if (rawQuery.length > 50) {
+      return sendError(res, 'Search query too long', 400);
+    }
+    const escapedQuery = rawQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const currentUserId = req.user?.id;
     const currentUserEmail = req.user?.email;
     const currentUsername = (req.user as unknown as { username?: string })?.username;
@@ -66,8 +72,8 @@ router.get('/search', optionalAuth, async (req: AuthenticatedRequest, res: Respo
       filter.$nor = exclusions;
     }
 
-    if (rawQuery) {
-      const regex = { $regex: rawQuery, $options: 'i' };
+    if (escapedQuery) {
+      const regex = { $regex: escapedQuery, $options: 'i' };
       filter.$or = [{ name: regex }, { username: regex }, { email: regex }];
     }
 
@@ -150,7 +156,7 @@ router.get('/search', optionalAuth, async (req: AuthenticatedRequest, res: Respo
  * POST /api/friends/request
  * Send a friend request to a real user via username search or QR code token
  */
-router.post('/request', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'guest_user';
     const senderName = req.user?.name || 'A rival';
@@ -164,10 +170,14 @@ router.post('/request', optionalAuth, async (req: AuthenticatedRequest, res: Res
 
     if (targetUsername) {
       const cleanTarget = String(targetUsername).trim().replace(/^@/, '');
+      if (cleanTarget.length > 50) {
+        return sendError(res, 'Invalid target username', 400);
+      }
+      const escapedTarget = cleanTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const foundUser = await mongoDb.collection('user').findOne({
         $or: [
-          { username: { $regex: `^${cleanTarget}$`, $options: 'i' } },
-          { name: { $regex: `^${cleanTarget}$`, $options: 'i' } },
+          { username: { $regex: `^${escapedTarget}$`, $options: 'i' } },
+          { name: { $regex: `^${escapedTarget}$`, $options: 'i' } },
           { email: cleanTarget.toLowerCase() },
           { id: cleanTarget },
         ],
@@ -211,17 +221,21 @@ router.post('/request', optionalAuth, async (req: AuthenticatedRequest, res: Res
       status: 'PENDING',
     });
 
-    // Deliver in-app notification to recipient's inbox
+    // Deliver unified notification (in-app + web push) to recipient
     try {
-      await InAppNotification.create({
+      const recipientSub = await PushSubscription.findOne({ userId: targetUserId }).sort({ updatedAt: -1 });
+      await dispatchUnifiedNotification({
+        sub: recipientSub,
         userId: targetUserId,
-        title: 'New Friend Request',
+        title: 'New Friend Request! 🏆',
         body: `${senderName} challenged you to a streak rivalry!`,
         type: 'system',
-        data: { url: '/rank', friendshipId: friendship._id },
+        tag: `friend-request-${friendship._id}`,
+        url: '/rank',
+        data: { friendshipId: friendship._id },
       });
     } catch (notifErr) {
-      console.warn('[Friends] Failed to create in-app notification:', notifErr);
+      console.warn('[Friends] Failed to deliver notification:', notifErr);
     }
 
     return sendSuccess(
@@ -239,7 +253,7 @@ router.post('/request', optionalAuth, async (req: AuthenticatedRequest, res: Res
  * POST /api/friends/respond
  * Accept or reject a friend request
  */
-router.post('/respond', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'guest_user';
     const { friendshipId, action } = req.body;

@@ -8,10 +8,14 @@ import {
   Volume2,
   Clock,
   ShieldAlert,
-  Send,
   Sparkles,
   Target,
   ChevronDown,
+  Sun,
+  Trophy,
+  Trash2,
+  Loader2,
+  Play,
 } from 'lucide-react';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -20,6 +24,66 @@ interface NotificationPreferencesModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+interface NotificationSimulationItem {
+  id: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system';
+  label: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  badgeBg: string;
+}
+
+const NOTIFICATION_SIMULATION_LIST: NotificationSimulationItem[] = [
+  {
+    id: 'morning',
+    label: 'Morning Cadence',
+    desc: 'Daily focus & habits kick-off',
+    icon: Sun,
+    color: 'text-amber-400',
+    badgeBg: 'bg-amber-400/10 border-amber-400/25',
+  },
+  {
+    id: 'planning',
+    label: 'Task Planning',
+    desc: 'Mid-day check-in & task review',
+    icon: Target,
+    color: 'text-sky-400',
+    badgeBg: 'bg-sky-400/10 border-sky-400/25',
+  },
+  {
+    id: 'streak',
+    label: 'Streak at Risk',
+    desc: 'Urgent streak protection alert',
+    icon: Flame,
+    color: 'text-orange-400',
+    badgeBg: 'bg-orange-400/10 border-orange-400/25',
+  },
+  {
+    id: 'achievement',
+    label: 'Daily Milestone',
+    desc: 'All habits completed celebration',
+    icon: Trophy,
+    color: 'text-emerald-400',
+    badgeBg: 'bg-emerald-400/10 border-emerald-400/25',
+  },
+  {
+    id: 'trash',
+    label: 'Trash Expiration',
+    desc: '48h soft-delete purge warning',
+    icon: Trash2,
+    color: 'text-rose-400',
+    badgeBg: 'bg-rose-400/10 border-rose-400/25',
+  },
+  {
+    id: 'system',
+    label: 'System & Sync',
+    desc: 'Device connectivity test alert',
+    icon: Sparkles,
+    color: 'text-indigo-400',
+    badgeBg: 'bg-indigo-400/10 border-indigo-400/25',
+  },
+];
 
 interface NotificationPrefs {
   dailyReminders: boolean;
@@ -60,7 +124,7 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
   const [initialPrefs, setInitialPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
+  const [testingType, setTestingType] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
@@ -187,63 +251,42 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
     }
   };
 
-  const handleTestNotification = async () => {
-    setIsTesting(true);
+  const handleSimulateNotification = async (
+    type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system'
+  ) => {
+    setTestingType(type);
     try {
-      // Ensure subscription first
-      if (!isSubscribed) {
-        const ok = await subscribe({
-          dailyReminders: prefs.dailyReminders,
-          morningReminderTime: prefs.morningReminderTime,
-          taskPlanningReminder: prefs.taskPlanningReminder,
-          taskPlanningTime: prefs.taskPlanningTime,
-          streakAlerts: prefs.streakAlerts,
-          dailyCadenceDigest: prefs.dailyCadenceDigest,
-          completionChimes: prefs.completionChimes,
-        });
-        if (!ok) {
-          showToast('Permission Needed', 'Please allow notifications in your browser prompt.', 'info');
-          setIsTesting(false);
-          return;
-        }
-      }
-
-      const delivered = await sendTestAlert();
-
-      // Instantly update the topbar notification bell in real-time without needing an app restart
-      window.dispatchEvent(
-        new CustomEvent('taskiye_refresh_notifications', {
-          detail: {
-            id: `test_alert_${Date.now()}`,
-            title: 'Taskiye Connected! 🔥',
-            description: 'Your device is verified and ready for daily task planning & streak alerts.',
-            time: 'Just now',
-            read: false,
-            type: 'system',
-            url: '/',
-            createdAt: new Date().toISOString(),
-          },
-        })
-      );
-
-      if (delivered) {
-        showToast('Alert Sent! 🔥', 'Check your device lock screen and in-app notification bell.', 'success');
-      } else {
-        // Fallback local notification
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('Taskiye Connected! 🔥', {
-            body: 'Push notifications are active on this device.',
-            icon: '/logo.png',
+      // 1. Ensure subscription if supported and permitted
+      if (!isSubscribed && isSupported && permission !== 'denied') {
+        try {
+          await subscribe({
+            dailyReminders: prefs.dailyReminders,
+            morningReminderTime: prefs.morningReminderTime,
+            taskPlanningReminder: prefs.taskPlanningReminder,
+            taskPlanningTime: prefs.taskPlanningTime,
+            streakAlerts: prefs.streakAlerts,
+            dailyCadenceDigest: prefs.dailyCadenceDigest,
+            completionChimes: prefs.completionChimes,
           });
-          showToast('Alert Sent! 🔥', 'Check your device notification center.', 'success');
-        } else {
-          showToast('Notice', 'Notification permissions are currently blocked or pending in your browser.', 'info');
+        } catch {
+          // ignore
         }
       }
+
+      // 2. Dispatch simulated notification
+      const result = await sendTestAlert(type);
+      const title = result.data?.title || 'Notification Triggered';
+
+      showToast(
+        'Simulated Alert Sent! 🔥',
+        `${title} — Dispatched to in-app bell & device.`,
+        'success'
+      );
     } catch (err) {
-      console.warn('Test alert failed:', err);
+      console.warn('Simulation test failed:', err);
+      showToast('Simulation Triggered', 'Simulated alert was processed.', 'info');
     } finally {
-      setIsTesting(false);
+      setTestingType(null);
     }
   };
 
@@ -495,27 +538,70 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
           </div>
         </div>
 
-        {/* Send Instant Test Notification Action */}
-        <div className="w-full mt-5">
-          <button
-            type="button"
-            disabled={isTesting}
-            onClick={handleTestNotification}
-            className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-400/10 hover:bg-amber-400/15 border border-amber-400/20 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-          >
-            {isTesting ? (
-              <span>Sending test alert...</span>
-            ) : (
-              <>
-                <Send className="w-3.5 h-3.5" />
-                <span>Send Test Alert to This Device</span>
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              </>
-            )}
-          </button>
+        {/* Notification Type Simulator Matrix */}
+        <div className="w-full mt-6 flex flex-col gap-3">
+          <div className="flex items-center justify-between border-t border-white/[0.08] pt-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Notification Type Simulator
+              </span>
+            </div>
+            <span className="text-[10.5px] text-slate-400 hidden sm:inline">
+              Click to test trigger & delivery
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {NOTIFICATION_SIMULATION_LIST.map((sim) => {
+              const Icon = sim.icon;
+              const isItemTesting = testingType === sim.id;
+              return (
+                <button
+                  key={sim.id}
+                  type="button"
+                  disabled={testingType !== null}
+                  onClick={() => handleSimulateNotification(sim.id)}
+                  className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer active:scale-[0.98] ${
+                    isItemTesting
+                      ? 'bg-amber-400/15 border-amber-400 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+                      : 'bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.18]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${sim.badgeBg} ${sim.color}`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold text-slate-200 truncate">
+                        {sim.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400 truncate">
+                        {sim.desc}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    {isItemTesting ? (
+                      <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                    ) : (
+                      <div className="px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-amber-400/20 text-[10px] font-bold text-amber-400 border border-amber-400/30 flex items-center gap-1 transition-all">
+                        <Play className="w-2.5 h-2.5 fill-amber-400" />
+                        <span>Test</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
           {permission === 'denied' && (
-            <p className="text-[11px] text-rose-400 text-center mt-2">
-              Notifications are currently blocked in your browser settings. Click your browser lock icon to allow.
+            <p className="text-[11px] text-rose-400 text-center mt-1">
+              Push permissions are currently blocked in your browser. Simulated alerts will still appear in your in-app notification bell.
             </p>
           )}
         </div>

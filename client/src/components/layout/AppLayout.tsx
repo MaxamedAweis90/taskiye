@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  RotateCcw,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
@@ -43,6 +44,7 @@ interface InAppNotificationItem {
   type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system' | 'habit' | 'rank';
   url?: string;
   createdAt?: string;
+  deletedAt?: string | null;
 }
 
 function formatNotificationTime(dateStr?: string): string {
@@ -93,6 +95,7 @@ export const AppLayout: React.FC = () => {
     currentDateStr,
     triggerLogoutSplash,
     syncHabitsToTodayTasks,
+    showToast,
   } = useTaskiyeStore();
 
   const { data: serverActivity = {} } = useQuery({
@@ -168,6 +171,21 @@ export const AppLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    const handleRateLimit = (e: Event) => {
+      const customEvent = e as CustomEvent<{ retryAfterSeconds?: number }>;
+      const seconds = customEvent.detail?.retryAfterSeconds || 10;
+      showToast(
+        'Rate limit reached',
+        `Please wait ${seconds} second${seconds === 1 ? '' : 's'} before trying again.`,
+        'info'
+      );
+    };
+
+    window.addEventListener('taskiye:rate-limit', handleRateLimit);
+    return () => window.removeEventListener('taskiye:rate-limit', handleRateLimit);
+  }, [showToast]);
+
   const isTaskDoneToday = useMemo(() => {
     return (
       todayChecklistCompletedCount > 0 ||
@@ -221,6 +239,7 @@ export const AppLayout: React.FC = () => {
           type?: string;
           data?: { url?: string };
           createdAt?: string;
+          deletedAt?: string | null;
         }
         const serverItems: InAppNotificationItem[] = json.data.notifications.map(
           (n: RawNotificationDoc) => ({
@@ -232,14 +251,18 @@ export const AppLayout: React.FC = () => {
             type: (n.type as InAppNotificationItem['type']) || 'system',
             url: n.data?.url || '/',
             createdAt: n.createdAt,
+            deletedAt: n.deletedAt || null,
           })
         );
 
         setNotifications((prev) => {
-          // Merge server items with any existing local migration/guest items
+          // Keep active local migration items that haven't been cleared
+          const localMigrations = prev.filter(
+            (item) => item.id.startsWith('notif_migration_') && !item.deletedAt
+          );
           const map = new Map<string, InAppNotificationItem>();
           serverItems.forEach((item) => map.set(item.id, item));
-          prev.forEach((item) => {
+          localMigrations.forEach((item) => {
             if (!map.has(item.id)) map.set(item.id, item);
           });
           const merged = Array.from(map.values()).slice(0, 30);
@@ -397,6 +420,235 @@ export const AppLayout: React.FC = () => {
       navigate(item.url);
     }
   };
+
+  const [notificationTab, setNotificationTab] = useState<'inbox' | 'trash'>('inbox');
+  const [trashedNotifications, setTrashedNotifications] = useState<InAppNotificationItem[]>([]);
+  const [isLoadingTrash, setIsLoadingTrash] = useState(false);
+
+  const fetchTrashedNotifications = useCallback(async () => {
+    try {
+      setIsLoadingTrash(true);
+      let endpoint = '';
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub?.endpoint) endpoint = sub.endpoint;
+      }
+
+      const queryUrl = endpoint
+        ? `/api/notifications/trash?endpoint=${encodeURIComponent(endpoint)}`
+        : '/api/notifications/trash';
+
+      const res = await fetch(queryUrl, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json?.data?.notifications) {
+        interface RawTrashedDoc {
+          _id?: string;
+          id?: string;
+          title?: string;
+          body?: string;
+          isRead?: boolean;
+          type?: string;
+          data?: { url?: string };
+          createdAt?: string;
+          deletedAt?: string;
+        }
+        const items: InAppNotificationItem[] = json.data.notifications.map((n: RawTrashedDoc) => ({
+          id: n._id || n.id || `trashed_${Date.now()}`,
+          title: n.title || 'Notification',
+          description: n.body || '',
+          time: formatNotificationTime(n.createdAt),
+          read: Boolean(n.isRead),
+          type: (n.type as InAppNotificationItem['type']) || 'system',
+          url: n.data?.url || '/',
+          createdAt: n.createdAt,
+          deletedAt: n.deletedAt,
+        }));
+        setTrashedNotifications(items);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingTrash(false);
+    }
+  }, []);
+
+  const trashNotification = useCallback(
+    async (item: InAppNotificationItem, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+
+      // Optimistically remove from inbox
+      setNotifications((prev) => {
+        const updated = prev.filter((n) => n.id !== item.id);
+        try {
+          localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+
+      // Add to trashed
+      setTrashedNotifications((prev) => [
+        { ...item, deletedAt: new Date().toISOString() },
+        ...prev.filter((n) => n.id !== item.id),
+      ]);
+
+      showToast('Moved to Trash', 'Notification moved to trash junk container', 'info');
+
+      if (item.id && !item.id.startsWith('notif_migration_')) {
+        try {
+          await fetch(`/api/notifications/${item.id}/trash`, {
+            method: 'PATCH',
+            credentials: 'include',
+          });
+        } catch {
+          // ignore
+        }
+      }
+    },
+    [showToast]
+  );
+
+  const clearBellAll = useCallback(async () => {
+    if (notifications.length === 0) return;
+
+    const itemsToTrash = [...notifications];
+    setNotifications([]);
+    try {
+      localStorage.setItem('taskiye_notifications_cache', JSON.stringify([]));
+    } catch {
+      // ignore
+    }
+
+    setTrashedNotifications((prev) => [
+      ...itemsToTrash.map((n) => ({ ...n, deletedAt: new Date().toISOString(), read: true })),
+      ...prev,
+    ]);
+
+    if ('clearAppBadge' in navigator) {
+      try {
+        navigator.clearAppBadge().catch(() => null);
+      } catch {
+        // ignore
+      }
+    }
+
+    showToast(
+      'Bell Cleared',
+      `${itemsToTrash.length} notification${itemsToTrash.length === 1 ? '' : 's'} moved to Trash`,
+      'info'
+    );
+
+    try {
+      let endpoint = '';
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub?.endpoint) endpoint = sub.endpoint;
+      }
+
+      await fetch('/api/notifications/clear-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ endpoint }),
+      });
+    } catch {
+      // ignore
+    }
+  }, [notifications, showToast]);
+
+  const restoreNotification = useCallback(
+    async (item: InAppNotificationItem, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+
+      // Optimistically remove from trash
+      setTrashedNotifications((prev) => prev.filter((n) => n.id !== item.id));
+
+      // Restore to inbox
+      const restoredItem = { ...item, deletedAt: null };
+      setNotifications((prev) => {
+        const updated = [restoredItem, ...prev.filter((n) => n.id !== item.id)].slice(0, 30);
+        try {
+          localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+
+      showToast('Notification Restored', 'Moved back to active notifications', 'success');
+
+      if (item.id && !item.id.startsWith('notif_migration_')) {
+        try {
+          await fetch(`/api/notifications/${item.id}/restore`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch {
+          // ignore
+        }
+      }
+    },
+    [showToast]
+  );
+
+  const emptyNotificationTrash = useCallback(async () => {
+    if (trashedNotifications.length === 0) return;
+
+    const count = trashedNotifications.length;
+    setTrashedNotifications([]);
+
+    showToast(
+      'Trash Emptied',
+      `Permanently deleted ${count} trashed notification${count === 1 ? '' : 's'}`,
+      'info'
+    );
+
+    try {
+      let endpoint = '';
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub?.endpoint) endpoint = sub.endpoint;
+      }
+
+      await fetch('/api/notifications/trash/empty', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ endpoint }),
+      });
+    } catch {
+      // ignore
+    }
+  }, [trashedNotifications.length, showToast]);
+
+  const permanentlyDeleteNotification = useCallback(
+    async (id: string, e?: React.MouseEvent) => {
+      if (e) e.stopPropagation();
+
+      setTrashedNotifications((prev) => prev.filter((n) => n.id !== id));
+      showToast('Deleted', 'Notification permanently removed', 'info');
+
+      if (id && !id.startsWith('notif_migration_')) {
+        try {
+          await fetch(`/api/notifications/${id}?permanent=true`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+        } catch {
+          // ignore
+        }
+      }
+    },
+    [showToast]
+  );
 
   // Check if a guest data migration just occurred to add to notification drawer
   useEffect(() => {
@@ -1043,7 +1295,11 @@ export const AppLayout: React.FC = () => {
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  setActiveDropdown((prev) => (prev === 'notifications' ? null : 'notifications'));
+                  setActiveDropdown((prev) => {
+                    const next = prev === 'notifications' ? null : 'notifications';
+                    if (next === 'notifications') fetchTrashedNotifications();
+                    return next;
+                  });
                 }}
                 className={`sm:hidden absolute right-0 top-0 w-full h-10 rounded-full border px-2 flex items-center justify-center select-none cursor-pointer transition-all ${
                   activeDropdown === 'notifications'
@@ -1073,7 +1329,10 @@ export const AppLayout: React.FC = () => {
               <div
                 onClick={
                   activeDropdown !== 'notifications'
-                    ? () => setActiveDropdown('notifications')
+                    ? () => {
+                        setActiveDropdown('notifications');
+                        fetchTrashedNotifications();
+                      }
                     : undefined
                 }
                 className={`transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] z-50 overflow-hidden cursor-pointer ${
@@ -1086,9 +1345,11 @@ export const AppLayout: React.FC = () => {
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveDropdown((prev) =>
-                      prev === 'notifications' ? null : 'notifications'
-                    );
+                    setActiveDropdown((prev) => {
+                      const next = prev === 'notifications' ? null : 'notifications';
+                      if (next === 'notifications') fetchTrashedNotifications();
+                      return next;
+                    });
                   }}
                   className={`flex items-center cursor-pointer select-none group ${
                     activeDropdown === 'notifications'
@@ -1143,81 +1404,215 @@ export const AppLayout: React.FC = () => {
                   }`}
                 >
                   <div className="overflow-hidden flex flex-col gap-2.5 text-left pt-2.5">
-                    {/* Header action bar */}
-                    <div className="border-t border-white/[0.08] pt-2 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        Recent Activity
-                      </span>
-                      {hasUnreadNotifications && (
+                    {/* Header action bar with Tab Switcher */}
+                    <div className="border-t border-white/[0.08] pt-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center p-0.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px]">
                         <button
                           type="button"
-                          onClick={markAllNotificationsRead}
-                          className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                          onClick={() => setNotificationTab('inbox')}
+                          className={`px-2 py-0.5 rounded-md font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                            notificationTab === 'inbox'
+                              ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30 shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
                         >
-                          <CheckCheck className="w-3 h-3" />
-                          <span>Mark all read</span>
+                          <Bell className="w-3 h-3" />
+                          <span>Inbox</span>
+                          {unreadCount > 0 && (
+                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-400/30 text-[9px] font-bold text-amber-300">
+                              {unreadCount}
+                            </span>
+                          )}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNotificationTab('trash');
+                            fetchTrashedNotifications();
+                          }}
+                          className={`px-2 py-0.5 rounded-md font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                            notificationTab === 'trash'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Trash</span>
+                          {trashedNotifications.length > 0 && (
+                            <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-rose-500/30 text-[9px] font-bold text-rose-300">
+                              {trashedNotifications.length}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Header Actions for Inbox vs Trash */}
+                      {notificationTab === 'inbox' ? (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {hasUnreadNotifications && (
+                            <button
+                              type="button"
+                              onClick={markAllNotificationsRead}
+                              className="text-[10.5px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-0.5 cursor-pointer transition-colors"
+                              title="Mark all notifications as read"
+                            >
+                              <CheckCheck className="w-3 h-3" />
+                              <span className="hidden xs:inline">Read</span>
+                            </button>
+                          )}
+                          {notifications.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={clearBellAll}
+                              className="text-[10.5px] font-semibold text-slate-400 hover:text-rose-400 flex items-center gap-0.5 cursor-pointer transition-colors"
+                              title="Clear bell: move all notifications to trash"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Clear All</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        trashedNotifications.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={emptyNotificationTrash}
+                            className="text-[10.5px] font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20"
+                            title="Permanently remove all junk notifications"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Empty Junk</span>
+                          </button>
+                        )
                       )}
                     </div>
 
-                    {/* Notifications list */}
-                    <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-0.5">
-                      {notifications.length === 0 ? (
-                        <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
-                          <Bell className="w-5 h-5 opacity-40 text-slate-400" />
-                          <span className="text-xs font-medium text-slate-400">
-                            No new notifications
-                          </span>
-                          <span className="text-[11px] text-slate-500">
-                            Activity and reminders will appear here
-                          </span>
-                        </div>
-                      ) : (
-                        notifications.map((n) => (
-                          <div
-                            key={n.id}
-                            onClick={() => handleNotificationClick(n)}
-                            className={`p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
-                              n.read
-                                ? 'bg-white/[0.02] border-white/[0.05] text-slate-400 hover:bg-white/[0.05]'
-                                : 'bg-amber-400/[0.07] border-amber-400/25 text-slate-200 hover:bg-amber-400/[0.12] shadow-[0_0_12px_rgba(250,204,21,0.08)]'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-xs shrink-0">
-                                  {n.type === 'planning'
-                                    ? '🎯'
-                                    : n.type === 'morning'
-                                      ? '☀️'
-                                      : n.type === 'streak'
-                                        ? '🔥'
-                                        : n.type === 'achievement'
-                                          ? '🏆'
-                                          : n.type === 'trash'
-                                            ? '🗑️'
-                                            : n.type === 'habit'
-                                              ? '⏰'
-                                              : '🔔'}
-                                </span>
-                                <span className="text-xs font-bold text-white truncate">
-                                  {n.title}
-                                </span>
-                                {!n.read && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                                )}
-                              </div>
-                              <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                                {n.time}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-300 mt-1 leading-normal pl-5">
-                              {n.description}
-                            </p>
+                    {/* Notifications list: Inbox vs Trash */}
+                    {notificationTab === 'inbox' ? (
+                      <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-0.5">
+                        {notifications.length === 0 ? (
+                          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
+                            <Bell className="w-5 h-5 opacity-40 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-400">
+                              No new notifications
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              Activity and reminders will appear here
+                            </span>
                           </div>
-                        ))
-                      )}
-                    </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div
+                              key={n.id}
+                              onClick={() => handleNotificationClick(n)}
+                              className={`group p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                n.read
+                                  ? 'bg-white/[0.02] border-white/[0.05] text-slate-400 hover:bg-white/[0.05]'
+                                  : 'bg-amber-400/[0.07] border-amber-400/25 text-slate-200 hover:bg-amber-400/[0.12] shadow-[0_0_12px_rgba(250,204,21,0.08)]'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-xs shrink-0">
+                                    {n.type === 'planning'
+                                      ? '🎯'
+                                      : n.type === 'morning'
+                                        ? '☀️'
+                                        : n.type === 'streak'
+                                          ? '🔥'
+                                          : n.type === 'achievement'
+                                            ? '🏆'
+                                            : n.type === 'trash'
+                                              ? '🗑️'
+                                              : n.type === 'habit'
+                                                ? '⏰'
+                                                : '🔔'}
+                                  </span>
+                                  <span className="text-xs font-bold text-white truncate">
+                                    {n.title}
+                                  </span>
+                                  {!n.read && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="text-[10px] text-slate-500 font-mono">
+                                    {n.time}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => trashNotification(n, e)}
+                                    className="opacity-0 group-hover:opacity-100 hover:bg-rose-500/20 p-1 rounded-md text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                                    title="Move to trash"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-slate-300 mt-1 leading-normal pl-5">
+                                {n.description}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-0.5">
+                        {isLoadingTrash ? (
+                          <div className="py-6 px-3 text-center text-xs text-slate-400">
+                            Loading trash items...
+                          </div>
+                        ) : trashedNotifications.length === 0 ? (
+                          <div className="py-6 px-3 text-center flex flex-col items-center justify-center gap-1.5 text-slate-500">
+                            <Trash2 className="w-5 h-5 opacity-40 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-400">Trash is empty</span>
+                            <span className="text-[11px] text-slate-500">
+                              Cleared notifications are kept here for 30 days
+                            </span>
+                          </div>
+                        ) : (
+                          trashedNotifications.map((n) => (
+                            <div
+                              key={n.id}
+                              className="group p-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-all select-none"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="text-xs shrink-0 opacity-60">🗑️</span>
+                                  <span className="text-xs font-bold text-slate-300 truncate">
+                                    {n.title}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => restoreNotification(n, e)}
+                                    className="p-1 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/15 transition-all cursor-pointer"
+                                    title="Restore to active inbox"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => permanentlyDeleteNotification(n.id, e)}
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition-all cursor-pointer"
+                                    title="Delete forever"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-1 leading-normal pl-5">
+                                {n.description}
+                              </p>
+                              <div className="text-[9.5px] text-slate-500 mt-1 pl-5 font-mono">
+                                Trashed • Auto-purges in 30 days
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1533,6 +1928,10 @@ export const AppLayout: React.FC = () => {
       <ProfileSettingsModal
         isOpen={isProfileSettingsOpen}
         onClose={() => setIsProfileSettingsOpen(false)}
+        onOpenNotificationPreferences={() => {
+          setIsProfileSettingsOpen(false);
+          setIsNotificationModalOpen(true);
+        }}
       />
 
       {/* Notification Preferences Modal */}

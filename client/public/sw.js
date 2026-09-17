@@ -140,8 +140,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Taskiye Alert',
     body: 'You have a new update in Taskiye.',
-    icon: '/logo.png',
-    badge: '/logo.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     data: { url: '/' },
   };
 
@@ -158,66 +158,114 @@ self.addEventListener('push', (event) => {
     ? data.icon.startsWith('http')
       ? data.icon
       : `${origin}${data.icon.startsWith('/') ? '' : '/'}${data.icon}`
-    : `${origin}/logo.png`;
+    : `${origin}/icons/icon-192.png`;
+
+  const badgeUrl = data.badge
+    ? data.badge.startsWith('http')
+      ? data.badge
+      : `${origin}${data.badge.startsWith('/') ? '' : '/'}${data.badge}`
+    : `${origin}/icons/icon-192.png`;
 
   const options = {
     body: data.body,
     icon: iconUrl,
-    badge: iconUrl,
+    badge: badgeUrl,
     tag: data.tag || `taskiye-notification-${Date.now()}`,
     renotify: true,
     data: data.data || { url: '/' },
+    actions: [
+      { action: 'open', title: 'Open Taskiye' },
+      { action: 'dismiss', title: 'Dismiss' },
+    ],
   };
 
-  const notifyPromise = self.registration
-    .showNotification(data.title, options)
-    .catch((err) => console.warn('[PWA SW] showNotification warning:', err));
+  const handlePush = async () => {
+    // 1. Check if user is currently focused on an open Taskiye window
+    let clientList = [];
+    try {
+      clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    } catch {
+      clientList = [];
+    }
 
-  // Broadcast to all active client windows so the in-app notification bell updates in real-time
-  const broadcastPromise = self.clients
-    .matchAll({ type: 'window', includeUncontrolled: true })
-    .then((clientList) => {
-      clientList.forEach((client) => {
-        client.postMessage({
-          type: 'PUSH_NOTIFICATION_RECEIVED',
-          payload: {
-            title: data.title,
-            body: data.body,
-            type: data.data?.type || 'system',
-            url: data.data?.url || '/',
-            tag: options.tag,
-            createdAt: new Date().toISOString(),
-          },
-        });
+    const isAppFocused = clientList.some((c) => c.focused);
+
+    // 2. Increment / set App Badge if supported
+    if ('setAppBadge' in navigator) {
+      try {
+        await navigator.setAppBadge();
+      } catch {
+        // Badging API not supported or restricted
+      }
+    }
+
+    // 3. Only show disruptive OS notification if app is in background or closed
+    if (!isAppFocused) {
+      try {
+        await self.registration.showNotification(data.title, options);
+      } catch (err) {
+        console.warn('[PWA SW] showNotification warning:', err);
+      }
+    }
+
+    // 4. Always broadcast to active client windows to update in-app bell counter & toast
+    clientList.forEach((client) => {
+      client.postMessage({
+        type: 'PUSH_NOTIFICATION_RECEIVED',
+        payload: {
+          title: data.title,
+          body: data.body,
+          type: data.data?.type || 'system',
+          url: data.data?.url || '/',
+          tag: options.tag,
+          createdAt: new Date().toISOString(),
+        },
       });
-    })
-    .catch(() => null);
+    });
+  };
 
-  event.waitUntil(Promise.all([notifyPromise, broadcastPromise]));
+  event.waitUntil(handlePush());
 });
 
-// 5. Notification Click Event - Focus or navigate to target route
+// 5. Notification Click Event - Focus, navigate to target route, or dismiss
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  // If user clicked 'dismiss' action, do nothing
+  if (event.action === 'dismiss') {
+    return;
+  }
+
   const targetUrl = event.notification.data?.url || '/';
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it and navigate
-      for (const client of clientList) {
-        if ('focus' in client) {
-          client.focus();
-          if ('navigate' in client && client.url !== targetUrl) {
-            client.navigate(targetUrl);
-          }
-          return;
+  const handleClick = async () => {
+    // Clear OS app badge upon notification interaction
+    if ('clearAppBadge' in navigator) {
+      try {
+        await navigator.clearAppBadge();
+      } catch {
+        // ignore
+      }
+    }
+
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+    // If a window is already open, focus it and navigate
+    for (const client of clientList) {
+      if ('focus' in client) {
+        await client.focus();
+        if ('navigate' in client && client.url !== targetUrl) {
+          await client.navigate(targetUrl);
         }
+        return;
       }
-      // If no window is open, open a new browser window
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
-      }
-    })
-  );
+    }
+
+    // If no window is open, open a new browser window
+    if (self.clients.openWindow) {
+      return self.clients.openWindow(targetUrl);
+    }
+  };
+
+  event.waitUntil(handleClick());
 });
