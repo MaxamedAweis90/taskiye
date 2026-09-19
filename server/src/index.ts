@@ -20,11 +20,14 @@ dotenv.config();
 dotenv.config({ path: '../.env' });
 
 const app = express();
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5000',
   'https://taskiye.vercel.app',
+  'https://taskiye-server.vercel.app',
   ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((url) => url.trim()) : []),
 ];
 
