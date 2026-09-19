@@ -1,5 +1,4 @@
 import { createAuthClient } from 'better-auth/react';
-import { emailOTPClient, phoneNumberClient } from 'better-auth/client/plugins';
 
 const getBaseUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
@@ -12,10 +11,6 @@ const getBaseUrl = () => {
 
 export const authClient = createAuthClient({
   baseURL: getBaseUrl(),
-  plugins: [
-    emailOTPClient(),
-    phoneNumberClient(),
-  ],
 });
 
 export const { signIn, signUp, signOut, useSession } = authClient;

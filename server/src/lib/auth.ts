@@ -1,7 +1,11 @@
 import { betterAuth } from 'better-auth';
 import { mongodbAdapter } from '@better-auth/mongo-adapter';
-import { emailOTP } from 'better-auth/plugins';
 import { mongoClient, mongoDb } from '../db/connection.js';
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendEmailChangeVerification,
+} from './email.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,8 +24,25 @@ export const auth = betterAuth({
     'https://taskiye.vercel.app',
     ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((u) => u.trim()) : []),
   ],
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ['google'],
+    },
+  },
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
+    async sendResetPassword({ user, url }: { user: { email: string }; url: string }) {
+      await sendPasswordResetEmail(user.email, url);
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    async sendVerificationEmail({ user, url }: { user: { email: string }; url: string }) {
+      await sendVerificationEmail(user.email, url);
+    },
   },
   socialProviders: {
     google: {
@@ -30,15 +51,13 @@ export const auth = betterAuth({
       enabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     },
   },
-  plugins: [
-    emailOTP({
-      async sendVerificationOTP({ email, otp, type }) {
-        // In production, integrate with SendGrid/Resend.
-        console.log(`[BetterAuth OTP] (${type}) Sending OTP to ${email}: ${otp}`);
-      },
-    }),
-  ],
   user: {
+    changeEmail: {
+      enabled: true,
+      async sendChangeEmailVerification({ newEmail, url }: { newEmail: string; url: string }) {
+        await sendEmailChangeVerification(newEmail, url);
+      },
+    },
     additionalFields: {
       username: {
         type: 'string',
@@ -57,3 +76,4 @@ export const auth = betterAuth({
 
 export type Auth = typeof auth;
 export type Session = typeof auth.$Infer.Session;
+

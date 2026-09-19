@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  X,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
@@ -148,6 +149,120 @@ export const AppLayout: React.FC = () => {
   useEffect(() => {
     setBaseStreakDays(effectiveBaseStreak);
   }, [effectiveBaseStreak, setBaseStreakDays]);
+
+  // Live profile query to track verification status
+  const { data: userProfileData } = useQuery({
+    queryKey: ['user', 'profile'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/profile', { credentials: 'include' });
+      const json = await res.json();
+      return json?.data?.user;
+    },
+    enabled: Boolean(session?.user),
+    staleTime: 30000,
+  });
+
+  const user = session?.user as
+    | {
+        name?: string;
+        username?: string;
+        email?: string;
+        avatarUrl?: string;
+        image?: string | null;
+      }
+    | undefined;
+
+  const displayName =
+    userProfileData?.name ||
+    user?.name ||
+    userProfileData?.username ||
+    user?.username ||
+    user?.email?.split('@')[0] ||
+    'User';
+  const firstName = displayName.split(' ')[0] || 'User';
+  const email = userProfileData?.email || user?.email || '';
+  const avatarSrc = userProfileData?.avatarUrl || user?.avatarUrl || user?.image || '';
+  const userInitial = (displayName || 'U').charAt(0).toUpperCase();
+
+  const isEmailUnverified = Boolean(
+    session?.user &&
+      (userProfileData ? !userProfileData.emailVerified : session.user.emailVerified === false)
+  );
+
+  const hasCustomUsername = Boolean(
+    userProfileData?.username?.trim() || user?.username?.trim()
+  );
+  const isProfileCompleted = Boolean(
+    session?.user?.id &&
+      localStorage.getItem(`taskiye_profile_completed_${session.user.id}`) === 'true'
+  );
+
+  // Avatar is optional. Banner disappears once username is set or profile is completed.
+  const isProfileIncomplete = Boolean(
+    session?.user && !hasCustomUsername && !isProfileCompleted
+  );
+
+  const [isSendingVerifyEmail, setIsSendingVerifyEmail] = useState(false);
+  const [hasSentVerifyEmail, setHasSentVerifyEmail] = useState(false);
+  const [isVerifyBannerDismissed, setIsVerifyBannerDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('taskiye_verify_banner_dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [isFinishProfileDismissed, setIsFinishProfileDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('taskiye_finish_profile_dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleTriggerVerifyEmail = async () => {
+    setIsSendingVerifyEmail(true);
+    try {
+      const res = await fetch('/api/users/send-verification-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to send verification email');
+      }
+      setHasSentVerifyEmail(true);
+      showToast(
+        'Verification Email Sent! 📩',
+        `We sent a confirmation link to ${session?.user?.email || 'your email'}. Check your inbox!`,
+        'success'
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send verification email';
+      showToast('Could not send email', msg, 'error');
+    } finally {
+      setIsSendingVerifyEmail(false);
+    }
+  };
+
+  const handleDismissVerifyBanner = () => {
+    setIsVerifyBannerDismissed(true);
+    try {
+      sessionStorage.setItem('taskiye_verify_banner_dismissed', 'true');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDismissFinishProfile = () => {
+    setIsFinishProfileDismissed(true);
+    try {
+      sessionStorage.setItem('taskiye_finish_profile_dismissed', 'true');
+    } catch {
+      // ignore
+    }
+  };
 
   const [activeDropdown, setActiveDropdown] = useState<
     'streak' | 'notifications' | 'profile' | null
@@ -830,24 +945,6 @@ export const AppLayout: React.FC = () => {
     }
   };
 
-  const defaultAvatar =
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80';
-
-  const user = session?.user as
-    | {
-        name?: string;
-        username?: string;
-        email?: string;
-        avatarUrl?: string;
-        image?: string | null;
-      }
-    | undefined;
-
-  const displayName = user?.name || user?.username || user?.email?.split('@')[0] || 'User';
-  const firstName = displayName.split(' ')[0] || 'User';
-  const email = user?.email || '';
-  const avatarSrc = user?.avatarUrl || user?.image || defaultAvatar;
-
   const { theme, resolvedTheme, setTheme } = useThemeStore();
 
   return (
@@ -964,6 +1061,65 @@ export const AppLayout: React.FC = () => {
 
       {/* 2. Right Side: Topbar + Main Elevated Workspace */}
       <div className="flex-1 flex flex-col min-w-0 w-full max-w-full h-full overflow-hidden">
+        {/* Global Email Verification Banner */}
+        {session?.user && isEmailUnverified && !isVerifyBannerDismissed && (
+          <div className="w-full bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-amber-500/15 dark:from-amber-400/15 dark:via-amber-300/10 dark:to-amber-400/15 border-b border-amber-500/30 dark:border-amber-400/30 px-3 sm:px-8 py-2.5 flex items-center justify-between gap-3 text-xs z-50 shrink-0 select-none animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-base shrink-0 leading-none">⚠️</span>
+              <p className="text-amber-950 dark:text-amber-200 font-medium text-[11.5px] sm:text-xs truncate sm:text-clip">
+                Please verify your email address to secure your account and ensure you don't lose your progress.
+              </p>
+              <button
+                type="button"
+                disabled={isSendingVerifyEmail || hasSentVerifyEmail}
+                onClick={handleTriggerVerifyEmail}
+                className="ml-1 shrink-0 text-amber-900 dark:text-amber-300 font-extrabold underline underline-offset-2 hover:text-amber-700 dark:hover:text-amber-100 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {isSendingVerifyEmail
+                  ? 'Sending Link...'
+                  : hasSentVerifyEmail
+                    ? 'Link Sent! Check Inbox'
+                    : 'Verify Now'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissVerifyBanner}
+              className="text-amber-800/70 hover:text-amber-950 dark:text-amber-400/70 dark:hover:text-amber-200 shrink-0 p-1 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Global Finish Your Profile Banner (Displays for new/verified users who haven't set their username) */}
+        {session?.user && !isEmailUnverified && isProfileIncomplete && !isFinishProfileDismissed && (
+          <div className="w-full bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-amber-500/15 dark:from-amber-400/15 dark:via-amber-300/10 dark:to-amber-400/15 border-b border-amber-500/30 dark:border-amber-400/30 px-3 sm:px-8 py-2.5 flex items-center justify-between gap-3 text-xs z-50 shrink-0 select-none animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-base shrink-0 leading-none">✨</span>
+              <p className="text-amber-950 dark:text-amber-200 font-medium text-[11.5px] sm:text-xs truncate sm:text-clip">
+                Welcome to Taskiye! Finish setting up your profile to choose your username and customize your account.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsProfileSettingsOpen(true)}
+                className="ml-1 shrink-0 inline-flex items-center gap-1 text-amber-900 dark:text-amber-300 font-extrabold underline underline-offset-2 hover:text-amber-700 dark:hover:text-amber-100 transition-colors cursor-pointer"
+              >
+                Finish Profile <span aria-hidden="true">&rarr;</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleDismissFinishProfile}
+              className="text-amber-800/70 hover:text-amber-950 dark:text-amber-400/70 dark:hover:text-amber-200 shrink-0 p-1 rounded-lg hover:bg-amber-500/10 transition-colors cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Topbar - Respects iOS notch/status bar with safe-area-inset-top */}
         <header className="relative h-[calc(4rem+env(safe-area-inset-top,0px))] sm:h-20 pt-[env(safe-area-inset-top,0px)] sm:pt-0 shrink-0 px-3 sm:px-8 pr-3 sm:pr-8 flex items-center justify-between gap-2 sm:gap-4 z-50 w-full max-w-full">
           {/* Mobile Brand Logo (< md) */}
@@ -1651,21 +1807,31 @@ export const AppLayout: React.FC = () => {
                     e.stopPropagation();
                     setActiveDropdown((prev) => (prev === 'profile' ? null : 'profile'));
                   }}
-                  className={`sm:hidden relative w-10 h-10 rounded-full focus:outline-none transition-all active:scale-95 cursor-pointer shrink-0 ${
+                  className={`sm:hidden relative w-10 h-10 rounded-full focus:outline-none transition-all active:scale-95 cursor-pointer shrink-0 flex items-center justify-center ${
                     activeDropdown === 'profile'
                       ? 'ring-2 ring-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.35)]'
                       : ''
                   }`}
                   title={`${displayName} (${email})`}
                 >
-                  <img
-                    src={avatarSrc}
-                    alt={displayName}
-                    className="w-full h-full rounded-full object-cover border border-white/15 hover:border-amber-400 transition-colors shadow-sm"
-                    onError={(e) => {
-                      e.currentTarget.src = defaultAvatar;
-                    }}
-                  />
+                  {avatarSrc ? (
+                    <img
+                      src={avatarSrc}
+                      alt={displayName}
+                      className="w-full h-full rounded-full object-cover border border-white/15 hover:border-amber-400 transition-colors shadow-sm"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    style={{ display: avatarSrc ? 'none' : 'flex' }}
+                    className="w-full h-full rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-sm items-center justify-center border border-white/15 shadow-sm select-none"
+                  >
+                    {userInitial}
+                  </div>
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#10192D]" />
                 </button>
 
@@ -1720,15 +1886,25 @@ export const AppLayout: React.FC = () => {
                       </span>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <div className="relative">
-                          <img
-                            src={avatarSrc}
-                            alt={displayName}
-                            className="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-white/10"
-                            onError={(e) => {
-                              e.currentTarget.src = defaultAvatar;
-                            }}
-                          />
+                        <div className="relative flex items-center justify-center">
+                          {avatarSrc ? (
+                            <img
+                              src={avatarSrc}
+                              alt={displayName}
+                              className="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-white/10"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{ display: avatarSrc ? 'none' : 'flex' }}
+                            className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-[11px] items-center justify-center border border-slate-200 dark:border-white/10 select-none"
+                          >
+                            {userInitial}
+                          </div>
                           <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 ring-2 ring-white dark:ring-[#10192D]" />
                         </div>
 
@@ -1763,15 +1939,25 @@ export const AppLayout: React.FC = () => {
                         {/* User Profile Header */}
                         <div className="flex items-center justify-between pb-1">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="relative shrink-0">
-                              <img
-                                src={avatarSrc}
-                                alt={displayName}
-                                className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-white/10"
-                                onError={(e) => {
-                                  e.currentTarget.src = defaultAvatar;
-                                }}
-                              />
+                            <div className="relative shrink-0 flex items-center justify-center">
+                              {avatarSrc ? (
+                                <img
+                                  src={avatarSrc}
+                                  alt={displayName}
+                                  className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-white/10"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div
+                                style={{ display: avatarSrc ? 'none' : 'flex' }}
+                                className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-base items-center justify-center border border-slate-200 dark:border-white/10 select-none"
+                              >
+                                {userInitial}
+                              </div>
                               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 ring-2 ring-white dark:ring-[#10192D]" />
                             </div>
                             <div className="flex flex-col min-w-0">

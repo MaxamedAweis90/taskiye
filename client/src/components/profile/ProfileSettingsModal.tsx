@@ -2,20 +2,18 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X,
   Camera,
-  Phone,
   CheckCircle2,
-  Shield,
   Save,
   ArrowRight,
-  Hash,
   AlertTriangle,
   RotateCcw,
   Bell,
   Sun,
   Moon,
   Monitor,
+  Mail,
 } from 'lucide-react';
-import { useSession, authClient } from '../../lib/auth-client';
+import { useSession } from '../../lib/auth-client';
 import { useThemeStore } from '../../store/useThemeStore';
 
 interface ProfileSettingsModalProps {
@@ -27,14 +25,12 @@ interface ProfileSettingsModalProps {
 interface ProfileData {
   name: string;
   username: string;
-  phoneNumber: string;
   avatarUrl: string;
 }
 
 const initialProfile: ProfileData = {
   name: '',
   username: '',
-  phoneNumber: '',
   avatarUrl: '',
 };
 
@@ -49,16 +45,25 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [initialData, setInitialData] = useState<ProfileData>(initialProfile);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
   // Unsaved changes confirmation dialog
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
 
-  // OTP setup states
-  const [otpStep, setOtpStep] = useState<'idle' | 'code_sent' | 'verified'>('idle');
-  const [otpCode, setOtpCode] = useState('');
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  // Email verification & Security states
+  const [emailVerified, setEmailVerified] = useState<boolean>(false);
+  const [hasPassword, setHasPassword] = useState<boolean>(true);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
+
+  // Email change modal states
+  const [showChangeEmailModal, setShowChangeEmailModal] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [currentPasswordForEmailChange, setCurrentPasswordForEmailChange] = useState('');
+  const [isSubmittingEmailChange, setIsSubmittingEmailChange] = useState(false);
+  const [emailChangeError, setEmailChangeError] = useState('');
+  const [emailChangeSuccess, setEmailChangeSuccess] = useState('');
+
+
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -71,14 +76,16 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setShowUnsavedPrompt(false);
+      setShowChangeEmailModal(false);
       return;
     }
 
     setErrorMsg('');
     setSuccessMsg('');
     setShowUnsavedPrompt(false);
-    setOtpStep('idle');
-    setOtpCode('');
+    setShowChangeEmailModal(false);
+    setEmailChangeError('');
+    setEmailChangeSuccess('');
 
     // Fallback initial values from session
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,14 +93,13 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     const baseData: ProfileData = {
       name: userAny?.name || '',
       username: userAny?.username || '',
-      phoneNumber: userAny?.phoneNumber || '',
       avatarUrl: userAny?.avatarUrl || userAny?.image || '',
     };
     setName(baseData.name);
     setUsername(baseData.username);
-    setPhoneNumber(baseData.phoneNumber);
     setAvatarUrl(baseData.avatarUrl);
     setInitialData(baseData);
+    setEmailVerified(Boolean(userAny?.emailVerified));
 
     // Fetch live data directly from MongoDB backend
     fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/profile`, {
@@ -106,14 +112,14 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
           const liveData: ProfileData = {
             name: u.name || '',
             username: u.username || '',
-            phoneNumber: u.phoneNumber || '',
             avatarUrl: u.avatarUrl || u.image || '',
           };
           setName(liveData.name);
           setUsername(liveData.username);
-          setPhoneNumber(liveData.phoneNumber);
           setAvatarUrl(liveData.avatarUrl);
           setInitialData(liveData);
+          setEmailVerified(Boolean(u.emailVerified));
+          setHasPassword(u.hasPassword !== false);
         }
       })
       .catch((err) => {
@@ -121,15 +127,89 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       });
   }, [isOpen, session]);
 
+  const handleSendVerificationEmail = async () => {
+    setIsSendingVerification(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/send-verification-email`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to send verification email');
+      }
+      setSuccessMsg(`Verification email sent to ${session?.user?.email || 'your email'}! Please check your inbox.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send verification email';
+      setErrorMsg(msg);
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
+  const handleSubmitEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail.trim() || !newEmail.includes('@')) {
+      setEmailChangeError('Please enter a valid new email address.');
+      return;
+    }
+    if (hasPassword && !currentPasswordForEmailChange) {
+      setEmailChangeError('Please enter your current password to confirm.');
+      return;
+    }
+
+    setEmailChangeError('');
+    setEmailChangeSuccess('');
+    setIsSubmittingEmailChange(true);
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/change-email-request`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            newEmail: newEmail.trim(),
+            currentPassword: currentPasswordForEmailChange,
+          }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to request email change');
+      }
+      setEmailChangeSuccess(json.message || `Confirmation link sent to ${newEmail.trim()}!`);
+      setTimeout(() => {
+        setShowChangeEmailModal(false);
+        setNewEmail('');
+        setCurrentPasswordForEmailChange('');
+        setEmailChangeSuccess('');
+        setEmailChangeError('');
+        setSuccessMsg(`Confirmation email sent to ${newEmail.trim()}! Please click the link to finalize.`);
+      }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to request email change';
+      setEmailChangeError(msg);
+    } finally {
+      setIsSubmittingEmailChange(false);
+    }
+  };
+
   // Track if any modifications occurred
   const hasChanges = useMemo(() => {
     return (
       name.trim() !== initialData.name.trim() ||
       username.trim() !== initialData.username.trim() ||
-      phoneNumber.trim() !== initialData.phoneNumber.trim() ||
       avatarUrl !== initialData.avatarUrl
     );
-  }, [name, username, phoneNumber, avatarUrl, initialData]);
+  }, [name, username, avatarUrl, initialData]);
 
   // Handle ESC key to safely intercept close attempts
   useEffect(() => {
@@ -149,10 +229,6 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   }, [isOpen, hasChanges, showUnsavedPrompt, onClose]);
 
   if (!isOpen) return null;
-
-  const defaultAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${
-    session?.user?.id || 'User'
-  }&backgroundColor=10192d`;
 
 /**
  * Resize and compress user avatar image to a 400x400 WebP blob
@@ -268,61 +344,6 @@ function compressAvatarImage(file: File): Promise<Blob> {
     }
   };
 
-  const handleSendPhoneOtp = async () => {
-    if (!phoneNumber.trim()) {
-      setErrorMsg('Please enter a phone number first');
-      return;
-    }
-
-    setErrorMsg('');
-    setSuccessMsg('');
-    setIsSendingOtp(true);
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const clientAny = authClient as any;
-      if (clientAny.phoneNumber?.sendOtp) {
-        await clientAny.phoneNumber.sendOtp({
-          phoneNumber: phoneNumber.trim(),
-        });
-      }
-      setOtpStep('code_sent');
-      setSuccessMsg(`Verification code sent to ${phoneNumber.trim()}!`);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to send OTP code');
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  const handleVerifyPhoneOtp = async () => {
-    if (!otpCode.trim()) {
-      setErrorMsg('Please enter the 6-digit code');
-      return;
-    }
-
-    setErrorMsg('');
-    setSuccessMsg('');
-    setIsSendingOtp(true);
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const clientAny = authClient as any;
-      if (clientAny.phoneNumber?.verify) {
-        await clientAny.phoneNumber.verify({
-          phoneNumber: phoneNumber.trim(),
-          code: otpCode.trim(),
-        });
-      }
-      setOtpStep('verified');
-      setSuccessMsg('Phone number verified & OTP security enabled!');
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Verification failed. Please check the code.');
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
   const executeSaveProfile = async () => {
     setErrorMsg('');
     setSuccessMsg('');
@@ -339,7 +360,6 @@ function compressAvatarImage(file: File): Promise<Blob> {
           body: JSON.stringify({
             name: name.trim(),
             username: username.trim(),
-            phoneNumber: phoneNumber.trim(),
             avatarUrl: avatarUrl.trim(),
           }),
           credentials: 'include',
@@ -354,10 +374,16 @@ function compressAvatarImage(file: File): Promise<Blob> {
       setInitialData({
         name: name.trim(),
         username: username.trim(),
-        phoneNumber: phoneNumber.trim(),
         avatarUrl: avatarUrl.trim(),
       });
       setSuccessMsg('Profile updated successfully!');
+      if (session?.user?.id) {
+        try {
+          localStorage.setItem(`taskiye_profile_completed_${session.user.id}`, 'true');
+        } catch {
+          // ignore
+        }
+      }
       setTimeout(() => {
         onClose();
         window.location.reload();
@@ -388,7 +414,6 @@ function compressAvatarImage(file: File): Promise<Blob> {
   const handleDiscardChanges = () => {
     setName(initialData.name);
     setUsername(initialData.username);
-    setPhoneNumber(initialData.phoneNumber);
     setAvatarUrl(initialData.avatarUrl);
     setShowUnsavedPrompt(false);
     onClose();
@@ -433,17 +458,23 @@ function compressAvatarImage(file: File): Promise<Blob> {
             className="relative group cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
-            <img
-              src={avatarUrl || defaultAvatar}
-              alt="Avatar"
-              className="w-24 h-24 rounded-full object-cover border-4 border-amber-500/30 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.25)]"
-              onError={(e) => {
-                e.currentTarget.src = defaultAvatar;
-              }}
-            />
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Avatar"
+                className="w-24 h-24 rounded-full object-cover border-4 border-amber-500/30 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.25)]"
+                onError={() => setAvatarUrl('')}
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-3xl flex items-center justify-center border-4 border-amber-500/30 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.25)] select-none">
+                {(name || session?.user?.name || username || 'U').charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all">
               <Camera className="w-6 h-6 text-amber-400 mb-1" />
-              <span className="text-[10px] font-bold text-white">Change</span>
+              <span className="text-[10px] font-bold text-white">
+                {avatarUrl ? 'Change' : 'Upload'}
+              </span>
             </div>
           </div>
           <input
@@ -465,7 +496,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
                 onClick={() => fileInputRef.current?.click()}
                 className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors uppercase tracking-wider cursor-pointer"
               >
-                {isUploading ? 'Optimizing...' : 'Change Avatar'}
+                {isUploading ? 'Optimizing...' : avatarUrl ? 'Change Avatar' : 'Upload Avatar'}
               </button>
               {avatarUrl && (
                 <button
@@ -524,10 +555,49 @@ function compressAvatarImage(file: File): Promise<Blob> {
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-              Email Address
-            </label>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                Email Address
+              </label>
+              <div className="flex items-center gap-2">
+                {emailVerified ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded-full">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    Verified
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-full">
+                      <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                      Unverified
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isSendingVerification}
+                      onClick={handleSendVerificationEmail}
+                      className="text-[11px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors cursor-pointer"
+                    >
+                      {isSendingVerification ? 'Sending...' : 'Verify via Email'}
+                    </button>
+                  </div>
+                )}
+                <span className="text-slate-300 dark:text-slate-700">•</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangeEmailModal(!showChangeEmailModal);
+                    setNewEmail('');
+                    setCurrentPasswordForEmailChange('');
+                    setEmailChangeError('');
+                    setEmailChangeSuccess('');
+                  }}
+                  className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors cursor-pointer"
+                >
+                  Change Email
+                </button>
+              </div>
+            </div>
             <input
               type="email"
               disabled
@@ -535,6 +605,89 @@ function compressAvatarImage(file: File): Promise<Blob> {
               className="w-full bg-slate-100 dark:bg-[#10192D]/60 border border-slate-200 dark:border-white/[0.06] rounded-2xl px-4 py-3 text-sm text-slate-500 dark:text-slate-400 cursor-not-allowed"
             />
           </div>
+
+          {/* Change Email Drawer Card with Password Confirmation */}
+          {showChangeEmailModal && (
+            <div className="p-4 rounded-2xl bg-amber-500/[0.06] dark:bg-amber-400/[0.06] border border-amber-500/25 dark:border-amber-400/25 space-y-3 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">Change Email Address</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowChangeEmailModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-normal">
+                Enter your new email address. To secure your account, please enter your current password to confirm the change.
+              </p>
+
+              {emailChangeError && (
+                <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-300 text-xs text-center">
+                  {emailChangeError}
+                </div>
+              )}
+              {emailChangeSuccess && (
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-300 text-xs text-center">
+                  {emailChangeSuccess}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    New Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="new.email@example.com"
+                    className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.12] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+
+                {hasPassword && (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                      Current Password (Confirmation)
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPasswordForEmailChange}
+                      onChange={(e) => setCurrentPasswordForEmailChange(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.12] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowChangeEmailModal(false)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingEmailChange || !newEmail.trim()}
+                  onClick={handleSubmitEmailChange}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+                >
+                  {isSubmittingEmailChange ? 'Sending Link...' : 'Send Confirmation Email'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Theme / Appearance Selection */}
           <div className="space-y-1.5 pt-1">
@@ -581,76 +734,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
             </div>
           </div>
 
-          {/* OTP Setup Section */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.1] space-y-3 mt-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span className="text-xs font-bold text-slate-900 dark:text-white">Phone OTP Security</span>
-              </div>
-              {otpStep === 'verified' && (
-                <span className="text-[10px] font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full">
-                  Enabled
-                </span>
-              )}
-            </div>
 
-            <div className="space-y-1">
-              <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                Phone Number (for SMS OTP)
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1 flex items-center">
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3.5" />
-                  <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+1 (555) 000-0000"
-                    className="w-full bg-slate-50 dark:bg-[#0A101D] border border-slate-200 dark:border-white/[0.08] focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition-all"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendPhoneOtp}
-                  disabled={isSendingOtp}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-400/15 dark:hover:bg-amber-400/25 border border-amber-500/30 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
-                >
-                  {isSendingOtp ? 'Sending...' : otpStep === 'code_sent' ? 'Resend OTP' : 'Verify Phone'}
-                </button>
-              </div>
-            </div>
-
-            {otpStep === 'code_sent' && (
-              <div className="space-y-1 pt-1">
-                <label className="block text-[10.5px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  Enter 6-Digit OTP Code
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1 flex items-center">
-                    <Hash className="w-4 h-4 text-slate-400 absolute left-3.5" />
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
-                      placeholder="123456"
-                      className="w-full bg-slate-50 dark:bg-[#0A101D] border border-slate-200 dark:border-white/[0.08] focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 dark:focus:ring-amber-400/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none transition-all font-mono tracking-widest"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleVerifyPhoneOtp}
-                    disabled={isSendingOtp}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-xs font-bold transition-all cursor-pointer shrink-0 disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <span>Confirm</span>
-                    <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Quick Notification Simulator Shortcut */}
           {onOpenNotificationPreferences && (

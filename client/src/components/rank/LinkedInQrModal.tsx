@@ -65,9 +65,9 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
   isOpen,
   onClose,
   currentUser = {
-    name: 'Alex Morgan',
-    handle: '@alexmorgan',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    name: 'Taskiye User',
+    handle: '@user',
+    avatarUrl: '',
   },
   onScannedUser,
 }) => {
@@ -85,9 +85,9 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  const cleanHandle = (currentUser?.handle || '@alexmorgan').replace(/^@/, '');
-  const userName = currentUser?.name || 'Alex Morgan';
-  const userAvatar = currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+  const cleanHandle = (currentUser?.handle || '@user').replace(/^@/, '');
+  const userName = currentUser?.name || 'User';
+  const userAvatar = currentUser?.avatarUrl || '';
 
   const qrPayload = useMemo(
     () =>
@@ -349,12 +349,25 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
               {/* Profile Card with Real QR Code */}
               <div className="w-full bg-white dark:bg-gradient-to-b dark:from-[#131D33] dark:to-[#0A101E] border border-slate-200 dark:border-amber-400/30 rounded-3xl p-5 flex flex-col items-center gap-3.5 shadow-md dark:shadow-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-amber-400 dark:ring-[#FACC15] bg-slate-100 dark:bg-slate-800 shrink-0">
-                    <img
-                      src={userAvatar}
-                      alt={userName}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-amber-400 dark:ring-[#FACC15] bg-slate-100 dark:bg-slate-800 shrink-0 flex items-center justify-center">
+                    {userAvatar ? (
+                      <img
+                        src={userAvatar}
+                        alt={userName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      style={{ display: userAvatar ? 'none' : 'flex' }}
+                      className="w-full h-full bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 font-black text-lg items-center justify-center select-none"
+                    >
+                      {(userName || 'U').charAt(0).toUpperCase()}
+                    </div>
                   </div>
                   <div className="text-left">
                     <div className="text-base font-black text-slate-900 dark:text-white">{userName}</div>
