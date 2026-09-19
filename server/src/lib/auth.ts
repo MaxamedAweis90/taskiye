@@ -33,15 +33,19 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    async sendResetPassword({ user, url }: { user: { email: string }; url: string }) {
-      await sendPasswordResetEmail(user.email, url);
+    async sendResetPassword({ user, url }) {
+      if (user.email) {
+        await sendPasswordResetEmail(user.email, url);
+      }
     },
   },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
-    async sendVerificationEmail({ user, url }: { user: { email: string }; url: string }) {
-      await sendVerificationEmail(user.email, url);
+    async sendVerificationEmail({ user, url }) {
+      if (user.email) {
+        await sendVerificationEmail(user.email, url);
+      }
     },
   },
   socialProviders: {
@@ -54,7 +58,7 @@ export const auth = betterAuth({
   user: {
     changeEmail: {
       enabled: true,
-      async sendChangeEmailVerification({ newEmail, url }: { newEmail: string; url: string }) {
+      async sendChangeEmailConfirmation({ newEmail, url }) {
         await sendEmailChangeVerification(newEmail, url);
       },
     },
