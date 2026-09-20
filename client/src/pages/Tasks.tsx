@@ -4,6 +4,7 @@ import { useSession } from '../lib/auth-client';
 import { useTaskiyeStore, GuestTask } from '../store/useTaskiyeStore';
 import { TaskHistoryHeader } from '../components/tasks/TaskHistoryHeader';
 import { TaskHistoryDaySection, HistoryDayBucket } from '../components/tasks/TaskHistoryDaySection';
+import { TaskHistoryUpcomingSection } from '../components/tasks/TaskHistoryUpcomingSection';
 import { HistoryTask } from '../components/tasks/TaskHistoryRow';
 import { TaskRescheduleModal } from '../components/tasks/TaskRescheduleModal';
 import { TaskEditCreateModal } from '../components/tasks/TaskEditCreateModal';
@@ -37,6 +38,7 @@ export const Tasks: React.FC = () => {
     addGuestTask,
     updateGuestTask,
     deleteGuestTask,
+    reorderGuestTasks,
     setTodayChecklistCompletedCount,
   } = useTaskiyeStore();
 
@@ -99,6 +101,7 @@ export const Tasks: React.FC = () => {
       if (!res.ok) throw new Error('Failed to fetch history');
       const json = await res.json();
       return json?.data as {
+        upcomingTasks?: HistoryTask[];
         days: HistoryDayBucket[];
         nextCursorDate: string | null;
         hasMore: boolean;
@@ -117,18 +120,51 @@ export const Tasks: React.FC = () => {
     if (isAuthenticated) return null;
 
     // Strictly standalone tasks, never habit instances!
-    const tasks = (guestTasks || []).filter((t: GuestTask) => !t.isHabitInstance && !t.habitId);
+    const allTasks = (guestTasks || []).filter((t: GuestTask) => !t.isHabitInstance && !t.habitId);
+
+    // 1. Separate Upcoming Tasks (future dates beyond today, sorted ascending so earliest is first)
+    const upcomingRaw = allTasks
+      .filter((t: GuestTask) => (t.date || todayStr).slice(0, 10) > todayStr)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+    const upcomingTasks: HistoryTask[] = upcomingRaw
+      .filter((t) => {
+        if (hideCompleted && t.isCompleted) return false;
+        const cat = normalizeCategory(t.category);
+        if (selectedCategory !== 'All Categories' && cat !== selectedCategory) return false;
+        if (searchQuery) {
+          const matchTitle = (t.title || '').toLowerCase().includes(searchQuery.toLowerCase());
+          const matchCat = cat.toLowerCase().includes(searchQuery.toLowerCase());
+          if (!matchTitle && !matchCat) return false;
+        }
+        return true;
+      })
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        isCompleted: t.isCompleted,
+        category: normalizeCategory(t.category),
+        priority: t.priority || 'normal',
+        timeTag: t.timeTag || null,
+        isHabitInstance: false,
+        habitId: null,
+        status: t.isCompleted ? 'completed' : 'pending',
+        date: (t.date || todayStr).slice(0, 10),
+        createdAt: t.createdAt || new Date().toISOString(),
+      }));
+
+    // 2. Historical tasks (today and past days only)
+    const historyTasks = allTasks.filter((t: GuestTask) => (t.date || todayStr).slice(0, 10) <= todayStr);
 
     // Group tasks by date
     const map = new Map<string, GuestTask[]>();
-    tasks.forEach((t: GuestTask) => {
+    historyTasks.forEach((t: GuestTask) => {
       const d = (t.date || todayStr).slice(0, 10);
       if (!map.has(d)) map.set(d, []);
       map.get(d)!.push(t);
     });
 
-    // Ensure Tomorrow and Today buckets always exist
-    if (!map.has(tomorrowStr)) map.set(tomorrowStr, []);
+    // Ensure Today bucket always exists
     if (!map.has(todayStr)) map.set(todayStr, []);
 
     // Sort dates in descending order
@@ -137,13 +173,10 @@ export const Tasks: React.FC = () => {
 
     const dayBuckets: HistoryDayBucket[] = sortedDates.map((dateStr) => {
       const dateObj = new Date(dateStr + 'T12:00:00.000Z');
-      const isTomorrow = dateStr === tomorrowStr;
       const isToday = dateStr === todayStr;
       const isYesterday = dateStr === yesterdayStr;
 
-      const label = isTomorrow
-        ? 'TOMORROW'
-        : isToday
+      const label = isToday
         ? 'TODAY'
         : isYesterday
         ? 'YESTERDAY'
@@ -162,7 +195,9 @@ export const Tasks: React.FC = () => {
         timeZone: 'UTC',
       });
 
-      const dayTasksRaw = map.get(dateStr) || [];
+      const dayTasksRaw = (map.get(dateStr) || []).sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+      );
       const totalCount = dayTasksRaw.length;
       const completedCount = dayTasksRaw.filter((t) => t.isCompleted).length;
       const completionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -208,7 +243,7 @@ export const Tasks: React.FC = () => {
         date: dateStr,
         label,
         formattedDate,
-        isTomorrow,
+        isTomorrow: false,
         isToday,
         isYesterday,
         tasks: filteredTasks,
@@ -219,20 +254,63 @@ export const Tasks: React.FC = () => {
     });
 
     return {
+      upcomingTasks,
       days: dayBuckets,
-      totalLoggedCount: tasks.length,
+      totalLoggedCount: allTasks.length,
       hasMore: false,
       nextCursorDate: null,
     };
-  }, [isAuthenticated, guestTasks, today, todayStr, tomorrowStr, hideCompleted, selectedCategory, searchQuery]);
+  }, [isAuthenticated, guestTasks, today, todayStr, hideCompleted, selectedCategory, searchQuery]);
 
   // Unified State & Skeletons
   const days: HistoryDayBucket[] = isAuthenticated ? historyData?.days || [] : guestHistoryData?.days || [];
+  const upcomingTasks: HistoryTask[] = isAuthenticated
+    ? historyData?.upcomingTasks || []
+    : guestHistoryData?.upcomingTasks || [];
   const totalLoggedCount: number = isAuthenticated
     ? historyData?.totalLoggedCount ?? 0
     : guestHistoryData?.totalLoggedCount ?? 0;
   const hasMore: boolean = isAuthenticated ? Boolean(historyData?.hasMore) : false;
   const isLoadingInitial: boolean = isAuthenticated ? isHistoryLoading && !historyData : false;
+
+  // Highlight & scroll to specific task (e.g. redirected from AI Chatbot or action)
+  useEffect(() => {
+    const scrollAndHighlight = (taskId: string) => {
+      const el = document.getElementById(`task-history-item-${taskId}`);
+      if (el) {
+        setHighlightedTaskId(taskId);
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const timer = setTimeout(() => {
+          setHighlightedTaskId((curr) => (curr === taskId ? null : curr));
+          sessionStorage.removeItem('taskiye_highlight_task');
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    };
+
+    const handleHighlightEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ taskId: string }>;
+      const taskId = customEvent.detail?.taskId;
+      if (taskId) {
+        scrollAndHighlight(taskId);
+      }
+    };
+
+    window.addEventListener('taskiye-highlight-task', handleHighlightEvent);
+
+    const storedHighlight = sessionStorage.getItem('taskiye_highlight_task');
+    if (storedHighlight) {
+      // Delay slightly for DOM render
+      const timer = setTimeout(() => {
+        scrollAndHighlight(storedHighlight);
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      window.removeEventListener('taskiye-highlight-task', handleHighlightEvent);
+    };
+  }, [days]);
 
   /**
    * Infinite Scroll Page Loader
@@ -364,6 +442,77 @@ export const Tasks: React.FC = () => {
   }, [creatingTaskId, scrollWorkspaceToTask]);
 
   /**
+   * Intra-day Task Reordering Handler (Strictly scoped within a day's date container)
+   */
+  const handleReorderTaskInDay = (dateStr: string, taskId: string, direction: 'up' | 'down') => {
+    const targetDay = days.find((d) => d.date === dateStr);
+    if (!targetDay || !targetDay.tasks || targetDay.tasks.length <= 1) return;
+
+    const currentIndex = targetDay.tasks.findIndex((t) => t.id === taskId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    // Strictly clamp within current day boundaries - impossible to cross into another day
+    if (targetIndex < 0 || targetIndex >= targetDay.tasks.length) return;
+
+    const reorderedTasks = [...targetDay.tasks];
+    const [moved] = reorderedTasks.splice(currentIndex, 1);
+    reorderedTasks.splice(targetIndex, 0, moved);
+
+    const reorderedPayload = reorderedTasks.map((t, idx) => ({
+      id: t.id,
+      sortOrder: idx,
+    }));
+
+    if (isAuthenticated) {
+      // 1. Optimistically update TanStack history query cache
+      queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
+        if (!old || !old.days) return old;
+        return {
+          ...old,
+          days: old.days.map((d) => {
+            if (d.date !== dateStr) return d;
+            return {
+              ...d,
+              tasks: reorderedTasks,
+            };
+          }),
+        };
+      });
+
+      // 2. If reordering today's tasks, also optimistically update Dashboard cache
+      if (dateStr === todayStr) {
+        queryClient.setQueryData(['tasks', todayStr], (oldTasks: DashboardCacheTask[] | undefined) => {
+          if (!oldTasks) return oldTasks;
+          const sortMap = new Map(reorderedPayload.map((p) => [p.id, p.sortOrder]));
+          return [...oldTasks]
+            .map((item) => {
+              const itemId = item._id || item.id;
+              if (itemId && sortMap.has(itemId)) {
+                return { ...item, sortOrder: sortMap.get(itemId)! };
+              }
+              return item;
+            })
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        });
+      }
+
+      // 3. Persist to backend
+      fetch('/api/tasks/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: reorderedPayload }),
+        credentials: 'include',
+      }).catch((err) => {
+        console.error('Failed to persist intra-day task reorder:', err);
+      });
+    } else {
+      // Guest mode: update Zustand store which syncs to localStorage
+      reorderGuestTasks(reorderedPayload);
+    }
+  };
+
+  /**
    * Task Checkbox Toggle Handler with optimistic state updates & global sync
    */
   const handleToggleTask = async (id: string, nextCompleted: boolean) => {
@@ -379,6 +528,15 @@ export const Tasks: React.FC = () => {
         if (!old) return old;
         return {
           ...old,
+          upcomingTasks: (old.upcomingTasks || []).map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  isCompleted: nextCompleted,
+                  status: (nextCompleted ? 'completed' : 'pending') as HistoryTask['status'],
+                }
+              : t
+          ),
           days: old.days.map((day) => {
             const hasTask = day.tasks.some((t) => t.id === id);
             if (!hasTask) return day;
@@ -634,6 +792,7 @@ export const Tasks: React.FC = () => {
         if (!old) return old;
         return {
           ...old,
+          upcomingTasks: (old.upcomingTasks || []).filter((t) => t.id !== targetId),
           days: old.days.map((d) => {
             const filtered = d.tasks.filter((t) => t.id !== targetId);
             if (filtered.length === d.tasks.length) return d;
@@ -717,6 +876,18 @@ export const Tasks: React.FC = () => {
           if (!old) return old;
           return {
             ...old,
+            upcomingTasks: (old.upcomingTasks || []).map((t) =>
+              t.id === taskData.id
+                ? {
+                    ...t,
+                    title: taskData.title,
+                    category: normalizeCategory(taskData.category),
+                    priority: taskData.priority,
+                    timeTag: taskData.timeTag || null,
+                    date: taskData.date,
+                  }
+                : t
+            ),
             days: old.days.map((d) => ({
               ...d,
               tasks: d.tasks.map((t) =>
@@ -815,6 +986,19 @@ export const Tasks: React.FC = () => {
         // Optimistically insert into history cache
         queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
           if (!old) return old;
+
+          // If task is scheduled for tomorrow or a future date, insert into upcomingTasks
+          if (targetDateStr > todayStr) {
+            const nextUpcoming = [...(old.upcomingTasks || []), optimisticTask].sort(
+              (a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title)
+            );
+            return {
+              ...old,
+              upcomingTasks: nextUpcoming,
+              totalLoggedCount: (old.totalLoggedCount ?? 0) + 1,
+            };
+          }
+
           const exists = old.days.some((d) => d.date === targetDateStr);
           let nextDays: HistoryDayBucket[];
           if (exists) {
@@ -987,7 +1171,26 @@ export const Tasks: React.FC = () => {
         onNewTaskClick={() => handleOpenNewTask()}
       />
 
-      {/* 2. Chronological Day Sections */}
+      {/* 2. Upcoming Scheduled Tasks (Expandable Section at top) */}
+      <TaskHistoryUpcomingSection
+        upcomingTasks={upcomingTasks}
+        expandedTaskId={expandedTaskId}
+        creatingTaskId={creatingTaskId}
+        highlightedTaskId={highlightedTaskId}
+        swipingOutTaskId={swipingOutTaskId}
+        onCreationAnimationComplete={handleCreationAnimationComplete}
+        onToggleExpand={(id) => setExpandedTaskId((prev) => (prev === id ? null : id))}
+        onToggle={handleToggleTask}
+        onEdit={handleOpenEdit}
+        onDelete={(task) => setTaskToDelete(task)}
+        onOpenReschedule={(task) => {
+          setRescheduleTask(task);
+          setIsRescheduleOpen(true);
+        }}
+        onAddTask={() => handleOpenNewTask(tomorrowStr)}
+      />
+
+      {/* 3. Chronological Day Sections */}
       {isLoadingInitial ? (
         <TaskHistorySkeleton />
       ) : days.length > 0 ? (
@@ -1017,6 +1220,7 @@ export const Tasks: React.FC = () => {
                 }
               }}
               onAddTaskForDay={handleOpenNewTask}
+              onReorderTask={handleReorderTaskInDay}
             />
           ))}
 

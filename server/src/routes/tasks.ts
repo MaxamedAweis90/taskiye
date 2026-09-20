@@ -223,7 +223,8 @@ router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Resp
     const yesterday = new Date(now.getTime() - 86400000);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-    const cursorDate = (req.query.cursorDate as string) || tomorrowStr;
+    const cursorDate = (req.query.cursorDate as string) || todayStr;
+    const isInitialPage = !req.query.cursorDate;
     const daysCount = Math.max(1, Math.min(30, parseInt((req.query.days as string) || '14', 10)));
     const searchFilter = ((req.query.search as string) || '').trim().toLowerCase();
     const categoryFilter = ((req.query.category as string) || '').trim();
@@ -247,12 +248,20 @@ router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Resp
       habitId: null,
     };
 
-    // Fetch tasks within the date window
-    const [tasks, totalLoggedCount, earlierCount] = await Promise.all([
+    const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
+
+    // Fetch tasks within the date window and upcoming future tasks (if initial page)
+    const [tasks, upcomingTasksRaw, totalLoggedCount, earlierCount] = await Promise.all([
       Task.find({
         ...baseHistoryFilter,
         date: { $gte: startDate, $lte: endDate },
       }).sort({ date: -1, sortOrder: 1, createdAt: 1 }),
+      isInitialPage
+        ? Task.find({
+            ...baseHistoryFilter,
+            date: { $gt: todayEnd },
+          }).sort({ date: 1, sortOrder: 1, createdAt: 1 })
+        : Promise.resolve([]),
       Task.countDocuments(baseHistoryFilter),
       Task.countDocuments({ ...baseHistoryFilter, date: { $lt: startDate } }),
     ]);
@@ -402,7 +411,37 @@ router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Resp
     nextCursor.setUTCDate(nextCursor.getUTCDate() - 1);
     const nextCursorDate = earlierCount > 0 ? nextCursor.toISOString().slice(0, 10) : null;
 
+    // Filter and map upcoming tasks
+    const mappedUpcomingTasks: HistoryTaskItem[] = upcomingTasksRaw
+      .filter((t) => {
+        if (hideCompleted && t.isCompleted) return false;
+        const normalizedCat = normalizeTaskCategory(t.category);
+        if (categoryFilter && categoryFilter !== 'All Categories' && normalizedCat !== categoryFilter) {
+          return false;
+        }
+        if (searchFilter) {
+          const matchTitle = (t.title || '').toLowerCase().includes(searchFilter);
+          const matchCat = normalizedCat.toLowerCase().includes(searchFilter);
+          if (!matchTitle && !matchCat) return false;
+        }
+        return true;
+      })
+      .map((t) => ({
+        id: t._id.toString(),
+        title: t.title,
+        isCompleted: t.isCompleted,
+        category: normalizeTaskCategory(t.category),
+        priority: (t.priority as 'normal' | 'high') || 'normal',
+        timeTag: t.timeTag || null,
+        isHabitInstance: false,
+        habitId: null,
+        status: t.isCompleted ? 'completed' : 'pending',
+        date: new Date(t.date).toISOString().slice(0, 10),
+        createdAt: t.createdAt.toISOString(),
+      }));
+
     return sendSuccess(res, {
+      upcomingTasks: mappedUpcomingTasks,
       days: dayBuckets,
       nextCursorDate,
       hasMore: earlierCount > 0,

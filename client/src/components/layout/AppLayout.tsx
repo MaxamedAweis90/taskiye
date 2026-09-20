@@ -37,6 +37,8 @@ import { NotificationPreferencesModal } from '../profile/NotificationPreferences
 import { PwaInstallOnboarding } from '../pwa/PwaInstallOnboarding';
 import { PwaPermissionPrompt } from '../pwa/PwaPermissionPrompt';
 import { useMidnightRollover } from '../../hooks/useMidnightRollover';
+import { TaskiyeChatModal } from '../chat/TaskiyeChatModal';
+import { WelcomeSpeechBubble } from '../chat/WelcomeSpeechBubble';
 
 interface InAppNotificationItem {
   id: string;
@@ -269,6 +271,39 @@ export const AppLayout: React.FC = () => {
   >(null);
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
+  const [chatInitialLanguage, setChatInitialLanguage] = useState<'en' | 'so'>('en');
+  const [isWelcomeBubbleVisible, setIsWelcomeBubbleVisible] = useState(false);
+
+  // Delay greeting bubble by 10 seconds on first mount
+  useEffect(() => {
+    const timer = setTimeout(() => setIsWelcomeBubbleVisible(true), 10000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleDismissWelcomeBubble = () => {
+    setIsWelcomeBubbleVisible(false);
+  };
+
+  const chatUser = useMemo(() => {
+    if (!session?.user) return undefined;
+    return {
+      name: displayName,
+      username: userProfileData?.username || user?.username,
+      email: email,
+      avatarUrl: avatarSrc,
+      image: user?.image,
+    };
+  }, [session?.user, displayName, userProfileData?.username, user?.username, email, avatarSrc, user?.image]);
+
+
+  const handleOpenChatWithPrompt = (initialPrompt?: string, language?: 'en' | 'so') => {
+    handleDismissWelcomeBubble();
+    setChatInitialPrompt(initialPrompt);
+    if (language) setChatInitialLanguage(language);
+    setIsChatOpen(true);
+  };
   const controlsRef = useRef<HTMLDivElement>(null);
   const pillMeasureRef = useRef<HTMLDivElement>(null);
   const [pillWidth, setPillWidth] = useState<number>(215);
@@ -1049,13 +1084,41 @@ export const AppLayout: React.FC = () => {
           )}
 
           {/* Bottom Chat / Feedback Icon Button matching reference design */}
-          <button
-            type="button"
-            className="w-11 h-11 rounded-2xl bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.08] hover:border-amber-400/40 text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300 flex items-center justify-center transition-all shadow-sm"
-            title="Feedback & Support"
-          >
-            <MessageSquare className="w-5 h-5" />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                handleDismissWelcomeBubble();
+                setIsChatOpen((prev) => !prev);
+              }}
+              className={`w-11 h-11 rounded-2xl border transition-all shadow-sm relative group cursor-pointer flex items-center justify-center ${
+                isChatOpen
+                  ? 'bg-amber-500 dark:bg-amber-400 border-amber-600 dark:border-amber-300 text-white dark:text-slate-950 shadow-[0_0_16px_rgba(245,158,11,0.45)]'
+                  : 'bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-amber-400/40 text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300'
+              }`}
+              title={isChatOpen ? 'Close Taskiye AI' : 'Taskiye AI Assistant & Support'}
+              aria-label={isChatOpen ? 'Close Taskiye AI' : 'Open Taskiye AI Assistant'}
+            >
+              {isChatOpen ? (
+                <X className="w-5 h-5 transition-transform duration-200 hover:scale-110" />
+              ) : (
+                <>
+                  <MessageSquare className="w-5 h-5 transition-transform duration-200" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-[#10192D] animate-pulse" />
+                </>
+              )}
+            </button>
+
+            {/* Desktop Welcome Speech Bubble attached to sidebar chat trigger */}
+            {isWelcomeBubbleVisible && !isChatOpen && (
+              <WelcomeSpeechBubble
+                position="desktop"
+                onOpenChat={handleOpenChatWithPrompt}
+                onDismiss={handleDismissWelcomeBubble}
+                user={chatUser}
+              />
+            )}
+          </div>
         </div>
       </aside>
 
@@ -2139,6 +2202,51 @@ export const AppLayout: React.FC = () => {
         </main>
       </div>
 
+      {/* Mobile Floating Chat Trigger (< md) - Positioned safely above bottom navigation bar, respecting safe-area-inset-bottom */}
+      <div className="md:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3.5 z-40 flex items-center">
+        {isWelcomeBubbleVisible && !isChatOpen && (
+          <WelcomeSpeechBubble
+            position="mobile"
+            onOpenChat={handleOpenChatWithPrompt}
+            onDismiss={handleDismissWelcomeBubble}
+            user={chatUser}
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            handleDismissWelcomeBubble();
+            setIsChatOpen((prev) => !prev);
+          }}
+          className={`flex items-center gap-1.5 py-2 transition-all cursor-pointer group shadow-lg active:scale-95 ${
+            isChatOpen
+              ? 'px-3 rounded-full bg-amber-500 dark:bg-amber-400 border border-amber-600 dark:border-amber-300 text-white dark:text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.45)]'
+              : 'pl-2.5 pr-3 rounded-full bg-white/95 dark:bg-[#10192D]/95 backdrop-blur-xl border border-amber-500/40 dark:border-amber-400/40 text-amber-600 dark:text-amber-400 shadow-[0_4px_20px_rgba(245,158,11,0.25)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.6)]'
+          }`}
+          title={isChatOpen ? 'Close Taskiye AI' : 'Taskiye AI Assistant'}
+          aria-label={isChatOpen ? 'Close Taskiye AI' : 'Open Taskiye AI Chatbot'}
+        >
+          {isChatOpen ? (
+            <div className="flex items-center gap-1">
+              <X className="w-4 h-4 transition-transform duration-200" />
+              <span className="text-xs font-black">Close</span>
+            </div>
+          ) : (
+            <>
+              <ChevronLeft className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 transition-transform group-hover:-translate-x-0.5" />
+              <div className="relative">
+                <MessageSquare className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-[#10192D] animate-ping" />
+              </div>
+              <span className="text-[11px] font-black tracking-wide bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
+                AI
+              </span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
       <nav className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B132B]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none">
         {NAV_ITEMS.map((item) => {
@@ -2196,6 +2304,15 @@ export const AppLayout: React.FC = () => {
 
       {/* Post-Install Native Notification Permission Onboarding */}
       <PwaPermissionPrompt />
+
+      {/* Taskiye AI Chatbot Modal (Responsive: Desktop floating card & Mobile full-screen) */}
+      <TaskiyeChatModal
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        initialPrompt={chatInitialPrompt}
+        initialLanguage={chatInitialLanguage}
+        user={chatUser}
+      />
     </div>
   );
 };

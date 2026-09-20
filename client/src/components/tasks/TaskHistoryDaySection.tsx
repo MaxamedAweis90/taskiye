@@ -29,6 +29,7 @@ interface TaskHistoryDaySectionProps {
   onOpenReschedule: (task: HistoryTask) => void;
   onQuickReschedule: (id: string, targetDate: 'today' | 'tomorrow') => void;
   onAddTaskForDay?: (date: string) => void;
+  onReorderTask?: (dateStr: string, taskId: string, direction: 'up' | 'down') => void;
 }
 
 export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
@@ -45,6 +46,7 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
   onOpenReschedule,
   onQuickReschedule,
   onAddTaskForDay,
+  onReorderTask,
 }) => {
   const hasMissed = day.tasks.some((t) => t.status === 'missed');
   const isAllCompleted = day.totalCount > 0 && day.completedCount === day.totalCount;
@@ -60,8 +62,8 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
               day.isToday
                 ? 'text-amber-600 dark:text-amber-400'
                 : day.isTomorrow
-                ? 'text-sky-600 dark:text-sky-400'
-                : 'text-slate-700 dark:text-slate-300'
+                  ? 'text-sky-600 dark:text-sky-400'
+                  : 'text-slate-700 dark:text-slate-300'
             }`}
           >
             {day.label}
@@ -90,7 +92,7 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
           {hasMissed && (
             <span className="bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 flex items-center gap-1">
               <AlertTriangle className="w-2.5 h-2.5 text-rose-500 dark:text-rose-400" />
-              <span>Missed Items</span>
+              <span>Missed Task</span>
             </span>
           )}
         </div>
@@ -118,7 +120,9 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
               </span>
             </div>
           ) : (
-            <span className="text-xs text-slate-400 dark:text-slate-500 italic">No tasks scheduled</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 italic">
+              No tasks scheduled
+            </span>
           )}
 
           {/* Quick Add for Tomorrow / Today */}
@@ -138,7 +142,7 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
       {/* Task Rows List */}
       <div className="flex flex-col gap-2">
         {day.tasks.length > 0 ? (
-          day.tasks.map((task) => (
+          day.tasks.map((task, index) => (
             <TaskHistoryRow
               key={task.id}
               task={task}
@@ -148,6 +152,11 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
               isCreating={creatingTaskId === task.id}
               isHighlighted={highlightedTaskId === task.id}
               isSwipingOut={swipingOutTaskId === task.id}
+              isFirstInDay={index === 0}
+              isLastInDay={index === day.tasks.length - 1}
+              canReorder={day.tasks.length > 1 && Boolean(onReorderTask)}
+              onMoveUp={() => onReorderTask?.(day.date, task.id, 'up')}
+              onMoveDown={() => onReorderTask?.(day.date, task.id, 'down')}
               onCreationAnimationComplete={onCreationAnimationComplete}
               onToggleExpand={() => onToggleExpand?.(task.id)}
               onToggle={onToggle}

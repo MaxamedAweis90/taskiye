@@ -6,6 +6,7 @@ import {
   Pencil,
   Trash2,
   ChevronDown,
+  ChevronUp,
   Clock,
   Calendar,
   AlertCircle,
@@ -69,6 +70,26 @@ const TypewriterTitle: React.FC<TypewriterTitleProps> = ({
   return <ActiveTypewriterTitle text={text} onFinish={onFinish} className={className} />;
 };
 
+function formatUpcomingDate(dateStr: string): string {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+    const target = new Date(y, m - 1, d);
+    target.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays > 1 && diffDays <= 6) {
+      return `In ${diffDays} days (${target.toLocaleDateString('en-US', { weekday: 'short' })})`;
+    }
+    return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
 export interface HistoryTask {
   id: string;
   title: string;
@@ -98,6 +119,12 @@ interface TaskHistoryRowProps {
   onDelete: (task: HistoryTask) => void;
   onOpenReschedule: (task: HistoryTask) => void;
   onQuickReschedule?: (id: string, targetDate: 'today' | 'tomorrow') => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  isFirstInDay?: boolean;
+  isLastInDay?: boolean;
+  canReorder?: boolean;
+  showDateBadge?: boolean;
 }
 
 export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
@@ -107,6 +134,7 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
   isExpanded: isExpandedProp,
   isCreating = false,
   isHighlighted = false,
+  showDateBadge = false,
   isSwipingOut = false,
   onCreationAnimationComplete,
   onToggleExpand,
@@ -115,6 +143,11 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
   onDelete,
   onOpenReschedule,
   onQuickReschedule: _onQuickReschedule,
+  onMoveUp,
+  onMoveDown,
+  isFirstInDay = false,
+  isLastInDay = false,
+  canReorder = false,
 }) => {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = typeof isExpandedProp === 'boolean' ? isExpandedProp : internalExpanded;
@@ -318,6 +351,14 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
               {categoryName}
             </span>
 
+            {/* Scheduled Date Badge (when in upcoming section) */}
+            {showDateBadge && task.date && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                <Calendar className="w-2.5 h-2.5" />
+                <span>{formatUpcomingDate(task.date)}</span>
+              </span>
+            )}
+
             {/* Priority Badge */}
             {task.priority === 'high' && !isCompleted && (
               <span className="bg-rose-500/10 dark:bg-rose-500/20 border border-rose-500/30 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-[10px] font-extrabold px-1.5 py-0.5 rounded shrink-0">
@@ -365,6 +406,49 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
               <RotateCcw className="w-3 h-3 stroke-[2.5]" />
               <span className="hidden sm:inline">Reschedule</span>
             </button>
+          )}
+
+          {/* Intra-day Reorder Controls (Strictly bounded to current day) */}
+          {canReorder && (
+            <div
+              className="flex items-center rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.03] p-0.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isFirstInDay) onMoveUp?.();
+                }}
+                disabled={isFirstInDay}
+                title={isFirstInDay ? 'At top of day' : 'Move up within day'}
+                aria-label="Move task up"
+                className={`p-1 rounded transition-colors ${
+                  isFirstInDay
+                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-35'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer active:scale-95'
+                }`}
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isLastInDay) onMoveDown?.();
+                }}
+                disabled={isLastInDay}
+                title={isLastInDay ? 'At bottom of day' : 'Move down within day'}
+                aria-label="Move task down"
+                className={`p-1 rounded transition-colors ${
+                  isLastInDay
+                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-35'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer active:scale-95'
+                }`}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
 
           {/* Expand Chevron */}

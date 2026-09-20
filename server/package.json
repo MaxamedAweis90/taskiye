@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.7.3",
+    "@google/genai": "^2.23.0",
     "@vercel/blob": "^2.8.0",
     "better-auth": "^1.7.3",
     "cors": "^2.8.5",

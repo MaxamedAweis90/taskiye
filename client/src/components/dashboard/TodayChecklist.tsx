@@ -348,7 +348,7 @@ export const TodayChecklist: React.FC<TodayChecklistProps> = ({
             : isUpdating
             ? 'blur-[2px] opacity-40 scale-[0.99] border border-amber-400/40 pointer-events-none'
             : isHighlighted
-            ? 'bg-amber-50/60 dark:bg-[#111A2E] border border-amber-400/50 shadow-[0_0_14px_rgba(250,204,21,0.15)]'
+            ? 'ring-2 ring-amber-500 dark:ring-amber-400 bg-amber-500/15 dark:bg-amber-400/15 border border-amber-500 dark:border-amber-400 shadow-[0_0_24px_rgba(245,158,11,0.35)] scale-[1.01] duration-500'
             : isHabit
             ? 'bg-purple-50/30 hover:bg-purple-50/60 dark:bg-[#121a30] dark:hover:bg-[#16223e] border border-violet-200/80 hover:border-violet-300 dark:border-violet-500/25 dark:hover:border-violet-500/40 shadow-sm dark:shadow-[0_2px_12px_rgba(139,92,246,0.06)]'
             : 'bg-white hover:bg-slate-50/80 dark:bg-[#111A2E] dark:hover:bg-[#15223C] border border-slate-200/90 hover:border-slate-300 dark:border-white/[0.06] dark:hover:border-white/[0.12] shadow-sm dark:shadow-none'

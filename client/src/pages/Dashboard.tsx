@@ -63,7 +63,6 @@ export const Dashboard: React.FC = () => {
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [deletedTaskIds, setDeletedTaskIds] = useState<Set<string>>(new Set());
-  const [customChecklistOrder, setCustomChecklistOrder] = useState<string[]>([]);
   const [isQuickActionModalOpen, setIsQuickActionModalOpen] = useState(false);
 
   // 1. Immediately unsuppress task when restored from TrashModal or Undo toast
@@ -80,12 +79,72 @@ export const Dashboard: React.FC = () => {
     }
   }, [restoredTaskId]);
 
+  // 2. Listen for task highlight events (from AI Chat "View in Dashboard" link)
+  React.useEffect(() => {
+    const handleHighlightEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ taskId: string }>;
+      const taskId = customEvent.detail?.taskId;
+      if (taskId) {
+        setHighlightedTaskId(taskId);
+        scrollWorkspaceToTask(taskId);
+        setTimeout(() => {
+          setHighlightedTaskId((curr) => (curr === taskId ? null : curr));
+          sessionStorage.removeItem('taskiye_highlight_task');
+        }, 3000);
+      }
+    };
+
+    window.addEventListener('taskiye-highlight-task', handleHighlightEvent);
+
+    // Also check on mount / navigation if a task highlight was queued
+    const storedHighlight = sessionStorage.getItem('taskiye_highlight_task');
+    if (storedHighlight) {
+      setTimeout(() => {
+        setHighlightedTaskId(storedHighlight);
+        scrollWorkspaceToTask(storedHighlight);
+        setTimeout(() => {
+          setHighlightedTaskId((curr) => (curr === storedHighlight ? null : curr));
+          sessionStorage.removeItem('taskiye_highlight_task');
+        }, 3000);
+      }, 350);
+    }
+
+    return () => {
+      window.removeEventListener('taskiye-highlight-task', handleHighlightEvent);
+    };
+  }, []);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const modalTitleInputRef = useRef<HTMLInputElement>(null);
 
   // Dynamic Today ISO Date string from store (reacts immediately to midnight date rollover)
   const todayStr = currentDateStr || new Date().toLocaleDateString('en-CA');
+
+  // Persistent checklist order key per user and date
+  const orderStorageKey = `taskiye_checklist_order_${session?.user?.id || 'guest'}_${todayStr}`;
+
+  const [customChecklistOrder, setCustomChecklistOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(orderStorageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Re-sync saved order whenever active user or date changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(orderStorageKey);
+      if (saved) {
+        setCustomChecklistOrder(JSON.parse(saved));
+      } else {
+        setCustomChecklistOrder([]);
+      }
+    } catch {
+      setCustomChecklistOrder([]);
+    }
+  }, [orderStorageKey]);
 
   // Sync active due habits into today's tasks overview on initial load and date rollover
   React.useEffect(() => {
@@ -559,13 +618,54 @@ export const Dashboard: React.FC = () => {
 
   // Reorder handler for drag and drop
   const handleReorderChecklist = (reorderedItems: ChecklistItem[]) => {
-    setCustomChecklistOrder(reorderedItems.map((i) => i.id));
+    const ids = reorderedItems.map((i) => i.id);
+    setCustomChecklistOrder(ids);
+    try {
+      localStorage.setItem(orderStorageKey, JSON.stringify(ids));
+    } catch {
+      // ignore storage write errors
+    }
+
     if (!isAuthenticated) {
       const itemsToOrder = reorderedItems.map((item, index) => ({
         id: item.id,
         sortOrder: index,
       }));
       reorderGuestTasks(itemsToOrder);
+    } else {
+      // Authenticated mode: filter out virtual habit placeholders
+      const realTasks = reorderedItems
+        .filter((item) => !item.id.startsWith('server_habit_'))
+        .map((item, index) => ({
+          id: item.id,
+          sortOrder: index,
+        }));
+
+      if (realTasks.length > 0) {
+        // Optimistically update TanStack query cache for ['tasks', todayStr]
+        queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          const orderMap = new Map(realTasks.map((t) => [t.id, t.sortOrder]));
+          return [...old]
+            .map((task) => {
+              if (orderMap.has(task._id)) {
+                return { ...task, sortOrder: orderMap.get(task._id)! };
+              }
+              return task;
+            })
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        });
+
+        // Persist to backend
+        fetch('/api/tasks/reorder', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: realTasks }),
+          credentials: 'include',
+        }).catch((err) => {
+          console.error('Failed to persist task reordering:', err);
+        });
+      }
     }
   };
 
@@ -587,9 +687,11 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  // Cancel edit mode
   const handleCancelEdit = () => {
     setEditingTask(null);
     setItemTitle('');
+    setCategory('Work');
     setPriority('normal');
     setIsQuickActionModalOpen(false);
   };
@@ -608,6 +710,15 @@ export const Dashboard: React.FC = () => {
 
     // Instantly remove from view optimistically with 0ms delay
     setDeletedTaskIds((prev) => new Set(prev).add(id));
+    setCustomChecklistOrder((prev) => {
+      const next = prev.filter((taskId) => taskId !== id);
+      try {
+        localStorage.setItem(orderStorageKey, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
 
     if (isAuthenticated) {
       queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
