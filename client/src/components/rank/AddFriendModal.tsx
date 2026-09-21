@@ -14,6 +14,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../../lib/auth-client';
 import { apiFetch } from '../../lib/api';
+import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 
 interface AddFriendModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
 }) => {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
+  const { openAuthModal } = useTaskiyeStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [members, setMembers] = useState<CommunityMember[]>([]);
@@ -126,7 +128,15 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   if (!isOpen) return null;
 
   const handleConnect = async (member: CommunityMember) => {
-    // Client-side self check
+    // 1. Guest check: prompt login
+    if (!session?.user) {
+      openAuthModal('manual', 'signin');
+      setNotificationToast('Please sign in to connect with rivals & friends!');
+      setTimeout(() => setNotificationToast(null), 4000);
+      return;
+    }
+
+    // 2. Client-side self check
     if (
       (currentUserId && member.id === currentUserId) ||
       member.handle.toLowerCase() === currentUserHandle.toLowerCase()
@@ -141,24 +151,59 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
       const res = await apiFetch('/api/friends/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUsername: member.handle }),
+        body: JSON.stringify({
+          targetUserId: member.id,
+          targetUsername: member.handle,
+        }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        setConnectedHandles((prev) => ({ ...prev, [member.handle]: true }));
+        setConnectedHandles((prev) => ({
+          ...prev,
+          [member.handle]: true,
+          [member.id]: true,
+        }));
         await queryClient.invalidateQueries({ queryKey: ['friends'] });
         await queryClient.invalidateQueries({ queryKey: ['rankings'] });
-        setNotificationToast(`Friend request sent to ${member.name}! Rivalry challenge delivered.`);
+        setNotificationToast(data.message || `Friend request sent to ${member.name}! Rivalry challenge delivered.`);
         setTimeout(() => setNotificationToast(null), 3500);
       } else {
         setNotificationToast(data.message || 'Could not send friend request.');
         setTimeout(() => setNotificationToast(null), 3500);
       }
-    } catch {
-      setConnectedHandles((prev) => ({ ...prev, [member.handle]: true }));
-      setNotificationToast(`Friend request sent to ${member.name}!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      setNotificationToast(`Could not send request: ${msg}`);
       setTimeout(() => setNotificationToast(null), 3500);
+    } finally {
+      setLoadingHandle(null);
+    }
+  };
+
+  const handleCancelRequest = async (member: CommunityMember) => {
+    setLoadingHandle(member.handle);
+    try {
+      const res = await apiFetch('/api/friends/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: member.id }),
+      });
+      if (res.ok) {
+        setConnectedHandles((prev) => {
+          const copy = { ...prev };
+          delete copy[member.handle];
+          delete copy[member.id];
+          return copy;
+        });
+        await queryClient.invalidateQueries({ queryKey: ['friends'] });
+        await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        setNotificationToast(`Invitation to ${member.name} cancelled.`);
+        setTimeout(() => setNotificationToast(null), 3000);
+      }
+    } catch {
+      setNotificationToast('Failed to cancel request.');
+      setTimeout(() => setNotificationToast(null), 3000);
     } finally {
       setLoadingHandle(null);
     }
@@ -172,15 +217,43 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ friendshipId, action: 'ACCEPT' }),
       });
+      const data = await res.json();
       if (res.ok) {
         await queryClient.invalidateQueries({ queryKey: ['friends'] });
         await queryClient.invalidateQueries({ queryKey: ['rankings'] });
         await queryClient.invalidateQueries({ queryKey: ['notifications'] });
-        setNotificationToast(`Connected with ${memberName}! 🎉`);
+        setNotificationToast(`Connected with ${memberName}! 🎉 Challenge accepted.`);
+        setTimeout(() => setNotificationToast(null), 3500);
+      } else {
+        setNotificationToast(data.message || 'Could not accept request');
         setTimeout(() => setNotificationToast(null), 3500);
       }
     } catch {
-      // ignore
+      setNotificationToast('Failed to accept request. Please try again.');
+      setTimeout(() => setNotificationToast(null), 3500);
+    } finally {
+      setLoadingHandle(null);
+    }
+  };
+
+  const handleRejectIncoming = async (friendshipId: string, memberName: string) => {
+    setLoadingHandle(friendshipId);
+    try {
+      const res = await apiFetch('/api/friends/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendshipId, action: 'REJECT' }),
+      });
+      if (res.ok) {
+        await queryClient.invalidateQueries({ queryKey: ['friends'] });
+        await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        setNotificationToast(`Request from ${memberName} declined.`);
+        setTimeout(() => setNotificationToast(null), 3000);
+      }
+    } catch {
+      setNotificationToast('Failed to decline request.');
+      setTimeout(() => setNotificationToast(null), 3000);
     } finally {
       setLoadingHandle(null);
     }
@@ -364,11 +437,35 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                             </>
                           )}
                         </button>
+                        <button
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => handleRejectIncoming(incomingFriendshipId, member.name)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 transition-all cursor-pointer disabled:opacity-50"
+                          title="Decline invitation"
+                        >
+                          <X className="w-3.5 h-3.5 stroke-[2]" />
+                        </button>
                       </div>
                     ) : isPendingOutgoing ? (
-                      <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 dark:border-amber-400/30 flex items-center gap-1.5 select-none">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Pending</span>
+                      <div className="flex items-center gap-1">
+                        <div className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 dark:border-amber-400/30 flex items-center gap-1.5 select-none">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Pending</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => handleCancelRequest(member)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all cursor-pointer disabled:opacity-50"
+                          title="Cancel friend request"
+                        >
+                          {isLoading ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <X className="w-3.5 h-3.5 stroke-[2]" />
+                          )}
+                        </button>
                       </div>
                     ) : (
                       <button

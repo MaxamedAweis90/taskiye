@@ -270,40 +270,76 @@ router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequ
 
 /**
  * POST /api/friends/request
- * Send a friend request to a real user via username search or QR code token
+ * Send a friend request to a real user via targetUserId, targetUsername search, or QR code token
  */
 router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?.id || 'guest_user';
-    const senderName = req.user?.name || 'A rival';
-    const { targetUsername, qrToken } = req.body;
+    const userId = req.user?.id
+      ? String(req.user.id)
+      : req.user && (req.user as unknown as { _id?: string })._id
+        ? String((req.user as unknown as { _id?: string })._id)
+        : '';
 
-    if (!targetUsername && !qrToken) {
-      return sendError(res, 'Either targetUsername or qrToken is required', 400);
+    if (!userId) {
+      return sendError(res, 'Please sign in or create an account to send friend requests', 401);
     }
 
-    let targetUserId = '';
+    const senderName = req.user?.name || req.user?.username || 'A rival';
+    const { targetUserId: directTargetUserId, targetUsername, qrToken } = req.body;
 
-    if (targetUsername) {
-      const cleanTarget = String(targetUsername).trim().replace(/^@/, '');
-      if (cleanTarget.length > 50) {
-        return sendError(res, 'Invalid target username', 400);
+    if (!directTargetUserId && !targetUsername && !qrToken) {
+      return sendError(res, 'Target user identifier is required', 400);
+    }
+
+    let targetUserDoc: Record<string, unknown> | null = null;
+
+    if (directTargetUserId) {
+      const cleanId = String(directTargetUserId).trim();
+      if (ObjectId.isValid(cleanId)) {
+        targetUserDoc = await mongoDb.collection('user').findOne({
+          $or: [{ _id: new ObjectId(cleanId) }, { id: cleanId }],
+        });
+      } else {
+        targetUserDoc = await mongoDb.collection('user').findOne({ id: cleanId });
       }
-      const escapedTarget = cleanTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const foundUser = await mongoDb.collection('user').findOne({
-        $or: [
+    }
+
+    if (!targetUserDoc && targetUsername) {
+      const cleanTarget = String(targetUsername).trim().replace(/^@/, '');
+      if (cleanTarget.length <= 50) {
+        const escapedTarget = cleanTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const queryList: Record<string, unknown>[] = [
           { username: { $regex: `^${escapedTarget}$`, $options: 'i' } },
           { name: { $regex: `^${escapedTarget}$`, $options: 'i' } },
           { email: cleanTarget.toLowerCase() },
-          { id: cleanTarget },
-        ],
-      });
-
-      targetUserId = foundUser ? ((foundUser.id as string) || foundUser._id.toString()) : cleanTarget;
-    } else if (qrToken) {
-      // Decode QR token if formatted or use directly as target ID
-      targetUserId = String(qrToken).replace('taskiye:user:', '').trim();
+        ];
+        if (ObjectId.isValid(cleanTarget)) {
+          queryList.push({ _id: new ObjectId(cleanTarget) });
+        }
+        targetUserDoc = await mongoDb.collection('user').findOne({ $or: queryList });
+      }
     }
+
+    if (!targetUserDoc && qrToken) {
+      const cleanToken = String(qrToken).replace('taskiye:user:', '').trim();
+      if (ObjectId.isValid(cleanToken)) {
+        targetUserDoc = await mongoDb.collection('user').findOne({
+          $or: [{ _id: new ObjectId(cleanToken) }, { id: cleanToken }],
+        });
+      } else {
+        targetUserDoc = await mongoDb.collection('user').findOne({ id: cleanToken });
+      }
+    }
+
+    if (!targetUserDoc) {
+      return sendError(res, 'User not found. Check username, handle, or QR code.', 404);
+    }
+
+    const targetUserId = targetUserDoc._id
+      ? targetUserDoc._id.toString()
+      : String(targetUserDoc.id || '');
+    const targetName =
+      (targetUserDoc.name as string) || (targetUserDoc.username as string) || 'User';
 
     if (!targetUserId || targetUserId === userId) {
       return sendError(
@@ -313,7 +349,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
       );
     }
 
-    // Check if friendship or request already exists
+    // Check if a friendship relationship already exists in either direction
     const existing = await Friendship.findOne({
       $or: [
         { requesterId: userId, recipientId: targetUserId },
@@ -323,21 +359,125 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
 
     if (existing) {
       if (existing.status === 'ACCEPTED') {
-        return sendError(res, 'You are already friends with this user', 400);
+        return sendSuccess(res, existing, `You are already friends with ${targetName}!`, 200);
       }
+
       if (existing.status === 'PENDING') {
-        return sendError(res, 'A friend request is already pending', 400);
+        // If the other user already invited the requester, auto-accept immediately!
+        if (String(existing.recipientId) === String(userId)) {
+          existing.status = 'ACCEPTED';
+          await existing.save();
+          invalidateRankingsCache();
+
+          try {
+            await dispatchUnifiedNotification({
+              userId: targetUserId,
+              title: 'Friend Request Accepted! ⚡',
+              body: `${senderName} connected with you! View your rank in Friends League.`,
+              type: 'system',
+              tag: `friend-accepted-${existing._id}`,
+              url: '/rank',
+            });
+          } catch (notifErr) {
+            console.warn('[Friends] Failed to deliver notification:', notifErr);
+          }
+
+          return sendSuccess(
+            res,
+            existing,
+            `Connected! You and ${targetName} are now rivals in Friends League.`,
+            200
+          );
+        }
+
+        return sendSuccess(
+          res,
+          existing,
+          `Friend request to ${targetName} is already pending.`,
+          200
+        );
+      }
+
+      // If existing status was REJECTED, reactivate the friendship request as PENDING
+      if (existing.status === 'REJECTED') {
+        existing.requesterId = userId;
+        existing.recipientId = targetUserId;
+        existing.status = 'PENDING';
+        await existing.save();
+
+        try {
+          const recipientSubs = await PushSubscription.find({ userId: targetUserId });
+          if (recipientSubs.length > 0) {
+            for (const sub of recipientSubs) {
+              await dispatchUnifiedNotification({
+                sub,
+                userId: targetUserId,
+                title: 'New Friend Request! 🏆',
+                body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
+                type: 'system',
+                tag: `friend-request-${existing._id}`,
+                url: '/rank',
+                data: { friendshipId: String(existing._id) },
+              });
+            }
+          } else {
+            await dispatchUnifiedNotification({
+              userId: targetUserId,
+              title: 'New Friend Request! 🏆',
+              body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
+              type: 'system',
+              tag: `friend-request-${existing._id}`,
+              url: '/rank',
+              data: { friendshipId: String(existing._id) },
+            });
+          }
+        } catch (notifErr) {
+          console.warn('[Friends] Failed to deliver notification:', notifErr);
+        }
+
+        return sendSuccess(
+          res,
+          existing,
+          `Friend request sent to ${targetName}! Rivalry challenge delivered.`,
+          200
+        );
       }
     }
 
-    // Create new friend request
-    const friendship = await Friendship.create({
-      requesterId: userId,
-      recipientId: targetUserId,
-      status: 'PENDING',
-    });
+    // Create new friend request with duplicate-key race condition resilience
+    let friendship;
+    try {
+      friendship = await Friendship.create({
+        requesterId: userId,
+        recipientId: targetUserId,
+        status: 'PENDING',
+      });
+    } catch (createErr: unknown) {
+      const err = createErr as { code?: number };
+      if (err?.code === 11000) {
+        // Race condition / compound index hit: update existing record to pending
+        friendship = await Friendship.findOneAndUpdate(
+          {
+            $or: [
+              { requesterId: userId, recipientId: targetUserId },
+              { requesterId: targetUserId, recipientId: userId },
+            ],
+          },
+          {
+            $set: {
+              requesterId: userId,
+              recipientId: targetUserId,
+              status: 'PENDING',
+            },
+          },
+          { new: true, upsert: true }
+        );
+      } else {
+        throw createErr;
+      }
+    }
 
-    // Deliver unified notification (in-app + web push) to all registered recipient devices
+    // Deliver unified notification (in-app + web push) to recipient devices
     try {
       const recipientSubs = await PushSubscription.find({ userId: targetUserId });
       if (recipientSubs.length > 0) {
@@ -350,7 +490,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
             type: 'system',
             tag: `friend-request-${friendship._id}`,
             url: '/rank',
-            data: { friendshipId: friendship._id },
+            data: { friendshipId: String(friendship._id) },
           });
         }
       } else {
@@ -361,7 +501,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
           type: 'system',
           tag: `friend-request-${friendship._id}`,
           url: '/rank',
-          data: { friendshipId: friendship._id },
+          data: { friendshipId: String(friendship._id) },
         });
       }
     } catch (notifErr) {
@@ -371,10 +511,11 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     return sendSuccess(
       res,
       friendship,
-      `Friend request sent to ${targetUsername || 'user'} successfully`,
+      `Friend request sent to ${targetName}! Rivalry challenge delivered.`,
       201
     );
   } catch (error) {
+    console.error('[Friends] Error in POST /request:', error);
     return sendError(res, 'Failed to send friend request', 500, error);
   }
 });
@@ -463,6 +604,54 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     );
   } catch (error) {
     return sendError(res, 'Failed to respond to friend request', 500, error);
+  }
+});
+
+/**
+ * POST /api/friends/remove
+ * Remove a friend or cancel a pending request
+ */
+router.post('/remove', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id
+      ? String(req.user.id)
+      : req.user && (req.user as unknown as { _id?: string })._id
+        ? String((req.user as unknown as { _id?: string })._id)
+        : '';
+
+    if (!userId) {
+      return sendError(res, 'Authentication required', 401);
+    }
+
+    const { friendshipId, targetUserId } = req.body;
+    if (!friendshipId && !targetUserId) {
+      return sendError(res, 'friendshipId or targetUserId is required', 400);
+    }
+
+    const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
+      ? String((req.user as unknown as { _id?: string })._id)
+      : userId;
+    const userIds = Array.from(new Set([userId, currentAltId])).filter(Boolean);
+
+    const query: Record<string, unknown> = {};
+    if (friendshipId) {
+      query._id = friendshipId;
+      query.$or = [{ requesterId: { $in: userIds } }, { recipientId: { $in: userIds } }];
+    } else {
+      const targetStr = String(targetUserId);
+      query.$or = [
+        { requesterId: { $in: userIds }, recipientId: targetStr },
+        { requesterId: targetStr, recipientId: { $in: userIds } },
+      ];
+    }
+
+    await Friendship.deleteMany(query);
+    invalidateRankingsCache();
+
+    return sendSuccess(res, null, 'Connection updated successfully');
+  } catch (error) {
+    console.error('[Friends] Error in POST /remove:', error);
+    return sendError(res, 'Failed to remove connection', 500, error);
   }
 });
 
