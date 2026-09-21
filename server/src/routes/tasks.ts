@@ -4,6 +4,8 @@ import { Habit } from '../models/Habit.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { invalidateRankingsCache } from './rankings.js';
+import { PushSubscription } from '../models/PushSubscription.js';
+import { dispatchUnifiedNotification } from '../lib/push.js';
 
 const router = Router();
 
@@ -747,6 +749,51 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         }
       }
       invalidateRankingsCache();
+    }
+
+    // When a task is checked off, check if all tasks for today are now 100% completed
+    if (isCompleted === true) {
+      try {
+        const taskDateObj = task.date ? new Date(task.date) : new Date();
+        const startOfDay = new Date(taskDateObj);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(taskDateObj);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        const [pendingCount, totalCount] = await Promise.all([
+          Task.countDocuments({
+            userId: req.user!.id,
+            deletedAt: null,
+            date: { $gte: startOfDay, $lte: endOfDay },
+            isCompleted: false,
+          }),
+          Task.countDocuments({
+            userId: req.user!.id,
+            deletedAt: null,
+            date: { $gte: startOfDay, $lte: endOfDay },
+          }),
+        ]);
+
+        if (totalCount > 0 && pendingCount === 0) {
+          const dateTag = taskDateObj.toISOString().slice(0, 10);
+          const subs = await PushSubscription.find({ userId: req.user!.id });
+          for (const sub of subs) {
+            if (sub.preferences?.completionChimes !== false) {
+              await dispatchUnifiedNotification({
+                sub,
+                userId: req.user!.id,
+                title: 'Checklist Cleared! 🏆',
+                body: 'Incredible work! You completed 100% of your checklist items for today!',
+                type: 'achievement',
+                tag: `all-completed-${dateTag}`,
+                url: '/',
+              });
+            }
+          }
+        }
+      } catch (checkErr) {
+        console.warn('[Tasks] Failed to evaluate completion notification:', checkErr);
+      }
     }
 
     return sendSuccess(res, task, 'Task updated successfully');

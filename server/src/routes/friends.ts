@@ -221,19 +221,33 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
       status: 'PENDING',
     });
 
-    // Deliver unified notification (in-app + web push) to recipient
+    // Deliver unified notification (in-app + web push) to all registered recipient devices
     try {
-      const recipientSub = await PushSubscription.findOne({ userId: targetUserId }).sort({ updatedAt: -1 });
-      await dispatchUnifiedNotification({
-        sub: recipientSub,
-        userId: targetUserId,
-        title: 'New Friend Request! 🏆',
-        body: `${senderName} challenged you to a streak rivalry!`,
-        type: 'system',
-        tag: `friend-request-${friendship._id}`,
-        url: '/rank',
-        data: { friendshipId: friendship._id },
-      });
+      const recipientSubs = await PushSubscription.find({ userId: targetUserId });
+      if (recipientSubs.length > 0) {
+        for (const sub of recipientSubs) {
+          await dispatchUnifiedNotification({
+            sub,
+            userId: targetUserId,
+            title: 'New Friend Request! 🏆',
+            body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
+            type: 'system',
+            tag: `friend-request-${friendship._id}`,
+            url: '/rank',
+            data: { friendshipId: friendship._id },
+          });
+        }
+      } else {
+        await dispatchUnifiedNotification({
+          userId: targetUserId,
+          title: 'New Friend Request! 🏆',
+          body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
+          type: 'system',
+          tag: `friend-request-${friendship._id}`,
+          url: '/rank',
+          data: { friendshipId: friendship._id },
+        });
+      }
     } catch (notifErr) {
       console.warn('[Friends] Failed to deliver notification:', notifErr);
     }
@@ -284,6 +298,37 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
         'Friend request not found or you are not authorized to respond',
         404
       );
+    }
+
+    if (action === 'ACCEPT') {
+      try {
+        const accepterName = req.user?.name || 'A friend';
+        const requesterSubs = await PushSubscription.find({ userId: friendship.requesterId });
+        if (requesterSubs.length > 0) {
+          for (const sub of requesterSubs) {
+            await dispatchUnifiedNotification({
+              sub,
+              userId: friendship.requesterId,
+              title: 'Friend Request Accepted! ⚡',
+              body: `${accepterName} accepted your friend request! View their streak on the leaderboard.`,
+              type: 'system',
+              tag: `friend-accepted-${friendship._id}`,
+              url: '/rank',
+            });
+          }
+        } else {
+          await dispatchUnifiedNotification({
+            userId: friendship.requesterId,
+            title: 'Friend Request Accepted! ⚡',
+            body: `${accepterName} accepted your friend request! View their streak on the leaderboard.`,
+            type: 'system',
+            tag: `friend-accepted-${friendship._id}`,
+            url: '/rank',
+          });
+        }
+      } catch (notifErr) {
+        console.warn('[Friends] Failed to deliver accept notification:', notifErr);
+      }
     }
 
     return sendSuccess(

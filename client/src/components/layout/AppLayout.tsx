@@ -39,6 +39,7 @@ import { PwaPermissionPrompt } from '../pwa/PwaPermissionPrompt';
 import { useMidnightRollover } from '../../hooks/useMidnightRollover';
 import { TaskiyeChatModal } from '../chat/TaskiyeChatModal';
 import { WelcomeSpeechBubble } from '../chat/WelcomeSpeechBubble';
+import { migrateGuestChatMessages } from '../chat/chatStorage';
 
 interface InAppNotificationItem {
   id: string;
@@ -289,6 +290,7 @@ export const AppLayout: React.FC = () => {
   const chatUser = useMemo(() => {
     if (!session?.user) return undefined;
     return {
+      id: session.user.id,
       name: displayName,
       username: userProfileData?.username || user?.username,
       email: email,
@@ -297,6 +299,16 @@ export const AppLayout: React.FC = () => {
     };
   }, [session?.user, displayName, userProfileData?.username, user?.username, email, avatarSrc, user?.image]);
 
+  const handleClearInitialPrompt = useCallback(() => {
+    setChatInitialPrompt(undefined);
+  }, []);
+
+  // Automatically migrate guest chat history to cloud account when user logs in or registers
+  useEffect(() => {
+    if (session?.user?.id) {
+      migrateGuestChatMessages(session.user.id);
+    }
+  }, [session?.user?.id]);
 
   const handleOpenChatWithPrompt = (initialPrompt?: string, language?: 'en' | 'so') => {
     handleDismissWelcomeBubble();
@@ -1087,6 +1099,7 @@ export const AppLayout: React.FC = () => {
           <div className="relative">
             <button
               type="button"
+              data-chat-toggle="true"
               onClick={() => {
                 handleDismissWelcomeBubble();
                 setIsChatOpen((prev) => !prev);
@@ -1222,7 +1235,7 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* Right Controls: Streak Button, Notifications Bell & User Profile Dropdown Widget */}
-          <div className="flex items-center gap-2.5 sm:gap-3" ref={controlsRef}>
+          <div className="flex items-center gap-2.5 sm:gap-3" ref={controlsRef} data-topbar-controls="true">
             {/* 1. Streak Widget (Morphs from unlit/lit flame pill to Duolingo monthly calendar streak card) */}
             <div
               className="relative transition-[width] duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
@@ -2215,6 +2228,7 @@ export const AppLayout: React.FC = () => {
 
         <button
           type="button"
+          data-chat-toggle="true"
           onClick={() => {
             handleDismissWelcomeBubble();
             setIsChatOpen((prev) => !prev);
@@ -2308,7 +2322,11 @@ export const AppLayout: React.FC = () => {
       {/* Taskiye AI Chatbot Modal (Responsive: Desktop floating card & Mobile full-screen) */}
       <TaskiyeChatModal
         isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatInitialPrompt(undefined);
+        }}
+        onClearInitialPrompt={handleClearInitialPrompt}
         initialPrompt={chatInitialPrompt}
         initialLanguage={chatInitialLanguage}
         user={chatUser}

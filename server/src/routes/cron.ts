@@ -328,37 +328,100 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
     }
 
     // ====================================================================
-    // Scenario F: Evening Streak at Risk / Duolingo-Style Urgency (8:00 PM - 10:30 PM)
+    // Scenario F: Evening Streak at Risk / Multi-Tier Midnight Countdown
+    // (8:00 PM, 3hr left at 9:00 PM, 2hr left at 10:00 PM, 1hr left at 11:00 PM)
     // ====================================================================
     const isEveningEnabled = sub.preferences?.dailyCadenceDigest !== false;
-    if (
-      isEveningEnabled &&
-      !hasSentToday('streakRisk') &&
-      localHour >= 20 &&
-      localHour <= 22
-    ) {
-      const count = pendingTasksCount || 1;
-      const copy = renderTemplate(pickRandomTemplate(STREAK_AT_RISK_TEMPLATES), {
-        firstName,
-        streakDays: maxStreak,
-        pendingCount: count,
-      });
+    const uncompletedHabitsCount = activeHabits.filter(
+      (h) => !h.completedDates?.includes(localDate) && h.lastCompletedDate !== localDate
+    ).length;
+    const totalRemainingTonight = pendingTasksCount + uncompletedHabitsCount;
 
-      const result = await dispatchUnifiedNotification({
-        sub,
-        userId: sub.userId,
-        endpoint: sub.endpoint,
-        title: copy.title,
-        body: copy.body,
-        type: 'streak',
-        tag: `streak-risk-${localDate}`,
-        url: '/',
-      });
+    if (isEveningEnabled && totalRemainingTonight > 0) {
+      // Tier 1: 1 Hour Before Midnight (23:00 / 11:00 PM) - Final Call Urgency
+      if (localHour === 23 && !hasSentToday('streakRisk_1h')) {
+        const result = await dispatchUnifiedNotification({
+          sub,
+          userId: sub.userId,
+          endpoint: sub.endpoint,
+          title: '🚨 Final Call: 1 Hour Left!',
+          body: `Midnight is almost here, ${firstName}! Only 1 hour left to complete your habits and protect your ${maxStreak}-day streak!`,
+          type: 'streak',
+          tag: `streak-risk-1h-${localDate}`,
+          url: '/',
+        });
 
-      if (result.pushSent || result.inAppSaved) {
-        recordSent('streakRisk');
-        await sub.save();
-        return true;
+        if (result.pushSent || result.inAppSaved) {
+          recordSent('streakRisk_1h');
+          await sub.save();
+          return true;
+        }
+      }
+
+      // Tier 2: 2 Hours Before Midnight (22:00 / 10:00 PM) - High Danger Urgency
+      if (localHour === 22 && !hasSentToday('streakRisk_2h')) {
+        const result = await dispatchUnifiedNotification({
+          sub,
+          userId: sub.userId,
+          endpoint: sub.endpoint,
+          title: '🔥 2 Hours Left! Streak in Danger!',
+          body: `Don't let your ${maxStreak}-day streak freeze or reset, ${firstName}. Only 2 hours left to finish your remaining ${totalRemainingTonight} item${totalRemainingTonight === 1 ? '' : 's'}!`,
+          type: 'streak',
+          tag: `streak-risk-2h-${localDate}`,
+          url: '/',
+        });
+
+        if (result.pushSent || result.inAppSaved) {
+          recordSent('streakRisk_2h');
+          await sub.save();
+          return true;
+        }
+      }
+
+      // Tier 3: 3 Hours Before Midnight (21:00 / 9:00 PM) - Approaching Midnight Alert
+      if (localHour === 21 && !hasSentToday('streakRisk_3h')) {
+        const result = await dispatchUnifiedNotification({
+          sub,
+          userId: sub.userId,
+          endpoint: sub.endpoint,
+          title: '⏳ 3 Hours Left Before Midnight!',
+          body: `Evening check-in, ${firstName}! You have ${totalRemainingTonight} pending item${totalRemainingTonight === 1 ? '' : 's'} before midnight resets today's checklist.`,
+          type: 'streak',
+          tag: `streak-risk-3h-${localDate}`,
+          url: '/',
+        });
+
+        if (result.pushSent || result.inAppSaved) {
+          recordSent('streakRisk_3h');
+          await sub.save();
+          return true;
+        }
+      }
+
+      // Tier 4: Evening Kickoff (20:00 / 8:00 PM)
+      if (localHour === 20 && !hasSentToday('streakRisk_8pm')) {
+        const copy = renderTemplate(pickRandomTemplate(STREAK_AT_RISK_TEMPLATES), {
+          firstName,
+          streakDays: maxStreak,
+          pendingCount: totalRemainingTonight,
+        });
+
+        const result = await dispatchUnifiedNotification({
+          sub,
+          userId: sub.userId,
+          endpoint: sub.endpoint,
+          title: copy.title,
+          body: copy.body,
+          type: 'streak',
+          tag: `streak-risk-8pm-${localDate}`,
+          url: '/',
+        });
+
+        if (result.pushSent || result.inAppSaved) {
+          recordSent('streakRisk_8pm');
+          await sub.save();
+          return true;
+        }
       }
     }
 

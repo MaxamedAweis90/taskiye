@@ -45,7 +45,7 @@ const applyThemeToDom = (resolved: 'light' | 'dark') => {
 };
 
 const getInitialTheme = (): ThemeMode => {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'system';
   try {
     const saved = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
     if (saved === 'light' || saved === 'dark' || saved === 'system') {
@@ -54,7 +54,7 @@ const getInitialTheme = (): ThemeMode => {
   } catch {
     // fallback
   }
-  return 'dark'; // default to Kinetic Midnight
+  return 'system'; // default to Auto (system OS preference)
 };
 
 const initialMode = getInitialTheme();

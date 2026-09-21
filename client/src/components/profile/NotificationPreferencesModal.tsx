@@ -274,17 +274,11 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       }
 
       // 2. Dispatch simulated notification
-      const result = await sendTestAlert(type);
-      const title = result.data?.title || 'Notification Triggered';
-
-      showToast(
-        'Simulated Alert Sent! 🔥',
-        `${title} — Dispatched to in-app bell & device.`,
-        'success'
-      );
+      await sendTestAlert(type);
+      setSuccessMsg('Simulated alert dispatched to device and notification bell!');
+      setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err) {
       console.warn('Simulation test failed:', err);
-      showToast('Simulation Triggered', 'Simulated alert was processed.', 'info');
     } finally {
       setTestingType(null);
     }

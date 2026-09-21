@@ -1,5 +1,5 @@
 // Taskiye Native High-Performance Service Worker
-const CACHE_NAME = 'taskiye-cache-v1';
+const CACHE_NAME = 'taskiye-cache-v2';
 
 // Critical Shell Assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -199,13 +199,11 @@ self.addEventListener('push', (event) => {
       }
     }
 
-    // 3. Only show disruptive OS notification if app is in background or closed
-    if (!isAppFocused) {
-      try {
-        await self.registration.showNotification(data.title, options);
-      } catch (err) {
-        console.warn('[PWA SW] showNotification warning:', err);
-      }
+    // 3. Always display native OS notification to ensure delivery on iOS and Android
+    try {
+      await self.registration.showNotification(data.title, options);
+    } catch (err) {
+      console.warn('[PWA SW] showNotification warning:', err);
     }
 
     // 4. Always broadcast to active client windows to update in-app bell counter & toast

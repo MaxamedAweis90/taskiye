@@ -25,28 +25,25 @@ import {
   Trophy,
   LayoutDashboard,
 } from 'lucide-react';
-import { useChatMind, ChatMindProfileCard, TaskDraft, SuggestedRoute } from './chatmind';
+import { useChatMind, type SuggestedRoute } from './chatmind';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
+import {
+  ChatMessage,
+  loadChatMessages,
+  saveChatMessages,
+  clearChatMessages,
+} from './chatStorage';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'model';
-  content: string;
-  timestamp: string;
-  createdTaskId?: string;
-  createdTaskDate?: string;
-  targetPage?: 'dashboard' | 'history';
-  taskDraft?: TaskDraft;
-  profileCard?: ChatMindProfileCard;
-  suggestedRoute?: SuggestedRoute;
-}
+export type { ChatMessage };
 
 interface TaskiyeChatModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onClearInitialPrompt?: () => void;
   initialPrompt?: string;
   initialLanguage?: 'en' | 'so';
   user?: {
+    id?: string;
     name?: string;
     username?: string;
     email?: string;
@@ -304,6 +301,7 @@ const RichMessageContent: React.FC<{
 export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
   isOpen,
   onClose,
+  onClearInitialPrompt,
   initialPrompt,
   initialLanguage = 'en',
   user,
@@ -321,7 +319,9 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
 
   const [view, setView] = useState<'chat' | 'settings'>('chat');
   const [isExpanded, setIsExpanded] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    return loadChatMessages(user?.id);
+  });
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasSelectedSuggestion, setHasSelectedSuggestion] = useState(false);
@@ -330,11 +330,77 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
   const [isTextareaOverflowing, setIsTextareaOverflowing] = useState(false);
   const [isInputExpanded, setIsInputExpanded] = useState(false);
 
+  // Sync messages when user identity changes (e.g. guest to authenticated user or switch)
+  const prevUserIdRef = useRef<string | undefined>(user?.id);
+  useEffect(() => {
+    if (prevUserIdRef.current !== user?.id) {
+      prevUserIdRef.current = user?.id;
+      const reloaded = loadChatMessages(user?.id);
+      setMessages(reloaded);
+      if (reloaded.length > 0) {
+        initialGreetingSent.current = true;
+      }
+    }
+  }, [user?.id]);
+
+  // Persist messages whenever conversation updates
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveChatMessages(messages, user?.id);
+    }
+  }, [messages, user?.id]);
+
   const navigate = useNavigate();
+  const modalRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const latestMessageTopRef = useRef<HTMLDivElement | null>(null);
+
+  // Close chat when clicking elsewhere, but KEEP open if clicking topbar controls (user dropdown, notification, streak)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // 1. Inside the modal itself -> stay open
+      if (modalRef.current && modalRef.current.contains(target)) {
+        return;
+      }
+
+      // 2. Chat toggle buttons -> let toggle handler handle it
+      if (target.closest('[data-chat-toggle]')) {
+        return;
+      }
+
+      // 3. Topbar controls (streak, notifications, user dropdown & their popovers) -> DO NOT close
+      if (
+        target.closest('[data-topbar-controls]') ||
+        target.closest('[data-streak-widget]') ||
+        target.closest('[data-notification-widget]') ||
+        target.closest('[data-profile-widget]')
+      ) {
+        return;
+      }
+
+      // 4. Clicked elsewhere -> close chat
+      onClose();
+    };
+
+    // Attach after current tick so the click that opens chat doesn't immediately close it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen, onClose]);
 
   const { processMessage, resetMind } = useChatMind({
     language,
@@ -397,6 +463,11 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
   // Initial welcome message based on selected language and user (no XP mentions)
   const initialGreetingSent = useRef(false);
   useEffect(() => {
+    if (messages.length > 0) {
+      initialGreetingSent.current = true;
+      return;
+    }
+
     if (isOpen && messages.length === 0 && !initialGreetingSent.current) {
       initialGreetingSent.current = true;
       const initialContent =
@@ -404,24 +475,28 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
           ? `Ku soo dhawoow Taskiye, ${isGuest ? 'Marti sharafle' : firstName}! ⚡ Waxaan ahay kaaliyahaaga garaadka macmalka ah. Waxaan kaa caawin karaa caadooyinkaaga, hawlaha maalinlaha ah, streaks, iyo darajooyinka. Maxaad jeclaan lahayd inaad ogaato?`
           : `Welcome to Taskiye, ${isGuest ? 'Guest' : firstName}! ⚡ I am your personal AI productivity companion. Ask me anything about creating habits, maintaining streaks, organizing tasks, or climbing the leaderboard!`;
 
-      setMessages([
-        {
-          id: 'welcome-msg',
-          role: 'model',
-          content: initialContent,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-    }
-  }, [isOpen, language, messages.length, isGuest, firstName]);
+      const initialWelcome: ChatMessage = {
+        id: 'welcome-msg',
+        role: 'model',
+        content: initialContent,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
 
-  // Auto-trigger initial prompt if passed
+      setMessages([initialWelcome]);
+      saveChatMessages([initialWelcome], user?.id);
+    }
+  }, [isOpen, language, messages.length, isGuest, firstName, user?.id]);
+
+  // Auto-trigger initial prompt if passed (single execution guarantee)
+  const consumedPromptRef = useRef<string | null>(null);
   useEffect(() => {
-    if (isOpen && initialPrompt) {
+    if (isOpen && initialPrompt && consumedPromptRef.current !== initialPrompt) {
+      consumedPromptRef.current = initialPrompt;
+      onClearInitialPrompt?.();
       handleSendMessage(initialPrompt);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialPrompt]);
+  }, [isOpen, initialPrompt, onClearInitialPrompt]);
 
   // Auto scroll to bottom only when user submits or on initial open, NEVER after AI generates
   const scrollToBottom = (smooth = true) => {
@@ -496,19 +571,21 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
 
   // Confirm and execute clear
   const handleConfirmClear = () => {
+    clearChatMessages(user?.id);
     const freshGreeting =
       language === 'so'
         ? `Ku soo dhawoow Taskiye, ${isGuest ? 'Marti sharafle' : firstName}! ⚡ Waxaan ahay kaaliyahaaga garaadka macmalka ah. Waxaan kaa caawin karaa caadooyinkaaga, hawlaha maalinlaha ah, streaks, iyo darajooyinka. Maxaad jeclaan lahayd inaad ogaato?`
         : `Welcome to Taskiye, ${isGuest ? 'Guest' : firstName}! ⚡ I am your personal AI productivity companion. Ask me anything about creating habits, maintaining streaks, organizing tasks, or climbing the leaderboard!`;
 
-    setMessages([
-      {
-        id: `fresh-${Date.now()}`,
-        role: 'model',
-        content: freshGreeting,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
+    const freshMsg: ChatMessage = {
+      id: `fresh-${Date.now()}`,
+      role: 'model',
+      content: freshGreeting,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages([freshMsg]);
+    saveChatMessages([freshMsg], user?.id);
     setHasSelectedSuggestion(false);
     setShowClearConfirm(false);
     resetMind();
@@ -710,6 +787,7 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
 
       {/* Main Chat Container - Strictly fixed dimensions on desktop (w-[410px] h-[580px]), mobile h-[100dvh] */}
       <div
+        ref={modalRef}
         className={`fixed z-50 flex flex-col bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.1] shadow-2xl transition-all duration-300 ease-out inset-0 md:inset-auto md:bottom-6 md:left-20 w-full rounded-none md:rounded-3xl animate-in slide-in-from-bottom duration-200 overflow-hidden ${
           isExpanded
             ? 'h-[100dvh] md:w-[720px] md:h-[720px] md:max-h-[86vh] md:shadow-[0_25px_60px_rgba(0,0,0,0.6)]'

@@ -923,6 +923,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         set({ tasks: [], habits: [] });
         try {
           localStorage.removeItem('taskiye-guest-storage');
+          localStorage.removeItem('taskiye_chat_history_guest');
         } catch {
           // Ignore in SSR or restricted environments
         }

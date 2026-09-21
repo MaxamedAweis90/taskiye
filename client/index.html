@@ -17,7 +17,7 @@
     <script>
       (function() {
         try {
-          var mode = localStorage.getItem('taskiye_theme') || 'dark';
+          var mode = localStorage.getItem('taskiye_theme') || 'system';
           var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) {
             document.documentElement.classList.add('dark');
