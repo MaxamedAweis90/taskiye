@@ -1,5 +1,5 @@
 // Taskiye Native High-Performance Service Worker
-const CACHE_NAME = 'taskiye-cache-v2';
+const CACHE_NAME = 'taskiye-cache-v3';
 
 // Critical Shell Assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -72,40 +72,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // B. API endpoints (/api/): Network-First with offline resilience
+  // B. API endpoints (/api/): Always Live, never cache personalized API data across sessions
   if (url.pathname.startsWith('/api/')) {
-    // Always bypass SW cache for live notifications to keep bell counter real-time
-    if (url.pathname.startsWith('/api/notifications')) {
-      event.respondWith(fetch(request));
-      return;
-    }
-
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful GET API responses for offline preview
-          if (response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+      fetch(request).catch(() => {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            offline: true,
+            message: 'You are currently offline.',
+          }),
+          {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200,
           }
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          // Fallback offline JSON response
-          return new Response(
-            JSON.stringify({
-              success: false,
-              offline: true,
-              message: 'You are currently offline. Local changes remain cached.',
-            }),
-            {
-              headers: { 'Content-Type': 'application/json' },
-              status: 200,
-            }
-          );
-        })
+        );
+      })
     );
     return;
   }

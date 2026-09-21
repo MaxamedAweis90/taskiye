@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   UserPlus,
@@ -8,7 +8,10 @@ import {
   Flame,
   CheckCircle2,
   Loader2,
+  Clock,
+  UserCheck,
 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../../lib/auth-client';
 import { apiFetch } from '../../lib/api';
 
@@ -35,6 +38,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   onOpenQr,
 }) => {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -42,9 +47,52 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   const [loadingHandle, setLoadingHandle] = useState<string | null>(null);
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
 
-  const currentUserId = session?.user?.id;
+  const currentUserId = session?.user?.id ? String(session.user.id) : '';
   const currentUserName = session?.user?.name || '';
   const currentUserHandle = `@${currentUserName.toLowerCase().replace(/\s+/g, '')}`;
+
+  // Live query for current friendships to determine LinkedIn connection status
+  const { data: friendsData } = useQuery({
+    queryKey: ['friends'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/friends');
+      if (!res.ok) return { friends: [], pendingIncoming: [], pendingOutgoing: [] };
+      const json = await res.json();
+      return json.data;
+    },
+    enabled: isOpen && Boolean(session?.user),
+  });
+
+  const acceptedFriendUserIds = useMemo(() => {
+    const s = new Set<string>();
+    (friendsData?.friends || []).forEach((f: { id?: string; userId?: string; handle?: string }) => {
+      if (f.id) s.add(String(f.id));
+      if (f.userId) s.add(String(f.userId));
+      if (f.handle) s.add(f.handle.toLowerCase());
+    });
+    return s;
+  }, [friendsData?.friends]);
+
+  const pendingOutgoingUserIds = useMemo(() => {
+    const s = new Set<string>();
+    (friendsData?.pendingOutgoing || []).forEach((f: { id?: string; userId?: string; handle?: string }) => {
+      if (f.id) s.add(String(f.id));
+      if (f.userId) s.add(String(f.userId));
+      if (f.handle) s.add(f.handle.toLowerCase());
+    });
+    return s;
+  }, [friendsData?.pendingOutgoing]);
+
+  const pendingIncomingMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (friendsData?.pendingIncoming || []).forEach((f: { friendshipId?: string; id?: string; userId?: string; handle?: string }) => {
+      const fId = f.friendshipId || '';
+      if (f.id) map.set(String(f.id), fId);
+      if (f.userId) map.set(String(f.userId), fId);
+      if (f.handle) map.set(f.handle.toLowerCase(), fId);
+    });
+    return map;
+  }, [friendsData?.pendingIncoming]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -99,6 +147,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
 
       if (res.ok) {
         setConnectedHandles((prev) => ({ ...prev, [member.handle]: true }));
+        await queryClient.invalidateQueries({ queryKey: ['friends'] });
+        await queryClient.invalidateQueries({ queryKey: ['rankings'] });
         setNotificationToast(`Friend request sent to ${member.name}! Rivalry challenge delivered.`);
         setTimeout(() => setNotificationToast(null), 3500);
       } else {
@@ -109,6 +159,28 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
       setConnectedHandles((prev) => ({ ...prev, [member.handle]: true }));
       setNotificationToast(`Friend request sent to ${member.name}!`);
       setTimeout(() => setNotificationToast(null), 3500);
+    } finally {
+      setLoadingHandle(null);
+    }
+  };
+
+  const handleAcceptIncoming = async (friendshipId: string, memberName: string) => {
+    setLoadingHandle(friendshipId);
+    try {
+      const res = await apiFetch('/api/friends/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendshipId, action: 'ACCEPT' }),
+      });
+      if (res.ok) {
+        await queryClient.invalidateQueries({ queryKey: ['friends'] });
+        await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        setNotificationToast(`Connected with ${memberName}! 🎉`);
+        setTimeout(() => setNotificationToast(null), 3500);
+      }
+    } catch {
+      // ignore
     } finally {
       setLoadingHandle(null);
     }
@@ -212,8 +284,25 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </div>
           ) : (
             displayedMembers.map((member) => {
-              const isConnected = connectedHandles[member.handle];
-              const isLoading = loadingHandle === member.handle;
+              const memberIdStr = String(member.id);
+              const memberHandleLower = member.handle.toLowerCase();
+
+              const isAcceptedFriend =
+                acceptedFriendUserIds.has(memberIdStr) ||
+                acceptedFriendUserIds.has(memberHandleLower);
+
+              const isPendingOutgoing =
+                pendingOutgoingUserIds.has(memberIdStr) ||
+                pendingOutgoingUserIds.has(memberHandleLower) ||
+                Boolean(connectedHandles[member.handle]);
+
+              const incomingFriendshipId =
+                pendingIncomingMap.get(memberIdStr) ||
+                pendingIncomingMap.get(memberHandleLower);
+
+              const isLoading =
+                loadingHandle === member.handle ||
+                (incomingFriendshipId ? loadingHandle === incomingFriendshipId : false);
 
               return (
                 <div
@@ -250,31 +339,55 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Individual Connect Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleConnect(member)}
-                    disabled={isConnected || isLoading}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                      isConnected
-                        ? 'bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30 cursor-default'
-                        : 'bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-amber-300 text-slate-950 shadow-[0_0_12px_rgba(250,204,21,0.25)] active:scale-95'
-                    }`}
-                  >
-                    {isConnected ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        <span>Request Sent</span>
-                      </>
-                    ) : isLoading ? (
-                      <span>Sending...</span>
+                  {/* LinkedIn Dynamic Connection Status */}
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {isAcceptedFriend ? (
+                      <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30 flex items-center gap-1.5 select-none">
+                        <UserCheck className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Connected</span>
+                      </div>
+                    ) : incomingFriendshipId ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => handleAcceptIncoming(incomingFriendshipId, member.name)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-amber-300 text-slate-950 flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                          title="Accept invitation"
+                        >
+                          {isLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Accept</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : isPendingOutgoing ? (
+                      <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300 border border-amber-500/25 dark:border-amber-400/30 flex items-center gap-1.5 select-none">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Pending</span>
+                      </div>
                     ) : (
-                      <>
-                        <UserPlus className="w-3.5 h-3.5" />
-                        <span>Connect</span>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => handleConnect(member)}
+                        disabled={isLoading}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-amber-300 text-slate-950 shadow-[0_0_12px_rgba(250,204,21,0.25)] active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span>Connect</span>
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </div>
               );
             })

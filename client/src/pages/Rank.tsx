@@ -5,11 +5,17 @@ import {
   Crown,
   Loader2,
   Users,
+  Check,
+  X,
+  UserPlus,
+  ArrowRight,
+  Trophy,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
 import { AddFriendModal } from '../components/rank/AddFriendModal';
 import { LinkedInQrModal } from '../components/rank/LinkedInQrModal';
+import { useTaskiyeStore } from '../store/useTaskiyeStore';
 
 export interface LeaderboardMember {
   id: string;
@@ -41,15 +47,31 @@ interface ServerRankItem {
 
 interface RankingsApiResponse {
   type: 'friends' | 'global';
-  currentUser: ServerRankItem;
+  currentUser: ServerRankItem | null;
   leaderboard: ServerRankItem[];
+}
+
+interface PendingIncomingFriend {
+  friendshipId: string;
+  id: string;
+  userId: string;
+  name: string;
+  username: string;
+  handle: string;
+  avatarUrl?: string;
+  streakDays: number;
+  createdAt?: string;
 }
 
 export const Rank: React.FC = () => {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
+  const { showToast, openAuthModal } = useTaskiyeStore();
+
   const [leagueType, setLeagueType] = useState<'friends' | 'global'>('friends');
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
   const [isLinkedInQrModalOpen, setIsLinkedInQrModalOpen] = useState(false);
+  const [respondingFriendshipId, setRespondingFriendshipId] = useState<string | null>(null);
 
   // Fetch real registered users and live streak rankings from database
   const { data: rankData, isLoading } = useQuery<RankingsApiResponse>({
@@ -63,19 +85,82 @@ export const Rank: React.FC = () => {
     },
   });
 
-  const activeMembers: LeaderboardMember[] = (rankData?.leaderboard || []).map((m) => ({
-    id: m.userId,
-    rank: m.rank,
-    name: m.userName,
-    handle: m.handle,
-    avatarUrl: m.userAvatar || undefined,
-    initials: m.initials || 'U',
-    streakDays: m.streakCount,
-    consistency: m.consistencyRate,
-    totalCompletions: m.totalCompletions,
-    isOnline: m.isOnline ?? true,
-    isCurrentUser: m.isCurrentUser,
-  }));
+  // Fetch friends and incoming connection invitations (LinkedIn style)
+  const { data: friendsData } = useQuery({
+    queryKey: ['friends'],
+    queryFn: async () => {
+      const res = await fetch('/api/friends', {
+        credentials: 'include',
+      });
+      if (!res.ok) return { friends: [], pendingIncoming: [], pendingOutgoing: [] };
+      const json = await res.json();
+      return json.data;
+    },
+    enabled: Boolean(session?.user),
+    staleTime: 10000,
+  });
+
+  const pendingInvitations: PendingIncomingFriend[] = friendsData?.pendingIncoming || [];
+
+  const handleRespondInvitation = async (
+    friendshipId: string,
+    action: 'ACCEPT' | 'REJECT',
+    friendName?: string
+  ) => {
+    setRespondingFriendshipId(friendshipId);
+    try {
+      const res = await fetch('/api/friends/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ friendshipId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.message || 'Failed to update invitation');
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['friends'] });
+      await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+      if (action === 'ACCEPT') {
+        showToast(
+          'Connected! 🎉',
+          `You and ${friendName || 'your friend'} are now connected on the Leaderboard!`,
+          'success'
+        );
+      } else {
+        showToast('Request Ignored', 'The friend invitation has been removed.', 'info');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not respond to invitation';
+      showToast('Action Failed', msg, 'error');
+    } finally {
+      setRespondingFriendshipId(null);
+    }
+  };
+
+  const currentUserId = session?.user?.id ? String(session.user.id) : null;
+
+  const activeMembers: LeaderboardMember[] = (rankData?.leaderboard || []).map((m) => {
+    const isThisCurrentUser = Boolean(
+      currentUserId && (m.userId === currentUserId || String(m.userId) === currentUserId)
+    );
+    return {
+      id: m.userId,
+      rank: m.rank,
+      name: m.userName,
+      handle: m.handle,
+      avatarUrl: m.userAvatar || undefined,
+      initials: m.initials || 'U',
+      streakDays: m.streakCount,
+      consistency: m.consistencyRate,
+      totalCompletions: m.totalCompletions,
+      isOnline: m.isOnline ?? true,
+      isCurrentUser: isThisCurrentUser,
+    };
+  });
 
   // Podium leaders (Top 3) sorted strictly by streak days
   const top1 = activeMembers.find((m) => m.rank === 1);
@@ -85,35 +170,43 @@ export const Rank: React.FC = () => {
   // Table rows: Ranks #04 and below
   const tableRows = activeMembers.filter((m) => m.rank >= 4);
 
-  // Current user item from database response or active session
+  // Safe Current User Item: strictly anchored to the active session to prevent data leakage
   const currentUserServer = rankData?.currentUser;
-  const currentUser: LeaderboardMember = currentUserServer
-    ? {
-        id: currentUserServer.userId,
-        rank: currentUserServer.rank,
-        name: currentUserServer.userName,
-        handle: currentUserServer.handle,
-        avatarUrl: currentUserServer.userAvatar || session?.user?.image || undefined,
-        initials: currentUserServer.initials || 'U',
-        streakDays: currentUserServer.streakCount,
-        consistency: currentUserServer.consistencyRate,
-        totalCompletions: currentUserServer.totalCompletions,
-        isOnline: true,
-        isCurrentUser: true,
-      }
-    : {
-        id: session?.user?.id || 'current_user',
-        rank: 1,
-        name: session?.user?.name || 'You',
-        handle: `@${(session?.user?.name || 'you').toLowerCase().replace(/\s+/g, '')}`,
-        avatarUrl: session?.user?.image || undefined,
-        initials: (session?.user?.name || 'Y').slice(0, 2).toUpperCase(),
-        streakDays: 0,
-        consistency: 100,
-        totalCompletions: 0,
-        isOnline: true,
-        isCurrentUser: true,
-      };
+  const isServerUserMatch = Boolean(
+    currentUserServer &&
+      currentUserId &&
+      (currentUserServer.userId === currentUserId || String(currentUserServer.userId) === currentUserId)
+  );
+
+  const currentUser: LeaderboardMember | null = session?.user
+    ? (isServerUserMatch && currentUserServer
+        ? {
+            id: currentUserServer.userId,
+            rank: currentUserServer.rank,
+            name: currentUserServer.userName,
+            handle: currentUserServer.handle,
+            avatarUrl: currentUserServer.userAvatar || session.user.image || undefined,
+            initials: currentUserServer.initials || 'U',
+            streakDays: currentUserServer.streakCount,
+            consistency: currentUserServer.consistencyRate,
+            totalCompletions: currentUserServer.totalCompletions,
+            isOnline: true,
+            isCurrentUser: true,
+          }
+        : {
+            id: session.user.id,
+            rank: activeMembers.findIndex((m) => m.id === session.user.id) + 1 || activeMembers.length + 1,
+            name: session.user.name || 'You',
+            handle: `@${(session.user.name || 'you').toLowerCase().replace(/\s+/g, '')}`,
+            avatarUrl: session.user.image || undefined,
+            initials: (session.user.name || 'Y').slice(0, 2).toUpperCase(),
+            streakDays: 0,
+            consistency: 100,
+            totalCompletions: 0,
+            isOnline: true,
+            isCurrentUser: true,
+          })
+    : null;
 
   const getTierBadge = (streak: number) => {
     if (streak >= 30) return 'Diamond Tier';
@@ -181,93 +274,197 @@ export const Rank: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. PINNED CURRENT-USER BANNER (Real streak & consistency based) */}
-      <div className="bg-white dark:bg-[#0B1322] border-2 border-amber-400 dark:border-[#FACC15] rounded-2xl p-3.5 sm:p-5 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.12)] flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4">
-        {/* Left Section: Rank Badge, Avatar, Username, Tier, Streak & Completions */}
-        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
-          {/* Rank Badge */}
-          <div className="border border-amber-500/30 dark:border-amber-400/40 bg-amber-500/10 dark:bg-amber-400/10 rounded-xl px-2 sm:px-2.5 py-1.5 text-center min-w-[44px] sm:min-w-[50px] shadow-sm shrink-0">
-            <div className="text-[8.5px] sm:text-[9px] font-bold text-amber-700 dark:text-amber-400/80 uppercase tracking-wider leading-none">
-              RANK
+      {/* 1.5 PENDING INVITATIONS BANNER (LinkedIn Style) */}
+      {session?.user && pendingInvitations.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 dark:from-amber-400/10 dark:via-amber-300/5 dark:to-amber-400/10 border border-amber-500/30 dark:border-amber-400/30 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 shadow-sm animate-in fade-in-50 duration-300 text-left">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+              <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <UserPlus className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                <span>Friend Invitations ({pendingInvitations.length})</span>
+              </h2>
             </div>
-            <div className="text-sm sm:text-base font-black text-amber-600 dark:text-[#FACC15] leading-tight mt-0.5">
-              #{currentUser.rank}
-            </div>
-          </div>
-
-          {/* User Avatar with YOU tag */}
-          <div className="relative shrink-0">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden ring-2 ring-amber-400 dark:ring-[#FACC15] shadow-[0_0_10px_rgba(250,204,21,0.25)] bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              {currentUser.avatarUrl ? (
-                <img
-                  src={currentUser.avatarUrl}
-                  alt={currentUser.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-sm font-black text-amber-600 dark:text-[#FACC15]">{currentUser.initials}</span>
-              )}
-            </div>
-            <span className="absolute -bottom-1 -right-1 bg-amber-400 dark:bg-[#FACC15] text-slate-950 font-black text-[8px] sm:text-[9px] px-1 py-0.2 rounded-full border border-white dark:border-slate-950 shadow-sm uppercase tracking-tight">
-              YOU
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+              Pending Your Response
             </span>
           </div>
 
-          {/* User Details */}
-          <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-tight truncate">
-                {currentUser.name}
-              </span>
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">{currentUser.handle}</span>
-              <span className="text-[9.5px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full border border-amber-500/25 dark:border-amber-400/35 bg-amber-500/10 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 whitespace-nowrap">
-                {getTierBadge(currentUser.streakDays)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {pendingInvitations.map((inv) => (
+              <div
+                key={inv.friendshipId}
+                className="bg-white/90 dark:bg-[#10192D]/90 backdrop-blur-md border border-slate-200/80 dark:border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 shadow-sm hover:border-amber-400/50 transition-all"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border border-amber-400/40 shrink-0 flex items-center justify-center font-bold text-xs text-amber-600 dark:text-amber-400">
+                    {inv.avatarUrl ? (
+                      <img src={inv.avatarUrl} alt={inv.name} className="w-full h-full object-cover" />
+                    ) : (
+                      (inv.name || 'U').slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0 text-left">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {inv.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-slate-400 truncate">
+                      <span>{inv.handle}</span>
+                      <span>•</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-0.5">
+                        <Flame className="w-2.5 h-2.5 fill-amber-500" />
+                        {inv.streakDays}d
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    disabled={respondingFriendshipId === inv.friendshipId}
+                    onClick={() => handleRespondInvitation(inv.friendshipId, 'ACCEPT', inv.name)}
+                    className="bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-amber-300 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                    title="Accept Friend Request"
+                  >
+                    {respondingFriendshipId === inv.friendshipId ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Accept</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={respondingFriendshipId === inv.friendshipId}
+                    onClick={() => handleRespondInvitation(inv.friendshipId, 'REJECT', inv.name)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 transition-all cursor-pointer disabled:opacity-50"
+                    title="Ignore Request"
+                  >
+                    <X className="w-3.5 h-3.5 stroke-[2]" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 2. PINNED CURRENT-USER BANNER (Real streak & consistency based) */}
+      {currentUser ? (
+        <div className="bg-white dark:bg-[#0B1322] border-2 border-amber-400 dark:border-[#FACC15] rounded-2xl p-3.5 sm:p-5 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.12)] flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4">
+          {/* Left Section: Rank Badge, Avatar, Username, Tier, Streak & Completions */}
+          <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+            {/* Rank Badge */}
+            <div className="border border-amber-500/30 dark:border-amber-400/40 bg-amber-500/10 dark:bg-amber-400/10 rounded-xl px-2 sm:px-2.5 py-1.5 text-center min-w-[44px] sm:min-w-[50px] shadow-sm shrink-0">
+              <div className="text-[8.5px] sm:text-[9px] font-bold text-amber-700 dark:text-amber-400/80 uppercase tracking-wider leading-none">
+                RANK
+              </div>
+              <div className="text-sm sm:text-base font-black text-amber-600 dark:text-[#FACC15] leading-tight mt-0.5">
+                #{currentUser.rank}
+              </div>
+            </div>
+
+            {/* User Avatar with YOU tag */}
+            <div className="relative shrink-0">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden ring-2 ring-amber-400 dark:ring-[#FACC15] shadow-[0_0_10px_rgba(250,204,21,0.25)] bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm font-black text-amber-600 dark:text-[#FACC15]">{currentUser.initials}</span>
+                )}
+              </div>
+              <span className="absolute -bottom-1 -right-1 bg-amber-400 dark:bg-[#FACC15] text-slate-950 font-black text-[8px] sm:text-[9px] px-1 py-0.2 rounded-full border border-white dark:border-slate-950 shadow-sm uppercase tracking-tight">
+                YOU
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300">
-              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-bold whitespace-nowrap">
-                <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-amber-500 dark:fill-amber-400" />
-                <span>{currentUser.streakDays}d Streak</span>
-              </span>
-              <span className="text-slate-300 dark:text-slate-500">•</span>
-              <span className="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">
-                Completions: <span className="font-bold text-slate-900 dark:text-white">{currentUser.totalCompletions ?? 0} total</span>
-              </span>
+            {/* User Details */}
+            <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-tight truncate">
+                  {currentUser.name}
+                </span>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">{currentUser.handle}</span>
+                <span className="text-[9.5px] sm:text-[10px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full border border-amber-500/25 dark:border-amber-400/35 bg-amber-500/10 dark:bg-amber-400/10 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                  {getTierBadge(currentUser.streakDays)}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1 font-bold whitespace-nowrap">
+                  <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-amber-500 dark:fill-amber-400" />
+                  <span>{currentUser.streakDays}d Streak</span>
+                </span>
+                <span className="text-slate-300 dark:text-slate-500">•</span>
+                <span className="text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">
+                  Completions: <span className="font-bold text-slate-900 dark:text-white">{currentUser.totalCompletions ?? 0} total</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Section: Active Streak, Consistency %, Rank Status */}
+          <div className="flex items-center gap-3 sm:gap-6 self-stretch lg:self-auto border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-200 dark:border-white/[0.08] w-full lg:w-auto justify-between lg:justify-end">
+            {/* Active Streak */}
+            <div className="text-left">
+              <div className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Active Streak
+              </div>
+              <div className="text-base sm:text-xl font-black text-amber-600 dark:text-[#FACC15] tracking-tight flex items-center gap-1">
+                <Flame className="w-4 h-4 sm:w-5 sm:h-5 fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400 shrink-0" />
+                <span>{currentUser.streakDays} Days</span>
+              </div>
+            </div>
+
+            {/* Consistency Percentage */}
+            <div className="text-left">
+              <div className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Consistency
+              </div>
+              <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                {currentUser.consistency}%
+              </div>
+            </div>
+
+            {/* Rank Badge */}
+            <div className="bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/25 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 text-[11px] sm:text-xs font-extrabold px-2.5 sm:px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap">
+              <Flame className="w-3.5 h-3.5 fill-amber-500 dark:fill-amber-400" />
+              <span>Rank #{currentUser.rank}</span>
             </div>
           </div>
         </div>
-
-        {/* Right Section: Active Streak, Consistency %, Rank Status */}
-        <div className="flex items-center gap-3 sm:gap-6 self-stretch lg:self-auto border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-200 dark:border-white/[0.08] w-full lg:w-auto justify-between lg:justify-end">
-          {/* Active Streak */}
-          <div className="text-left">
-            <div className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-              Active Streak
+      ) : (
+        <div className="bg-white dark:bg-[#0B1322] border border-amber-500/30 dark:border-amber-400/30 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 text-left">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/20 text-amber-600 dark:text-[#FACC15] flex items-center justify-center shrink-0">
+              <Trophy className="w-6 h-6" />
             </div>
-            <div className="text-base sm:text-xl font-black text-amber-600 dark:text-[#FACC15] tracking-tight flex items-center gap-1">
-              <Flame className="w-4 h-4 sm:w-5 sm:h-5 fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400 shrink-0" />
-              <span>{currentUser.streakDays} Days</span>
-            </div>
-          </div>
-
-          {/* Consistency Percentage */}
-          <div className="text-left">
-            <div className="text-[10px] sm:text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-              Consistency
-            </div>
-            <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-              {currentUser.consistency}%
+            <div className="flex flex-col">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                Track Habits & Climb The Streak Leaderboard
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                Sign in to join the streak rivalry, add accountability friends, and protect your streak rank.
+              </p>
             </div>
           </div>
-
-          {/* Rank Badge */}
-          <div className="bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/25 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 text-[11px] sm:text-xs font-extrabold px-2.5 sm:px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap">
-            <Flame className="w-3.5 h-3.5 fill-amber-500 dark:fill-amber-400" />
-            <span>Rank #{currentUser.rank}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => openAuthModal('manual', 'signin')}
+            className="bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-amber-300 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer active:scale-95 transition-all shrink-0"
+          >
+            <span>Sign In to Join</span>
+            <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+          </button>
         </div>
-      </div>
+      )}
 
       {/* LOADING SPINNER */}
       {isLoading && (
@@ -731,11 +928,15 @@ export const Rank: React.FC = () => {
       <LinkedInQrModal
         isOpen={isLinkedInQrModalOpen}
         onClose={() => setIsLinkedInQrModalOpen(false)}
-        currentUser={{
-          name: currentUser.name,
-          handle: currentUser.handle,
-          avatarUrl: currentUser.avatarUrl || undefined,
-        }}
+        currentUser={
+          currentUser
+            ? {
+                name: currentUser.name,
+                handle: currentUser.handle,
+                avatarUrl: currentUser.avatarUrl || undefined,
+              }
+            : undefined
+        }
       />
     </div>
   );

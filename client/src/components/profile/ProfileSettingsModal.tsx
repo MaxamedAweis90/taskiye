@@ -74,7 +74,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
   // Populate data when modal opens (from session and directly from MongoDB)
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || !session?.user) {
       setShowUnsavedPrompt(false);
       setShowChangeEmailModal(false);
       return;
@@ -102,10 +102,13 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     setEmailVerified(Boolean(userAny?.emailVerified));
 
     // Fetch live data directly from MongoDB backend
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/profile`, {
+    fetch('/api/users/profile', {
       credentials: 'include',
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((json) => {
         if (json?.data?.user) {
           const u = json.data.user;
@@ -132,14 +135,11 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/send-verification-email`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        }
-      );
+      const res = await fetch('/api/users/send-verification-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.message || 'Failed to send verification email');
@@ -169,18 +169,15 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     setIsSubmittingEmailChange(true);
 
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/change-email-request`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            newEmail: newEmail.trim(),
-            currentPassword: currentPasswordForEmailChange,
-          }),
-        }
-      );
+      const res = await fetch('/api/users/change-email-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          newEmail: newEmail.trim(),
+          currentPassword: currentPasswordForEmailChange,
+        }),
+      });
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.message || 'Failed to request email change');
@@ -292,14 +289,11 @@ function compressAvatarImage(file: File): Promise<Blob> {
       const formData = new FormData();
       formData.append('avatar', compressedBlob, 'avatar.webp');
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/avatar`,
-        {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        }
-      );
+      const res = await fetch('/api/users/avatar', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
 
       const json = await res.json();
       if (!res.ok) {
@@ -322,13 +316,10 @@ function compressAvatarImage(file: File): Promise<Blob> {
     setIsUploading(true);
 
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/avatar`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-        }
-      );
+      const res = await fetch('/api/users/avatar', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
 
       const json = await res.json();
       if (!res.ok) {
@@ -350,21 +341,18 @@ function compressAvatarImage(file: File): Promise<Blob> {
     setIsSaving(true);
 
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/users/profile`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            username: username.trim(),
-            avatarUrl: avatarUrl.trim(),
-          }),
-          credentials: 'include',
-        }
-      );
+      const res = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          username: username.trim(),
+          avatarUrl: avatarUrl.trim(),
+        }),
+        credentials: 'include',
+      });
 
       const json = await res.json();
       if (!res.ok) {

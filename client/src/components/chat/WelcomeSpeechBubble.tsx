@@ -40,10 +40,21 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
       onDismiss();
     }, 30000);
 
-    // Play a pleasant synthesized ding sound via Web Audio API
+    // Play a pleasant synthesized ding sound via Web Audio API (strictly once per session)
     const playDing = () => {
       try {
-        const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (sessionStorage.getItem('taskiye_bubble_sound_played') === 'true') {
+          return;
+        }
+        sessionStorage.setItem('taskiye_bubble_sound_played', 'true');
+      } catch {
+        // ignore
+      }
+
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
         if (!AudioCtx) return;
         const ctx = new AudioCtx();
         const osc = ctx.createOscillator();
@@ -54,10 +65,10 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
         osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 — pleasant bell tone
         osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15); // subtle drop
         gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 0.02); // quick attack
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9); // slow decay
+        gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 0.02); // soft attack (gain 0.12)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8); // gentle decay
         osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.9);
+        osc.stop(ctx.currentTime + 0.8);
         osc.onended = () => ctx.close();
       } catch {
         // Ignore if AudioContext is not supported or blocked

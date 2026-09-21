@@ -43,8 +43,9 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     const type = (req.query.type as string) || 'friends';
     const currentUserId = req.user?.id;
 
-    // Cache-Control headers for client-side and CDN caching
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    // Prevent shared CDN / edge proxy caching of personalized rankings
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader('Vary', 'Cookie');
 
     // 1. Check if we have fresh in-memory cached global rankings
     const isCacheExpired = !cachedRankings || (Date.now() - cachedRankings.timestamp > RANKINGS_CACHE_TTL_MS);
@@ -70,7 +71,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
 
       // Build ranking items for each user
       const rawRankItems: Omit<UserRankItem, 'isCurrentUser'>[] = users.map((u) => {
-        const uId = (u.id as string) || u._id?.toString() || '';
+        const uId = String((u.id as string) || u._id?.toString() || '');
         const userHabits =
           habitsByUser.get(uId) || habitsByUser.get(u._id?.toString() || '') || [];
 
@@ -143,20 +144,27 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       };
     }
 
-    // 2. Clone cached global list and map isCurrentUser for the requester
+    const currentUserIdStr = currentUserId ? String(currentUserId) : '';
+
+    // 2. Clone cached global list and map isCurrentUser defensively for requester
     const cachedItems = cachedRankings?.items || [];
     const allRankItems: UserRankItem[] = cachedItems.map((item) => ({
       ...item,
-      isCurrentUser: Boolean(currentUserId && item.userId === currentUserId),
+      isCurrentUser: Boolean(
+        currentUserIdStr &&
+          (item.userId === currentUserIdStr || String(item.userId) === currentUserIdStr)
+      ),
     }));
 
-    // If current logged-in user isn't in users list yet (e.g. freshly created session), include them
-    if (currentUserId && !allRankItems.some((item) => item.isCurrentUser)) {
-      const currentUserName = req.user?.name || 'You';
+    // If current logged-in user isn't in users list yet, add them so they are represented
+    if (currentUserIdStr && !allRankItems.some((item) => item.isCurrentUser)) {
+      const currentUserName = req.user?.name || req.user?.username || 'You';
       const currentUserAvatar =
-        (req.user as unknown as { image?: string })?.image || '';
+        (req.user as unknown as { avatarUrl?: string; image?: string })?.avatarUrl ||
+        (req.user as unknown as { image?: string })?.image ||
+        '';
       allRankItems.push({
-        userId: currentUserId,
+        userId: currentUserIdStr,
         rank: allRankItems.length + 1,
         userName: currentUserName,
         handle: `@${currentUserName.toLowerCase().replace(/\s+/g, '')}`,
@@ -170,16 +178,20 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       });
     }
 
-    // Identify current user item
-    let currentUserItem = allRankItems.find((item) => item.isCurrentUser);
-    if (!currentUserItem && allRankItems.length > 0) {
-      currentUserItem = allRankItems[0];
-    } else if (!currentUserItem) {
+    // Identify current user item: strictly matching authenticated session
+    let currentUserItem: UserRankItem | null =
+      allRankItems.find((item) => item.isCurrentUser) || null;
+
+    // NEVER fall back to allRankItems[0] for guests or unmatched sessions
+    if (!currentUserItem && currentUserIdStr) {
+      const fallbackName = req.user?.name || req.user?.username || 'You';
       currentUserItem = {
-        userId: currentUserId || 'guest',
-        rank: 1,
-        userName: req.user?.name || 'You',
-        handle: '@you',
+        userId: currentUserIdStr,
+        rank: allRankItems.length + 1,
+        userName: fallbackName,
+        handle: `@${fallbackName.toLowerCase().replace(/\s+/g, '')}`,
+        userAvatar: (req.user as unknown as { image?: string })?.image || '',
+        initials: fallbackName.slice(0, 2).toUpperCase(),
         streakCount: 0,
         consistencyRate: 100,
         totalCompletions: 0,
@@ -189,32 +201,50 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     }
 
     // 5. Handle Friends League vs Global League
-    if (type === 'friends' && currentUserId) {
+    if (type === 'friends') {
+      if (!currentUserIdStr) {
+        return sendSuccess(res, {
+          type: 'friends',
+          currentUser: null,
+          leaderboard: [],
+        });
+      }
+
       // Find accepted friendships for current user
       const friendships = await Friendship.find({
         status: 'ACCEPTED',
-        $or: [{ requesterId: currentUserId }, { recipientId: currentUserId }],
+        $or: [{ requesterId: currentUserIdStr }, { recipientId: currentUserIdStr }],
       }).lean();
 
       const friendUserIds = new Set<string>();
-      friendUserIds.add(currentUserId);
+      friendUserIds.add(currentUserIdStr);
       for (const f of friendships) {
-        if (f.requesterId === currentUserId) friendUserIds.add(f.recipientId);
-        else friendUserIds.add(f.requesterId);
+        if (f.requesterId === currentUserIdStr) friendUserIds.add(String(f.recipientId));
+        else friendUserIds.add(String(f.requesterId));
       }
 
       // Filter leaderboard to only friends + current user
-      const friendsLeaderboard = allRankItems
-        .filter((item) => friendUserIds.has(item.userId))
+      let friendsLeaderboard = allRankItems
+        .filter((item) => friendUserIds.has(String(item.userId)))
         .map((item, idx) => ({
           ...item,
           rank: idx + 1,
         }));
 
+      // If current user is not in friendsLeaderboard yet, ensure they appear
+      if (currentUserItem && !friendsLeaderboard.some((i) => i.isCurrentUser)) {
+        friendsLeaderboard = [
+          { ...currentUserItem, rank: 1 },
+          ...friendsLeaderboard.map((i) => ({ ...i, rank: i.rank + 1 })),
+        ];
+      }
+
+      const activeCurrentUser =
+        friendsLeaderboard.find((i) => i.isCurrentUser) || currentUserItem;
+
       return sendSuccess(res, {
         type: 'friends',
-        currentUser:
-          friendsLeaderboard.find((i) => i.isCurrentUser) || currentUserItem,
+        currentUser: activeCurrentUser,
         leaderboard: friendsLeaderboard,
       });
     }

@@ -29,8 +29,8 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     }
 
     const userOrEndpoint = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
-      : { endpoint };
+      ? { userId: String(userId) }
+      : { endpoint, userId: null };
 
     const filter = {
       ...userOrEndpoint,
@@ -65,8 +65,8 @@ router.get('/trash', optionalAuth, async (req: AuthenticatedRequest, res: Respon
     }
 
     const userOrEndpoint = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
-      : { endpoint };
+      ? { userId: String(userId) }
+      : { endpoint, userId: null };
 
     const filter = {
       ...userOrEndpoint,
@@ -122,8 +122,8 @@ router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, re
     }
 
     const userOrEndpoint = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
-      : { endpoint };
+      ? { userId: String(userId) }
+      : { endpoint, userId: null };
 
     const filter = {
       ...userOrEndpoint,
@@ -153,8 +153,8 @@ router.post('/clear-all', optionalAuth, async (req: AuthenticatedRequest, res: R
     }
 
     const userOrEndpoint = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
-      : { endpoint };
+      ? { userId: String(userId) }
+      : { endpoint, userId: null };
 
     const filter = {
       ...userOrEndpoint,
@@ -234,8 +234,8 @@ router.delete('/trash/empty', optionalAuth, async (req: AuthenticatedRequest, re
     }
 
     const userOrEndpoint = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
-      : { endpoint };
+      ? { userId: String(userId) }
+      : { endpoint, userId: null };
 
     const filter = {
       ...userOrEndpoint,
@@ -298,7 +298,7 @@ router.get('/preferences', optionalAuth, async (req: AuthenticatedRequest, res: 
     }
 
     const filter = userId
-      ? { $or: [{ userId }, ...(endpoint ? [{ endpoint }] : [])] }
+      ? { userId: String(userId) }
       : { endpoint };
 
     const sub = await PushSubscription.findOne(filter).sort({ updatedAt: -1 });

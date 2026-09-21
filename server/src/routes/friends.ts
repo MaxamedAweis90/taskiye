@@ -8,26 +8,142 @@ import { PushSubscription } from '../models/PushSubscription.js';
 import { dispatchUnifiedNotification } from '../lib/push.js';
 import { mongoDb } from '../db/connection.js';
 import { searchLimiter, socialLimiter } from '../middleware/rateLimiter.js';
+import { invalidateRankingsCache } from './rankings.js';
 
 const router = Router();
 
 /**
  * GET /api/friends
- * List friends and pending requests
+ * List friends and pending requests with populated user details
  */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+  res.setHeader('Vary', 'Cookie');
   try {
-    const userId = req.user?.id || 'guest_user';
+    const currentUserId = req.user?.id ? String(req.user.id) : '';
+    if (!currentUserId) {
+      return sendSuccess(res, {
+        userId: 'guest_user',
+        friends: [],
+        pendingIncoming: [],
+        pendingOutgoing: [],
+      });
+    }
+
+    const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
+      ? String((req.user as unknown as { _id?: string })._id)
+      : currentUserId;
+
+    const userIds = Array.from(new Set([currentUserId, currentAltId]));
 
     const friendships = await Friendship.find({
-      $or: [{ requesterId: userId }, { recipientId: userId }],
-    }).sort({ updatedAt: -1 });
+      $or: [
+        { requesterId: { $in: userIds } },
+        { recipientId: { $in: userIds } },
+      ],
+    }).sort({ updatedAt: -1 }).lean();
+
+    // Collect all other user IDs
+    const otherUserIds = new Set<string>();
+    for (const f of friendships) {
+      const otherId = userIds.includes(String(f.requesterId))
+        ? String(f.recipientId)
+        : String(f.requesterId);
+      if (otherId) otherUserIds.add(otherId);
+    }
+
+    const otherIdsArray = Array.from(otherUserIds);
+
+    // Fetch user profiles for all related users
+    const queryOr: Record<string, unknown>[] = [
+      { id: { $in: otherIdsArray } },
+    ];
+    for (const idStr of otherIdsArray) {
+      try {
+        queryOr.push({ _id: new ObjectId(idStr) });
+      } catch {
+        // Not a valid ObjectId hex string
+      }
+    }
+
+    const users = await mongoDb.collection('user').find({ $or: queryOr }).toArray();
+    const userMap = new Map<string, { name: string; username: string; handle: string; avatarUrl: string }>();
+
+    for (const u of users) {
+      const uId = String((u.id as string) || u._id?.toString() || '');
+      const rawName = (u.name as string) || (u.username as string) || 'User';
+      const rawUsername = (u.username as string) || rawName.toLowerCase().replace(/\s+/g, '');
+      const handle = `@${rawUsername.replace(/^@/, '')}`;
+      const avatarUrl = (u.avatarUrl as string) || (u.image as string) || '';
+
+      const obj = { name: rawName, username: rawUsername, handle, avatarUrl };
+      userMap.set(uId, obj);
+      if (u._id) userMap.set(u._id.toString(), obj);
+    }
+
+    // Fetch habits for streaks
+    const habits = await Habit.find({
+      userId: { $in: otherIdsArray },
+      isArchived: { $ne: true },
+      deletedAt: null,
+    }).lean();
+
+    const habitsByUser = new Map<string, typeof habits>();
+    for (const h of habits) {
+      if (!h.userId) continue;
+      const list = habitsByUser.get(String(h.userId)) || [];
+      list.push(h);
+      habitsByUser.set(String(h.userId), list);
+    }
+
+    const formatFriendshipItem = (f: typeof friendships[0], isIncoming: boolean) => {
+      const targetUserId = isIncoming ? String(f.requesterId) : String(f.recipientId);
+      const profile = userMap.get(targetUserId) || {
+        name: 'User',
+        username: 'user',
+        handle: '@user',
+        avatarUrl: '',
+      };
+      const userHabits = habitsByUser.get(targetUserId) || [];
+      const streakDays = userHabits.length > 0
+        ? Math.max(...userHabits.map((h) => Number(h.streakDays) || 0))
+        : 0;
+
+      return {
+        friendshipId: String(f._id),
+        id: targetUserId,
+        userId: targetUserId,
+        name: profile.name,
+        username: profile.username,
+        handle: profile.handle,
+        avatarUrl: profile.avatarUrl,
+        streakDays,
+        status: f.status,
+        createdAt: f.createdAt,
+        updatedAt: f.updatedAt,
+      };
+    };
+
+    const acceptedFriends = friendships
+      .filter((f) => f.status === 'ACCEPTED')
+      .map((f) => {
+        const isIncoming = !userIds.includes(String(f.requesterId));
+        return formatFriendshipItem(f, isIncoming);
+      });
+
+    const pendingIncoming = friendships
+      .filter((f) => userIds.includes(String(f.recipientId)) && f.status === 'PENDING')
+      .map((f) => formatFriendshipItem(f, true));
+
+    const pendingOutgoing = friendships
+      .filter((f) => userIds.includes(String(f.requesterId)) && f.status === 'PENDING')
+      .map((f) => formatFriendshipItem(f, false));
 
     return sendSuccess(res, {
-      userId,
-      friends: friendships.filter((f) => f.status === 'ACCEPTED'),
-      pendingIncoming: friendships.filter((f) => f.recipientId === userId && f.status === 'PENDING'),
-      pendingOutgoing: friendships.filter((f) => f.requesterId === userId && f.status === 'PENDING'),
+      userId: currentUserId,
+      friends: acceptedFriends,
+      pendingIncoming,
+      pendingOutgoing,
     });
   } catch (error) {
     return sendError(res, 'Failed to fetch friends', 500, error);
@@ -280,12 +396,18 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
       return sendError(res, "Action must be either 'ACCEPT' or 'REJECT'", 400);
     }
 
+    const currentUserId = req.user?.id ? String(req.user.id) : '';
+    const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
+      ? String((req.user as unknown as { _id?: string })._id)
+      : currentUserId;
+    const userIds = Array.from(new Set([currentUserId, currentAltId])).filter(Boolean);
+
     const nextStatus = action === 'ACCEPT' ? 'ACCEPTED' : 'REJECTED';
 
     const friendship = await Friendship.findOneAndUpdate(
       {
         _id: friendshipId,
-        recipientId: userId,
+        recipientId: { $in: userIds },
         status: 'PENDING',
       },
       { $set: { status: nextStatus } },
@@ -299,6 +421,9 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
         404
       );
     }
+
+    // Invalidate rankings cache so Friends League updates immediately
+    invalidateRankingsCache();
 
     if (action === 'ACCEPT') {
       try {

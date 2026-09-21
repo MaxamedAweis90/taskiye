@@ -27,6 +27,7 @@ import {
   ChevronRight,
   RotateCcw,
   X,
+  Loader2,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
@@ -49,6 +50,8 @@ interface InAppNotificationItem {
   read: boolean;
   type: 'morning' | 'planning' | 'streak' | 'achievement' | 'trash' | 'system' | 'habit' | 'rank';
   url?: string;
+  tag?: string;
+  data?: Record<string, unknown>;
   createdAt?: string;
   deletedAt?: string | null;
 }
@@ -153,16 +156,20 @@ export const AppLayout: React.FC = () => {
     setBaseStreakDays(effectiveBaseStreak);
   }, [effectiveBaseStreak, setBaseStreakDays]);
 
-  // Live profile query to track verification status
+  // Live profile query to track verification status (silent 401 handling, no retries)
   const { data: userProfileData } = useQuery({
     queryKey: ['user', 'profile'],
     queryFn: async () => {
       const res = await fetch('/api/users/profile', { credentials: 'include' });
+      if (!res.ok) {
+        return null;
+      }
       const json = await res.json();
-      return json?.data?.user;
+      return json?.data?.user || null;
     },
     enabled: Boolean(session?.user),
     staleTime: 30000,
+    retry: false,
   });
 
   const user = session?.user as
@@ -277,14 +284,98 @@ export const AppLayout: React.FC = () => {
   const [chatInitialLanguage, setChatInitialLanguage] = useState<'en' | 'so'>('en');
   const [isWelcomeBubbleVisible, setIsWelcomeBubbleVisible] = useState(false);
 
-  // Delay greeting bubble by 10 seconds on first mount
+  // Delay greeting bubble by 10 seconds on first mount (strictly once per browser session)
   useEffect(() => {
-    const timer = setTimeout(() => setIsWelcomeBubbleVisible(true), 10000);
+    try {
+      if (sessionStorage.getItem('taskiye_welcome_bubble_shown') === 'true') {
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    const timer = setTimeout(() => {
+      setIsWelcomeBubbleVisible(true);
+      try {
+        sessionStorage.setItem('taskiye_welcome_bubble_shown', 'true');
+      } catch {
+        // ignore
+      }
+    }, 10000);
     return () => clearTimeout(timer);
   }, []);
 
   const handleDismissWelcomeBubble = () => {
     setIsWelcomeBubbleVisible(false);
+    try {
+      sessionStorage.setItem('taskiye_welcome_bubble_shown', 'true');
+    } catch {
+      // ignore
+    }
+  };
+
+  const [respondingNotifFriendId, setRespondingNotifFriendId] = useState<string | null>(null);
+
+  const handleRespondFriendFromNotification = async (
+    notification: InAppNotificationItem,
+    action: 'ACCEPT' | 'REJECT',
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    setRespondingNotifFriendId(notification.id);
+
+    // Extract friendshipId from tag or notification data
+    const notifAny = notification as unknown as {
+      tag?: string;
+      data?: { friendshipId?: string };
+    };
+    const friendshipId =
+      notifAny.data?.friendshipId ||
+      (notifAny.tag?.startsWith('friend-request-')
+        ? notifAny.tag.replace('friend-request-', '')
+        : null) ||
+      (notification.id?.startsWith('friend-request-')
+        ? notification.id.replace('friend-request-', '')
+        : null);
+
+    try {
+      if (friendshipId) {
+        const res = await fetch('/api/friends/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ friendshipId, action }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.message || 'Failed to respond to request');
+        }
+      }
+
+      // Mark notification as read
+      await fetch(`/api/notifications/${notification.id}/read`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+      );
+
+      await queryClient.invalidateQueries({ queryKey: ['friends'] });
+      await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+
+      if (action === 'ACCEPT') {
+        showToast('Friend Connected! ⚡', 'Challenge accepted! Check your new rank in Friends League.', 'success');
+      } else {
+        showToast('Request Ignored', 'Friend request declined.', 'info');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not respond to request';
+      showToast('Error', msg, 'error');
+    } finally {
+      setRespondingNotifFriendId(null);
+    }
   };
 
   const chatUser = useMemo(() => {
@@ -324,12 +415,12 @@ export const AppLayout: React.FC = () => {
   const bellMeasureRef = useRef<HTMLDivElement>(null);
   const [bellPillWidth, setBellPillWidth] = useState<number>(64);
   const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 640
+    () => typeof window !== 'undefined' && window.innerWidth < 768
   );
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 640);
+      setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -1123,7 +1214,7 @@ export const AppLayout: React.FC = () => {
             </button>
 
             {/* Desktop Welcome Speech Bubble attached to sidebar chat trigger */}
-            {isWelcomeBubbleVisible && !isChatOpen && (
+            {isWelcomeBubbleVisible && !isChatOpen && !isMobile && (
               <WelcomeSpeechBubble
                 position="desktop"
                 onOpenChat={handleOpenChatWithPrompt}
@@ -1738,59 +1829,98 @@ export const AppLayout: React.FC = () => {
                             </span>
                           </div>
                         ) : (
-                          notifications.map((n) => (
-                            <div
-                              key={n.id}
-                              onClick={() => handleNotificationClick(n)}
-                              className={`group p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
-                                n.read
-                                  ? 'bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100 dark:bg-white/[0.02] dark:border-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.05]'
-                                  : 'bg-amber-50/80 border-amber-300/80 text-slate-800 hover:bg-amber-100/80 dark:bg-amber-400/[0.07] dark:border-amber-400/25 dark:text-slate-200 dark:hover:bg-amber-400/[0.12] shadow-sm'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="text-xs shrink-0">
-                                    {n.type === 'planning'
-                                      ? '🎯'
-                                      : n.type === 'morning'
-                                        ? '☀️'
-                                        : n.type === 'streak'
-                                          ? '🔥'
-                                          : n.type === 'achievement'
-                                            ? '🏆'
-                                            : n.type === 'trash'
-                                              ? '🗑️'
-                                              : n.type === 'habit'
-                                                ? '⏰'
-                                                : '🔔'}
-                                  </span>
-                                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                    {n.title}
-                                  </span>
-                                  {!n.read && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
-                                  )}
+                          notifications.map((n) => {
+                            const isFriendReq = Boolean(
+                              n.title?.toLowerCase().includes('friend') ||
+                              n.tag?.startsWith('friend-request-') ||
+                              (n as unknown as { data?: { friendshipId?: string } }).data?.friendshipId ||
+                              n.id?.startsWith('friend-request-')
+                            );
+                            const isResponding = respondingNotifFriendId === n.id;
+
+                            return (
+                              <div
+                                key={n.id}
+                                onClick={() => handleNotificationClick(n)}
+                                className={`group p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                  n.read
+                                    ? 'bg-slate-50 border-slate-200/80 text-slate-600 hover:bg-slate-100 dark:bg-white/[0.02] dark:border-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.05]'
+                                    : 'bg-amber-50/80 border-amber-300/80 text-slate-800 hover:bg-amber-100/80 dark:bg-amber-400/[0.07] dark:border-amber-400/25 dark:text-slate-200 dark:hover:bg-amber-400/[0.12] shadow-sm'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="text-xs shrink-0">
+                                      {isFriendReq
+                                        ? '🤝'
+                                        : n.type === 'planning'
+                                          ? '🎯'
+                                          : n.type === 'morning'
+                                            ? '☀️'
+                                            : n.type === 'streak'
+                                              ? '🔥'
+                                              : n.type === 'achievement'
+                                                ? '🏆'
+                                                : n.type === 'trash'
+                                                  ? '🗑️'
+                                                  : n.type === 'habit'
+                                                    ? '⏰'
+                                                    : '🔔'}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                      {n.title}
+                                    </span>
+                                    {!n.read && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 shrink-0" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                                      {n.time}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => trashNotification(n, e)}
+                                      className="opacity-0 group-hover:opacity-100 hover:bg-rose-100 dark:hover:bg-rose-500/20 p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-all cursor-pointer"
+                                      title="Move to trash"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-                                    {n.time}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => trashNotification(n, e)}
-                                    className="opacity-0 group-hover:opacity-100 hover:bg-rose-100 dark:hover:bg-rose-500/20 p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-all cursor-pointer"
-                                    title="Move to trash"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </div>
+                                <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-normal pl-5">
+                                  {n.description}
+                                </p>
+
+                                {/* Inline LinkedIn-style Accept / Ignore buttons for friend requests */}
+                                {isFriendReq && !n.read && (
+                                  <div className="mt-2.5 pl-5 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={isResponding}
+                                      onClick={(e) => handleRespondFriendFromNotification(n, 'ACCEPT', e)}
+                                      className="px-3 py-1 text-[11px] font-bold rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm hover:shadow flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                                    >
+                                      {isResponding ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <Check className="w-3 h-3" />
+                                      )}
+                                      <span>Accept</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isResponding}
+                                      onClick={(e) => handleRespondFriendFromNotification(n, 'REJECT', e)}
+                                      className="px-2.5 py-1 text-[11px] font-medium rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all disabled:opacity-50"
+                                    >
+                                      Ignore
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-normal pl-5">
-                                {n.description}
-                              </p>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     ) : (
@@ -2217,7 +2347,7 @@ export const AppLayout: React.FC = () => {
 
       {/* Mobile Floating Chat Trigger (< md) - Positioned safely above bottom navigation bar, respecting safe-area-inset-bottom */}
       <div className="md:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3.5 z-40 flex items-center">
-        {isWelcomeBubbleVisible && !isChatOpen && (
+        {isWelcomeBubbleVisible && !isChatOpen && isMobile && (
           <WelcomeSpeechBubble
             position="mobile"
             onOpenChat={handleOpenChatWithPrompt}
