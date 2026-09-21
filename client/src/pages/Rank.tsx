@@ -17,6 +17,7 @@ import { useSession } from '../lib/auth-client';
 import { AddFriendModal } from '../components/rank/AddFriendModal';
 import { LinkedInQrModal } from '../components/rank/LinkedInQrModal';
 import { useTaskiyeStore } from '../store/useTaskiyeStore';
+import { SEOHead } from '../components/common/SEOHead';
 
 export interface LeaderboardMember {
   id: string;
@@ -276,6 +277,11 @@ export const Rank: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto pb-16 text-left">
+      <SEOHead
+        title="Streak Leaderboard & Rivalry Leagues - Taskiye"
+        description="Compete on the live streak leaderboard, join Friends League, challenge rivals, and build the highest consecutive habit streaks on Taskiye."
+        canonicalPath="/rank"
+      />
       {/* 1. PAGE HEADER & CONTROLS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
         <div>

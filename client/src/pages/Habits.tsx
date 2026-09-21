@@ -22,6 +22,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
 import { useTaskiyeStore, GuestHabit } from '../store/useTaskiyeStore';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
+import { SEOHead } from '../components/common/SEOHead';
 
 type CadenceType = 'Daily' | 'Specific Days' | 'Times per Week';
 
@@ -983,6 +984,11 @@ export const Habits: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-10">
+      <SEOHead
+        title="Habits & Routines - Taskiye Habit Tracker"
+        description="Build positive habits, customize cadences, freeze streaks, and track daily consistency on Taskiye."
+        canonicalPath="/habits"
+      />
       {/* 1. Header Section */}
       <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
         <div>

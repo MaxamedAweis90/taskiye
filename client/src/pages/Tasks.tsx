@@ -11,6 +11,7 @@ import { TaskEditCreateModal } from '../components/tasks/TaskEditCreateModal';
 import { TaskHistorySkeleton } from '../components/tasks/TaskHistorySkeleton';
 import { Calendar, CheckCircle2, Trash2, X } from 'lucide-react';
 import { normalizeCategory } from '../constants/categories';
+import { SEOHead } from '../components/common/SEOHead';
 
 interface DashboardCacheTask {
   _id?: string;
@@ -1159,6 +1160,11 @@ export const Tasks: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4 select-none">
+      <SEOHead
+        title="Daily Tasks & Focus - Taskiye Task Manager"
+        description="Organize your daily tasks, set priorities, reschedule with one click, and maintain productive momentum on Taskiye."
+        canonicalPath="/tasks"
+      />
       {/* 1. Header Toolbar */}
       <TaskHistoryHeader
         totalLoggedCount={totalLoggedCount}

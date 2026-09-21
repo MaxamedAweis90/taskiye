@@ -18,6 +18,7 @@ import { HeatmapMatrix } from '../components/dashboard/HeatmapMatrix';
 import { TodayChecklist, ChecklistItem } from '../components/dashboard/TodayChecklist';
 import { CustomScrollArea } from '../components/common/CustomScrollArea';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
+import { SEOHead } from '../components/common/SEOHead';
 
 interface ServerTaskItem {
   _id: string;
@@ -994,6 +995,11 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-6 w-full min-w-0 overflow-x-hidden">
+      <SEOHead
+        title="Taskiye - Daily Habits, Tasks & Heatmap Tracker"
+        description="Track daily habits with interactive heatmaps, manage today's task checklist, and build unstoppable streaks on Taskiye."
+        canonicalPath="/"
+      />
       {/* 1. Hero Header Row */}
       <div className="flex flex-wrap items-end justify-between gap-4 pt-1 w-full min-w-0">
         <div className="flex items-start sm:items-end justify-between gap-3 w-full sm:w-auto">

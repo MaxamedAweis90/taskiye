@@ -1,0 +1,10 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Host
+Host: https://taskiye.vercel.app
+
+# Sitemap
+Sitemap: https://taskiye.vercel.app/sitemap.xml
