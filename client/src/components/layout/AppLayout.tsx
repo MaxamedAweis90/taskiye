@@ -330,7 +330,7 @@ export const AppLayout: React.FC = () => {
       data?: { friendshipId?: unknown };
     };
     const rawFId = notifAny.data?.friendshipId;
-    const friendshipId =
+    let friendshipId =
       (typeof rawFId === 'string'
         ? rawFId
         : rawFId
@@ -344,6 +344,21 @@ export const AppLayout: React.FC = () => {
         : null);
 
     try {
+      if (!friendshipId) {
+        try {
+          const frRes = await fetch('/api/friends', { credentials: 'include' });
+          if (frRes.ok) {
+            const frJson = await frRes.json();
+            const incoming = frJson?.data?.pendingIncoming || [];
+            if (incoming.length > 0) {
+              friendshipId = incoming[0].friendshipId;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       if (friendshipId) {
         const res = await fetch('/api/friends/respond', {
           method: 'POST',

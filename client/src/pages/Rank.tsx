@@ -10,6 +10,7 @@ import {
   UserPlus,
   ArrowRight,
   Trophy,
+  UserMinus,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -165,6 +166,37 @@ export const Rank: React.FC = () => {
       showToast('Action Failed', msg, 'error');
     } finally {
       setRespondingFriendshipId(null);
+    }
+  };
+
+  const handleRemoveFriend = async (targetUserId: string, friendName?: string) => {
+    if (!window.confirm(`Disconnect with ${friendName || 'this user'}? This will remove them from your Friends League.`)) {
+      return;
+    }
+    try {
+      const res = await fetch('/api/friends/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ targetUserId }),
+      });
+      if (res.ok) {
+        await queryClient.invalidateQueries({ queryKey: ['friends'] });
+        await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        try {
+          const bc = new BroadcastChannel('taskiye_social_sync');
+          bc.postMessage({ type: 'FRIENDS_UPDATED' });
+          bc.close();
+        } catch {
+          // ignore
+        }
+        showToast('Friend Removed', `${friendName || 'User'} removed from Friends League`, 'info');
+      } else {
+        showToast('Error', 'Failed to remove connection', 'error');
+      }
+    } catch {
+      showToast('Error', 'Failed to remove connection', 'error');
     }
   };
 
@@ -653,7 +685,19 @@ export const Rank: React.FC = () => {
                       SILVER MEDAL
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{top2.consistency}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{top2.consistency}%</span>
+                    {leagueType === 'friends' && !top2.isCurrentUser && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFriend(top2.id, top2.name)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title={`Disconnect with ${top2.name}`}
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3.5">
@@ -705,7 +749,19 @@ export const Rank: React.FC = () => {
                       GOLD LEADER
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{top1.consistency}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{top1.consistency}%</span>
+                    {leagueType === 'friends' && !top1.isCurrentUser && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFriend(top1.id, top1.name)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title={`Disconnect with ${top1.name}`}
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3.5">
@@ -752,7 +808,19 @@ export const Rank: React.FC = () => {
                       BRONZE MEDAL
                     </span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{top3.consistency}%</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{top3.consistency}%</span>
+                    {leagueType === 'friends' && !top3.isCurrentUser && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFriend(top3.id, top3.name)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title={`Disconnect with ${top3.name}`}
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3.5">
@@ -925,16 +993,27 @@ export const Rank: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* STATUS */}
-                    <div className="hidden sm:flex sm:col-span-1 items-center justify-center">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          member.isOnline
-                            ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse'
-                            : 'bg-slate-300 dark:bg-slate-600'
-                        }`}
-                        title={member.isOnline ? 'Online' : 'Offline'}
-                      />
+                    {/* STATUS / ACTION */}
+                    <div className="hidden sm:flex sm:col-span-1 items-center justify-center gap-1.5">
+                      {leagueType === 'friends' && !isUser ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFriend(member.id, member.name)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title={`Disconnect with ${member.name}`}
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            member.isOnline
+                              ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse'
+                              : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
+                          title={member.isOnline ? 'Online' : 'Offline'}
+                        />
+                      )}
                     </div>
                   </div>
                 );

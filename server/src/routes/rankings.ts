@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { ObjectId } from 'mongodb';
 import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { mongoDb } from '../db/connection.js';
@@ -210,32 +211,102 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         });
       }
 
-      // Find accepted friendships for current user
+      // Collect all aliases for the current authenticated user
+      const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
+        ? String((req.user as unknown as { _id?: string })._id)
+        : currentUserIdStr;
+      const currentUsername = (req.user as unknown as { username?: string })?.username || '';
+      const currentName = req.user?.name || '';
+      const currentEmail = req.user?.email || '';
+
+      const currentAliases = Array.from(
+        new Set([
+          currentUserIdStr,
+          currentAltId,
+          currentUsername,
+          currentName,
+          currentEmail,
+          currentUsername.toLowerCase(),
+          currentName.toLowerCase(),
+          `@${currentUsername.toLowerCase().replace(/^@/, '')}`,
+        ])
+      ).filter(Boolean);
+
+      // Find accepted friendships for current user matching any alias
       const friendships = await Friendship.find({
         status: 'ACCEPTED',
-        $or: [{ requesterId: currentUserIdStr }, { recipientId: currentUserIdStr }],
+        $or: [
+          { requesterId: { $in: currentAliases } },
+          { recipientId: { $in: currentAliases } },
+        ],
       }).lean();
 
-      const friendUserIds = new Set<string>();
-      friendUserIds.add(currentUserIdStr);
+      // Collect raw partner IDs/aliases from friendships
+      const rawPartnerIds = new Set<string>();
       for (const f of friendships) {
-        if (f.requesterId === currentUserIdStr) friendUserIds.add(String(f.recipientId));
-        else friendUserIds.add(String(f.requesterId));
+        const isCurrentRequester = currentAliases.includes(String(f.requesterId));
+        const partnerId = isCurrentRequester ? String(f.recipientId) : String(f.requesterId);
+        if (partnerId) rawPartnerIds.add(partnerId);
       }
 
-      // Filter leaderboard to only friends + current user
+      // Look up partner user records in MongoDB to resolve their full alias set
+      const partnerIdsArray = Array.from(rawPartnerIds);
+      const queryOr: Record<string, unknown>[] = [
+        { id: { $in: partnerIdsArray } },
+        { username: { $in: partnerIdsArray } },
+        { name: { $in: partnerIdsArray } },
+        { email: { $in: partnerIdsArray } },
+      ];
+      for (const pId of partnerIdsArray) {
+        if (ObjectId.isValid(pId)) {
+          queryOr.push({ _id: new ObjectId(pId) });
+        }
+      }
+
+      const friendUsers = partnerIdsArray.length > 0
+        ? await mongoDb.collection('user').find({ $or: queryOr }).toArray()
+        : [];
+
+      // Build a fast lookup set containing all aliases for accepted friends
+      const friendMatchSet = new Set<string>();
+      for (const pId of partnerIdsArray) {
+        friendMatchSet.add(pId.toLowerCase());
+      }
+      for (const u of friendUsers) {
+        if (u._id) friendMatchSet.add(u._id.toString().toLowerCase());
+        if (u.id) friendMatchSet.add(String(u.id).toLowerCase());
+        if (u.username) {
+          const uLower = String(u.username).toLowerCase();
+          friendMatchSet.add(uLower);
+          friendMatchSet.add(uLower.replace(/^@/, ''));
+        }
+        if (u.name) friendMatchSet.add(String(u.name).toLowerCase());
+        if (u.email) friendMatchSet.add(String(u.email).toLowerCase());
+      }
+
+      // Filter leaderboard to friends + current user
       let friendsLeaderboard = allRankItems
-        .filter((item) => friendUserIds.has(String(item.userId)))
+        .filter((item) => {
+          if (item.isCurrentUser) return true;
+          const uId = String(item.userId).toLowerCase();
+          const uHandle = item.handle.toLowerCase().replace(/^@/, '');
+          const uName = item.userName.toLowerCase();
+          return (
+            friendMatchSet.has(uId) ||
+            friendMatchSet.has(uHandle) ||
+            friendMatchSet.has(uName)
+          );
+        })
         .map((item, idx) => ({
           ...item,
           rank: idx + 1,
         }));
 
-      // If current user is not in friendsLeaderboard yet, ensure they appear
+      // Ensure current user appears in friendsLeaderboard
       if (currentUserItem && !friendsLeaderboard.some((i) => i.isCurrentUser)) {
         friendsLeaderboard = [
           { ...currentUserItem, rank: 1 },
-          ...friendsLeaderboard.map((i) => ({ ...i, rank: i.rank + 1 })),
+          ...friendsLeaderboard.map((i, idx) => ({ ...i, rank: idx + 2 })),
         ];
       }
 

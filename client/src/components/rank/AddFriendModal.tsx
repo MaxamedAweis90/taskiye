@@ -10,6 +10,7 @@ import {
   Loader2,
   Clock,
   UserCheck,
+  UserMinus,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../../lib/auth-client';
@@ -303,6 +304,39 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
     }
   };
 
+  const handleDisconnectFriend = async (member: CommunityMember) => {
+    setLoadingHandle(member.handle);
+    try {
+      const res = await apiFetch('/api/friends/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: member.id }),
+      });
+      if (res.ok) {
+        setConnectedHandles((prev) => {
+          const copy = { ...prev };
+          delete copy[member.handle];
+          delete copy[member.id];
+          return copy;
+        });
+        await queryClient.invalidateQueries({ queryKey: ['friends'] });
+        await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        broadcastSocialSync();
+        setNotificationToast(`Disconnected from ${member.name}.`);
+        setTimeout(() => setNotificationToast(null), 3000);
+      } else {
+        setNotificationToast('Failed to disconnect friend.');
+        setTimeout(() => setNotificationToast(null), 3000);
+      }
+    } catch {
+      setNotificationToast('Failed to disconnect friend.');
+      setTimeout(() => setNotificationToast(null), 3000);
+    } finally {
+      setLoadingHandle(null);
+    }
+  };
+
   const handleAcceptIncoming = async (friendshipId: string, memberName: string) => {
     setLoadingHandle(friendshipId);
     try {
@@ -522,9 +556,24 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                   {/* LinkedIn Dynamic Connection Status */}
                   <div className="shrink-0 flex items-center gap-1.5">
                     {isAcceptedFriend ? (
-                      <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30 flex items-center gap-1.5 select-none">
-                        <UserCheck className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Connected</span>
+                      <div className="flex items-center gap-1">
+                        <div className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-500/30 flex items-center gap-1.5 select-none">
+                          <UserCheck className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Connected</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => handleDisconnectFriend(member)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all cursor-pointer disabled:opacity-50"
+                          title={`Disconnect with ${member.name}`}
+                        >
+                          {isLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <UserMinus className="w-3.5 h-3.5 stroke-[2]" />
+                          )}
+                        </button>
                       </div>
                     ) : incomingFriendshipId ? (
                       <div className="flex items-center gap-1.5">

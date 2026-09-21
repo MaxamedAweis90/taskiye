@@ -476,7 +476,31 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     const targetName =
       (targetUserDoc.name as string) || (targetUserDoc.username as string) || 'User';
 
-    if (!targetUserId || targetUserId === userId) {
+    // Comprehensive alias sets for both sender and target
+    const senderAliases = Array.from(
+      new Set([
+        userId,
+        req.user?.id ? String(req.user.id) : null,
+        req.user && (req.user as unknown as { _id?: string })._id
+          ? String((req.user as unknown as { _id?: string })._id)
+          : null,
+        req.user?.username ? String(req.user.username) : null,
+        req.user?.email ? String(req.user.email) : null,
+      ])
+    ).filter(Boolean) as string[];
+
+    const targetAliases = Array.from(
+      new Set([
+        targetUserId,
+        targetUserDoc.id ? String(targetUserDoc.id) : null,
+        targetUserDoc._id ? targetUserDoc._id.toString() : null,
+        targetUserDoc.username ? String(targetUserDoc.username) : null,
+        targetUserDoc.email ? String(targetUserDoc.email) : null,
+      ])
+    ).filter(Boolean) as string[];
+
+    // Symmetrical self-request check
+    if (targetAliases.some((alias) => senderAliases.includes(alias))) {
       return sendError(
         res,
         "That's your own profile! Share your QR code or handle with a friend to connect.",
@@ -487,22 +511,33 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     // Check if a friendship relationship already exists in either direction
     const existing = await Friendship.findOne({
       $or: [
-        { requesterId: userId, recipientId: targetUserId },
-        { requesterId: targetUserId, recipientId: userId },
+        { requesterId: { $in: senderAliases }, recipientId: { $in: targetAliases } },
+        { requesterId: { $in: targetAliases }, recipientId: { $in: senderAliases } },
       ],
     });
 
     if (existing) {
       if (existing.status === 'ACCEPTED') {
-        return sendSuccess(res, existing, `You are already friends with ${targetName}!`, 200);
+        return sendSuccess(res, existing, `You are already connected with ${targetName}!`, 200);
       }
 
       if (existing.status === 'PENDING') {
-        // If the other user already invited the requester, auto-accept immediately!
-        if (String(existing.recipientId) === String(userId)) {
+        // Mutual request detection: if the other user already invited the requester, auto-accept immediately!
+        if (senderAliases.includes(String(existing.recipientId))) {
           existing.status = 'ACCEPTED';
           await existing.save();
           invalidateRankingsCache();
+
+          // Mark incoming request notification as read
+          await InAppNotification.updateMany(
+            {
+              $or: [
+                { 'data.friendshipId': String(existing._id) },
+                { 'data.tag': `friend-request-${existing._id}` },
+              ],
+            },
+            { $set: { isRead: true } }
+          ).catch(() => {});
 
           await deliverFriendAcceptedNotification(targetUserId, senderName, String(existing._id));
 
@@ -528,6 +563,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
         existing.recipientId = targetUserId;
         existing.status = 'PENDING';
         await existing.save();
+        invalidateRankingsCache();
 
         await deliverFriendRequestNotification(targetUserId, targetUserDoc, senderName, String(existing._id));
 
@@ -555,8 +591,8 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
         friendship = await Friendship.findOneAndUpdate(
           {
             $or: [
-              { requesterId: userId, recipientId: targetUserId },
-              { requesterId: targetUserId, recipientId: userId },
+              { requesterId: { $in: senderAliases }, recipientId: { $in: targetAliases } },
+              { requesterId: { $in: targetAliases }, recipientId: { $in: senderAliases } },
             ],
           },
           {
@@ -594,7 +630,6 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
  */
 router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?.id || 'guest_user';
     const { friendshipId, action } = req.body;
 
     if (!friendshipId) {
@@ -650,6 +685,17 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     // Invalidate rankings cache so Friends League updates immediately
     invalidateRankingsCache();
 
+    // Mark matching friend request in-app notification as read
+    await InAppNotification.updateMany(
+      {
+        $or: [
+          { 'data.friendshipId': String(friendshipId) },
+          { 'data.tag': `friend-request-${friendshipId}` },
+        ],
+      },
+      { $set: { isRead: true } }
+    ).catch(() => {});
+
     if (action === 'ACCEPT') {
       const accepterName = req.user?.name || req.user?.username || 'A friend';
       await deliverFriendAcceptedNotification(String(friendship.requesterId), accepterName, String(friendship._id));
@@ -667,7 +713,7 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
 
 /**
  * POST /api/friends/remove
- * Remove a friend or cancel a pending request
+ * Remove a friend or cancel a pending request (Unconnect / Disconnect)
  */
 router.post('/remove', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -689,22 +735,73 @@ router.post('/remove', socialLimiter, optionalAuth, async (req: AuthenticatedReq
     const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
       ? String((req.user as unknown as { _id?: string })._id)
       : userId;
-    const userIds = Array.from(new Set([userId, currentAltId])).filter(Boolean);
+    const currentUsername = (req.user as unknown as { username?: string })?.username || '';
+    const currentName = req.user?.name || '';
+    const currentEmail = req.user?.email || '';
 
+    const userIds = Array.from(
+      new Set([
+        userId,
+        currentAltId,
+        currentUsername,
+        currentName,
+        currentEmail,
+      ])
+    ).filter(Boolean);
+
+    // Build query with full target user alias resolution
     const query: Record<string, unknown> = {};
     if (friendshipId) {
       query._id = friendshipId;
       query.$or = [{ requesterId: { $in: userIds } }, { recipientId: { $in: userIds } }];
     } else {
-      const targetStr = String(targetUserId);
+      const cleanTarget = String(targetUserId).trim();
+      const targetUserIds = [cleanTarget];
+
+      // Resolve all target user aliases from database
+      const queryOr: Record<string, unknown>[] = [
+        { id: cleanTarget },
+        { username: cleanTarget },
+        { name: cleanTarget },
+        { email: cleanTarget.toLowerCase() },
+      ];
+      if (ObjectId.isValid(cleanTarget)) {
+        queryOr.push({ _id: new ObjectId(cleanTarget) });
+      }
+
+      const tDoc = await mongoDb.collection('user').findOne({ $or: queryOr });
+      if (tDoc) {
+        if (tDoc._id) targetUserIds.push(tDoc._id.toString());
+        if (tDoc.id) targetUserIds.push(String(tDoc.id));
+        if (tDoc.username) targetUserIds.push(String(tDoc.username));
+        if (tDoc.name) targetUserIds.push(String(tDoc.name));
+        if (tDoc.email) targetUserIds.push(String(tDoc.email));
+      }
+
+      const targetAliases = Array.from(new Set(targetUserIds)).filter(Boolean);
       query.$or = [
-        { requesterId: { $in: userIds }, recipientId: targetStr },
-        { requesterId: targetStr, recipientId: { $in: userIds } },
+        { requesterId: { $in: userIds }, recipientId: { $in: targetAliases } },
+        { requesterId: { $in: targetAliases }, recipientId: { $in: userIds } },
       ];
     }
 
+    // Find doomed friendships first to collect their IDs for notification cleanup
+    const doomed = await Friendship.find(query).lean();
+    const doomedIds = doomed.map((f) => String(f._id));
+
     await Friendship.deleteMany(query);
     invalidateRankingsCache();
+
+    // Clean up or purge notifications tied to these severed friendships
+    if (doomedIds.length > 0) {
+      await InAppNotification.deleteMany({
+        $or: [
+          { 'data.friendshipId': { $in: doomedIds } },
+          { 'data.tag': { $in: doomedIds.map((id) => `friend-request-${id}`) } },
+          { 'data.tag': { $in: doomedIds.map((id) => `friend-accepted-${id}`) } },
+        ],
+      }).catch(() => {});
+    }
 
     return sendSuccess(res, null, 'Connection updated successfully');
   } catch (error) {
