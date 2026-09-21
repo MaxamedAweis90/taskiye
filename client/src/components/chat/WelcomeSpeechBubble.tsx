@@ -22,7 +22,6 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
-  // Check if language was previously chosen
   const [storedLanguage, setStoredLanguage] = useState<'en' | 'so' | null>(() => {
     try {
       return (localStorage.getItem('taskiye_ai_language') as 'en' | 'so' | null) || null;
@@ -32,15 +31,12 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
   });
 
   useEffect(() => {
-    // Short entrance delay then animate in
     const entranceTimer = setTimeout(() => setIsVisible(true), 150);
 
-    // Auto-dismiss after 30 seconds without showing any countdown
     const autoDismissTimer = setTimeout(() => {
       onDismiss();
     }, 30000);
 
-    // Play a pleasant synthesized ding sound via Web Audio API (strictly once per session)
     const playDing = () => {
       try {
         if (sessionStorage.getItem('taskiye_bubble_sound_played') === 'true') {
@@ -48,7 +44,6 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
         }
         sessionStorage.setItem('taskiye_bubble_sound_played', 'true');
       } catch {
-        // ignore
       }
 
       try {
@@ -75,7 +70,6 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
       }
     };
 
-    // Play ding slightly after the bubble appears
     const dingTimer = setTimeout(playDing, 200);
 
     return () => {
@@ -85,18 +79,15 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
     };
   }, [onDismiss]);
 
-  // Personalized name
   const displayName = user?.name || user?.username || user?.email?.split('@')[0];
   const firstName = displayName ? displayName.split(' ')[0] : null;
 
-  // Selected language or fallback
   const currentLang = storedLanguage || 'en';
 
   const handleSelectLanguage = (lang: 'en' | 'so', prompt?: string) => {
     try {
       localStorage.setItem('taskiye_ai_language', lang);
     } catch {
-      // ignore
     }
     setStoredLanguage(lang);
     onOpenChat(prompt, lang);
@@ -211,13 +202,11 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
 
         {/* Speech Bubble Pointer Tail (Matching chat popup tail geometry) */}
         {isMobile ? (
-          // Mobile pointer pointing directly down toward center of floating trigger button
           <div
             className="absolute -bottom-2 right-8 w-4 h-4 bg-white dark:bg-[#10192D] border-r border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[2px_2px_4px_rgba(0,0,0,0.06)]"
             aria-hidden="true"
           />
         ) : (
-          // Desktop pointer pointing left toward sidebar trigger (bottom-5 -left-2)
           <div
             className="hidden md:block absolute bottom-5 -left-2 w-4 h-4 bg-white dark:bg-[#10192D] border-l border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[-3px_3px_6px_rgba(0,0,0,0.04)]"
             aria-hidden="true"

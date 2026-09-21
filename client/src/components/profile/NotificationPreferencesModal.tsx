@@ -149,7 +149,6 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
       setInitialPrefs(DEFAULT_NOTIFICATION_PREFS);
     }
 
-    // Asynchronously fetch latest preferences from server to ensure multi-device consistency
     fetch('/api/notifications/preferences', { credentials: 'include', cache: 'no-store' })
       .then((res) => res.json())
       .then((json) => {
@@ -163,7 +162,6 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(remotePrefs));
           } catch {
-            // ignore
           }
         }
       })
@@ -178,7 +176,6 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
     const nextVal = !prefs[key];
     setPrefs((prev) => ({ ...prev, [key]: nextVal }));
 
-    // Preview chime when audio toggle is turned ON
     if (key === 'completionChimes' && nextVal) {
       playCelebrationChime();
     }
@@ -193,11 +190,9 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
     setSuccessMsg('');
 
     try {
-      // 1. Save local preferences immediately
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
       setInitialPrefs(prefs);
 
-      // 2. Persist directly to MongoDB via dedicated preferences endpoint
       const prefPromise = fetch('/api/notifications/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,7 +200,6 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
         body: JSON.stringify({ preferences: prefs }),
       }).catch(() => null);
 
-      // 3. If any push alert is active and push is supported, ensure device push subscription is updated
       const hasAnyPush =
         prefs.dailyReminders ||
         prefs.taskPlanningReminder ||
@@ -256,7 +250,6 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
   ) => {
     setTestingType(type);
     try {
-      // 1. Ensure subscription if supported and permitted
       if (!isSubscribed && isSupported && permission !== 'denied') {
         try {
           await subscribe({
@@ -269,11 +262,9 @@ export const NotificationPreferencesModal: React.FC<NotificationPreferencesModal
             completionChimes: prefs.completionChimes,
           });
         } catch {
-          // ignore
         }
       }
 
-      // 2. Dispatch simulated notification
       await sendTestAlert(type);
       setSuccessMsg('Simulated alert dispatched to device and notification bell!');
       setTimeout(() => setSuccessMsg(''), 3500);

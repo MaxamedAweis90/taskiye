@@ -81,7 +81,6 @@ export async function sendWelcomeNotification(): Promise<void> {
     try {
       new Notification(title, { body, icon });
     } catch {
-      // ignore
     }
   }
 }
@@ -132,7 +131,6 @@ export function usePushNotifications() {
 
       setIsSyncing(true);
       try {
-        // 1. Request Notification Permission
         const perm = await Notification.requestPermission();
         setPermission(perm);
         if (perm !== 'granted') {
@@ -140,7 +138,6 @@ export function usePushNotifications() {
           return false;
         }
 
-        // 2. Fetch VAPID public key
         let vapidKey = FALLBACK_VAPID_KEY;
         try {
           const res = await fetch('/api/notifications/vapid-public-key');
@@ -149,17 +146,14 @@ export function usePushNotifications() {
             vapidKey = json.data.publicKey;
           }
         } catch {
-          // Use fallback key
         }
 
-        // 3. Ensure Service Worker is registered with timeout protection
         if ('serviceWorker' in navigator && 'PushManager' in window) {
           let reg = await navigator.serviceWorker.getRegistration();
           if (!reg) {
             reg = await navigator.serviceWorker.register('/sw.js');
           }
 
-          // Timeout wrapper to guarantee navigator.serviceWorker.ready NEVER hangs
           const readyPromise = navigator.serviceWorker.ready;
           const timeoutPromise = new Promise<ServiceWorkerRegistration | null>((resolve) =>
             setTimeout(() => resolve(reg || null), 2500)
@@ -169,7 +163,6 @@ export function usePushNotifications() {
           if (activeReg?.pushManager) {
             let sub = await activeReg.pushManager.getSubscription();
 
-            // Validate that the existing subscription was created with the active VAPID key
             if (sub && sub.options && sub.options.applicationServerKey) {
               const currentKeyBytes = new Uint8Array(sub.options.applicationServerKey);
               const targetKeyBytes = urlBase64ToUint8Array(vapidKey);
@@ -184,11 +177,9 @@ export function usePushNotifications() {
               }
 
               if (!isMatch) {
-                console.log('[Push] VAPID key mismatch on device. Renewing subscription with active key...');
                 try {
                   await sub.unsubscribe();
                 } catch {
-                  // ignore
                 }
                 sub = null;
               }
@@ -232,7 +223,6 @@ export function usePushNotifications() {
       } catch (err) {
         console.warn('[Push] Subscription failed:', err);
         setIsSyncing(false);
-        // Fallback: If permission was granted, return true so UI recognizes approval
         return Notification.permission === 'granted';
       }
     },
@@ -249,7 +239,6 @@ export function usePushNotifications() {
       let serverDispatched = false;
       let notificationPayload: { title: string; body: string; type: string; url: string } | undefined;
 
-      // 1. Retrieve active subscription or query PushManager directly from registration
       let endpoint = activeSubscription?.endpoint;
       if (!endpoint && 'serviceWorker' in navigator) {
         try {
@@ -261,11 +250,9 @@ export function usePushNotifications() {
             setIsSubscribed(true);
           }
         } catch {
-          // ignore
         }
       }
 
-      // 2. Send server-side simulated notification
       try {
         const res = await fetch('/api/notifications/test', {
           method: 'POST',
@@ -319,7 +306,6 @@ export function usePushNotifications() {
       const body = notificationPayload?.body || fallbackInfo.body;
       const url = notificationPayload?.url || fallbackInfo.url;
 
-      // 3. Trigger immediate in-app bell update via custom event
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('taskiye_refresh_notifications', {
@@ -337,7 +323,6 @@ export function usePushNotifications() {
         );
       }
 
-      // 4. Fallback client-side notification if service worker is active
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.getRegistration();
@@ -352,7 +337,6 @@ export function usePushNotifications() {
             return { success: true, data: { title, body, type, url } };
           }
         } catch {
-          // ignore
         }
       }
 

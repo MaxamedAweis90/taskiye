@@ -7,10 +7,7 @@ import { invalidateRankingsCache } from './rankings.js';
 
 const router = Router();
 
-/**
- * Calculates current streak and warning buffer (0, 1, 2, or reset to 0)
- * based on missed scheduled days since lastCompletedDate.
- */
+// warnings: 0 = safe, 1–2 = at-risk days missed, reset to 0 on too many missed
 export function evaluateHabitStreakAndWarnings(
   habit: Partial<IHabit>,
   todayStr: string
@@ -88,10 +85,6 @@ export function evaluateHabitStreakAndWarnings(
   }
 }
 
-/**
- * GET /api/habits
- * Fetch active habits for the authenticated user (with real-time streak & warning evaluation)
- */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -132,10 +125,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-/**
- * POST /api/habits
- * Create a new habit
- */
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { title, category, frequency, timeOfDay, targetUnit, activeDays } = req.body;
@@ -165,10 +154,6 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-/**
- * GET /api/habits/trash
- * Fetch all soft-deleted habits for the authenticated user (within 30-day retention window)
- */
 router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const trashedHabits = await Habit.find({
@@ -184,10 +169,6 @@ router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-/**
- * DELETE /api/habits/trash/empty
- * Permanently purge all soft-deleted habits and cascade delete associated habit instance tasks
- */
 router.delete('/trash/empty', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const trashed = await Habit.find({
@@ -219,10 +200,6 @@ router.delete('/trash/empty', requireAuth, async (req: AuthenticatedRequest, res
   }
 });
 
-/**
- * POST /api/habits/:id/restore
- * Restore a soft-deleted habit from trash back to active
- */
 router.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -252,10 +229,6 @@ router.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-/**
- * DELETE /api/habits/:id
- * Soft-delete habit to 30-day trash, or permanent hard-delete with cascade if ?permanent=true
- */
 router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -304,10 +277,6 @@ router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-/**
- * PATCH /api/habits/:id
- * Update an existing habit or restore from archive
- */
 router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -393,13 +362,6 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-/**
- * POST /api/habits/:id/toggle
- * Toggle habit completion state for today (from Overview or Habit Manager)
- * Increments or decrements completion count and streak, updates warnings.
- * Persists historical completedDates array.
- * NEVER archives the habit.
- */
 router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;

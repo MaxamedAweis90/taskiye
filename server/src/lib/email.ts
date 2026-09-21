@@ -11,12 +11,6 @@ interface EmailPayload {
   text: string;
 }
 
-/**
- * Creates and returns a Nodemailer transporter if valid credentials exist.
- * Supports:
- * 1. Gmail App Passwords: GMAIL_USER + GMAIL_APP_PASSWORD
- * 2. Standard SMTP: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
- */
 function getMailTransporter() {
   const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS;
@@ -37,7 +31,6 @@ function getMailTransporter() {
     });
   }
 
-  // Default to standard Gmail service
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -47,23 +40,12 @@ function getMailTransporter() {
   });
 }
 
-/**
- * Main dispatch function for outbound emails.
- * In development, if SMTP is not configured, logs clickable URL and details to console.
- */
 export async function sendEmail({ to, subject, html, text }: EmailPayload): Promise<{ success: boolean; delivered: boolean }> {
   const transporter = getMailTransporter();
   const gmailUser = process.env.SMTP_USER || process.env.GMAIL_USER;
   const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || (gmailUser ? `Taskiye <${gmailUser}>` : 'Taskiye <no-reply@taskiye.com>');
 
   if (!transporter) {
-    console.log('\n================== [TASKIYE EMAIL DISPATCH (DEV FALLBACK)] ==================');
-    console.log(`To:      ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Preview Text:\n${text}`);
-    console.log('-----------------------------------------------------------------------------');
-    console.log('Configure GMAIL_USER & GMAIL_APP_PASSWORD in .env for live Gmail delivery.');
-    console.log('=============================================================================\n');
     return { success: true, delivered: false };
   }
 
@@ -75,19 +57,13 @@ export async function sendEmail({ to, subject, html, text }: EmailPayload): Prom
       text,
       html,
     });
-    console.log(`[Taskiye Email] Successfully sent "${subject}" to ${to}`);
     return { success: true, delivered: true };
   } catch (err) {
     console.error(`[Taskiye Email Error] Failed to send email to ${to}:`, err);
-    // Even if transporter fails (e.g. invalid app password), log dev link to ensure no lockout
-    console.log(`[Taskiye Email Fallback]:\n${text}`);
     return { success: false, delivered: false };
   }
 }
 
-/**
- * Standard Taskiye HTML Email Layout
- */
 function buildHtmlEmail(title: string, greeting: string, bodyText: string, ctaText: string, ctaUrl: string, hintText?: string): string {
   return `
 <!DOCTYPE html>
@@ -138,9 +114,6 @@ function buildHtmlEmail(title: string, greeting: string, bodyText: string, ctaTe
   `.trim();
 }
 
-/**
- * Send email verification link
- */
 export async function sendVerificationEmail(email: string, verifyUrl: string): Promise<boolean> {
   const title = 'Verify Your Email Address';
   const greeting = 'Welcome to Taskiye!';
@@ -161,9 +134,6 @@ export async function sendVerificationEmail(email: string, verifyUrl: string): P
   return res.success;
 }
 
-/**
- * Send password reset link
- */
 export async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<boolean> {
   const title = 'Reset Your Taskiye Password';
   const greeting = 'Hello,';
@@ -184,9 +154,6 @@ export async function sendPasswordResetEmail(email: string, resetUrl: string): P
   return res.success;
 }
 
-/**
- * Send email change verification link
- */
 export async function sendEmailChangeVerification(newEmail: string, changeUrl: string): Promise<boolean> {
   const title = 'Confirm Your New Email Address';
   const greeting = 'Security Notice';

@@ -81,7 +81,6 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         }
       };
     } catch {
-      // BroadcastChannel not supported
     }
     return () => channel?.close();
   }, [isOpen, queryClient]);
@@ -92,7 +91,6 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
       bc.postMessage({ type: 'FRIENDS_UPDATED' });
       bc.close();
     } catch {
-      // ignore
     }
   };
 

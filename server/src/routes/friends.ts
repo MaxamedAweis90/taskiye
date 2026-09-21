@@ -13,10 +13,6 @@ import { invalidateRankingsCache } from './rankings.js';
 
 const router = Router();
 
-/**
- * GET /api/friends
- * List friends and pending requests with populated user details
- */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
   res.setHeader('Vary', 'Cookie');
@@ -59,7 +55,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       ],
     }).sort({ updatedAt: -1 }).lean();
 
-    // Collect all other user IDs
     const otherUserIds = new Set<string>();
     for (const f of friendships) {
       const otherId = userIds.includes(String(f.requesterId))
@@ -70,7 +65,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
 
     const otherIdsArray = Array.from(otherUserIds);
 
-    // Fetch user profiles for all related users
     const queryOr: Record<string, unknown>[] = [
       { id: { $in: otherIdsArray } },
       { username: { $in: otherIdsArray } },
@@ -80,7 +74,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       try {
         queryOr.push({ _id: new ObjectId(idStr) });
       } catch {
-        // Not a valid ObjectId hex string
       }
     }
 
@@ -101,7 +94,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       if (u.name) userMap.set(String(u.name).toLowerCase(), obj);
     }
 
-    // Fetch habits for streaks
     const habits = await Habit.find({
       userId: { $in: otherIdsArray },
       isArchived: { $ne: true },
@@ -172,10 +164,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-/**
- * GET /api/friends/search?q=...
- * Searches real registered users, strictly excluding the authenticated user
- */
 router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const rawQuery = ((req.query.q as string) || '').trim().replace(/^@/, '').toLowerCase();
@@ -195,7 +183,6 @@ router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequ
       try {
         exclusions.push({ _id: new ObjectId(currentUserId) });
       } catch {
-        // Not a valid ObjectId hex string, ignore
       }
     }
     if (currentUserEmail) {
@@ -290,11 +277,6 @@ router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequ
   }
 });
 
-/**
- * Deliver friend request notification:
- * 1. Creates exactly ONE in-app notification in MongoDB with friendshipId and tag
- * 2. Sends native Web Push to all active devices registered under any of recipient's aliases
- */
 async function deliverFriendRequestNotification(
   targetUserId: string,
   targetUserDoc: Record<string, unknown>,
@@ -312,7 +294,6 @@ async function deliverFriendRequestNotification(
       ])
     ).filter(Boolean) as string[];
 
-    // 1. Create a single in-app notification in database
     await InAppNotification.create({
       userId: targetUserId,
       title: 'New Friend Request! 🏆',
@@ -326,7 +307,6 @@ async function deliverFriendRequestNotification(
       isRead: false,
     });
 
-    // 2. Query all active push subscriptions for the recipient across all aliases
     const recipientSubs = await PushSubscription.find({ userId: { $in: targetUserIds } });
     for (const sub of recipientSubs) {
       await sendPushNotification(sub, {
@@ -347,11 +327,6 @@ async function deliverFriendRequestNotification(
   }
 }
 
-/**
- * Deliver friend accepted notification:
- * 1. Creates exactly ONE in-app notification in MongoDB
- * 2. Sends native Web Push to all active devices registered for the requester
- */
 async function deliverFriendAcceptedNotification(
   requesterId: string,
   accepterName: string,
@@ -403,10 +378,6 @@ async function deliverFriendAcceptedNotification(
   }
 }
 
-/**
- * POST /api/friends/request
- * Send a friend request to a real user via targetUserId, targetUsername search, or QR code token
- */
 router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id
@@ -624,10 +595,6 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
   }
 });
 
-/**
- * POST /api/friends/respond
- * Accept or reject a friend request
- */
 router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { friendshipId, action } = req.body;
@@ -711,10 +678,6 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
   }
 });
 
-/**
- * POST /api/friends/remove
- * Remove a friend or cancel a pending request (Unconnect / Disconnect)
- */
 router.post('/remove', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id

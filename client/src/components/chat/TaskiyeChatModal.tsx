@@ -312,7 +312,6 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
       const stored = localStorage.getItem('taskiye_ai_language');
       if (stored === 'en' || stored === 'so') return stored;
     } catch {
-      // ignore
     }
     return initialLanguage;
   });
@@ -597,7 +596,6 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
     try {
       localStorage.setItem('taskiye_ai_language', newLang);
     } catch {
-      // ignore
     }
 
     const langNotification =

@@ -38,7 +38,6 @@ export const Dashboard: React.FC = () => {
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user);
 
-  // Zustand Guest Store
   const {
     tasks: guestTasks,
     habits: guestHabits,
@@ -55,7 +54,6 @@ export const Dashboard: React.FC = () => {
     restoredTaskId,
   } = useTaskiyeStore();
 
-  // Quick Action form state (Task-only creation)
   const [itemTitle, setItemTitle] = useState('');
   const [category, setCategory] = useState<string>('Work');
   const [priority, setPriority] = useState<'normal' | 'high'>('normal');
@@ -97,7 +95,6 @@ export const Dashboard: React.FC = () => {
 
     window.addEventListener('taskiye-highlight-task', handleHighlightEvent);
 
-    // Also check on mount / navigation if a task highlight was queued
     const storedHighlight = sessionStorage.getItem('taskiye_highlight_task');
     if (storedHighlight) {
       setTimeout(() => {
@@ -238,7 +235,6 @@ export const Dashboard: React.FC = () => {
       // Snapshot the previous tasks
       const previousTasks = queryClient.getQueryData(['tasks', todayStr]);
 
-      // Optimistically update the cache immediately
       queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
         if (!Array.isArray(old)) return old;
         return old.map((t) =>
@@ -643,7 +639,6 @@ export const Dashboard: React.FC = () => {
         }));
 
       if (realTasks.length > 0) {
-        // Optimistically update TanStack query cache for ['tasks', todayStr]
         queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
           if (!old || !Array.isArray(old)) return old;
           const orderMap = new Map(realTasks.map((t) => [t.id, t.sortOrder]));
@@ -716,7 +711,6 @@ export const Dashboard: React.FC = () => {
       try {
         localStorage.setItem(orderStorageKey, JSON.stringify(next));
       } catch {
-        // ignore
       }
       return next;
     });
@@ -834,7 +828,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Quick Action form submission (handles both Add Task and Save Edit)
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedTitle = itemTitle.trim();
@@ -919,7 +912,6 @@ export const Dashboard: React.FC = () => {
     setCreatingTaskId(newTaskId);
 
     if (isAuthenticated) {
-      // Optimistically insert task into TanStack cache so it appears immediately in DOM
       queryClient.setQueryData<ServerTaskItem[]>(['tasks', todayStr], (old) => {
         const optimisticTask: ServerTaskItem = {
           _id: newTaskId,

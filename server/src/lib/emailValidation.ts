@@ -1,8 +1,6 @@
 import { promises as dns } from 'dns';
 
-/**
- * Server-side email validation utility to block fake, disposable, mistyped, and invalid email domains.
- */
+
 
 const DISPOSABLE_DOMAINS = new Set([
   'tempmail.com',
@@ -82,9 +80,6 @@ export interface EmailValidationResult {
   error?: string;
 }
 
-/**
- * Synchronously checks syntax, typo domains, and disposable lists.
- */
 export function validateEmailAddress(rawEmail: string): EmailValidationResult {
   if (!rawEmail || typeof rawEmail !== 'string') {
     return { isValid: false, error: 'Email address is required.' };
@@ -134,7 +129,6 @@ export function validateEmailAddress(rawEmail: string): EmailValidationResult {
     };
   }
 
-  // Ensure domain has at least one period and valid TLD
   const domainParts = domain.split('.');
   if (domainParts.length < 2 || domainParts.some((p) => p.length === 0)) {
     return { isValid: false, error: 'Invalid email domain format.' };
@@ -148,11 +142,7 @@ export function validateEmailAddress(rawEmail: string): EmailValidationResult {
   return { isValid: true };
 }
 
-/**
- * Asynchronously verifies that the domain has active MX records.
- */
 export async function verifyDomainHasMx(domain: string): Promise<boolean> {
-  // Fast pass for well-known verified providers
   const trusted = new Set(['gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'proton.me', 'protonmail.com']);
   if (trusted.has(domain)) return true;
 

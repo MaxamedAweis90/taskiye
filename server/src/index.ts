@@ -32,16 +32,11 @@ const allowedOrigins = [
   ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((url) => url.trim()) : []),
 ];
 
-// 1. CORS Configuration (Allows cookies and sessions from Vite client & Vercel deployments)
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile, curl, Postman, server-to-server)
       if (!origin) return callback(null, true);
-      if (
-        allowedOrigins.includes(origin) ||
-        origin.endsWith('.vercel.app')
-      ) {
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
         return callback(null, true);
       }
       return callback(null, origin);
@@ -50,7 +45,7 @@ app.use(
   })
 );
 
-// 2. Ensure Database Connection for Serverless Invocations
+// Re-establish DB connection on every serverless invocation
 app.use(async (_req, _res, next) => {
   try {
     await connectDB();
@@ -60,26 +55,17 @@ app.use(async (_req, _res, next) => {
   }
 });
 
-// 2.5 Response compression for JSON payloads > 1KB
 app.use(responseCompression());
-
-// 3. General API rate limiter across all endpoints
 app.use('/api/', generalApiLimiter);
-
-// 3.5 Idempotency guard for mutation operations
 app.use('/api/', idempotency);
-
-// 4. Strict Rate Limiting on Authentication endpoints
 app.use('/api/auth/*', authLimiter);
 
-// 5. Mount Better Auth catch-all route BEFORE express.json() to prevent stream locking
+// Must mount before express.json() to prevent body-stream locking
 app.all('/api/auth/*', toNodeHandler(auth));
 
-// 6. Body parsing with strict payload boundary limits (512KB) to prevent memory exhaustion
 app.use(express.json({ limit: '512kb' }));
 app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 
-// 5. Health Check Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
@@ -88,7 +74,6 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// 6. Feature Routes
 app.use('/api/habits', habitsRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/rankings', rankingsRouter);
@@ -99,7 +84,6 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/cron', cronRouter);
 app.use('/api/chat', chatRouter);
 
-// 7. Initialize Database and start Express Listener (skipped in Vercel serverless)
 async function startServer() {
   if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
     app.listen(Number(PORT), '0.0.0.0', () => {

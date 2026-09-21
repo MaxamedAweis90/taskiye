@@ -44,10 +44,6 @@ interface GuestTaskInput {
   sortOrder?: number;
 }
 
-/**
- * POST /api/sync
- * Batch merges guest tasks and habits from Zustand localStorage into MongoDB upon user sign-in.
- */
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;

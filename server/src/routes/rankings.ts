@@ -34,11 +34,6 @@ export function invalidateRankingsCache(): void {
   cachedRankings = null;
 }
 
-/**
- * GET /api/rankings
- * Query param: type = 'global' | 'friends'
- * Returns continuous leaderboard ranked strictly by active habit streak count (no weekly reset)
- */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const type = (req.query.type as string) || 'friends';
@@ -48,7 +43,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.setHeader('Vary', 'Cookie');
 
-    // 1. Check if we have fresh in-memory cached global rankings
     const isCacheExpired = !cachedRankings || (Date.now() - cachedRankings.timestamp > RANKINGS_CACHE_TTL_MS);
 
     if (isCacheExpired) {
@@ -201,7 +195,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       };
     }
 
-    // 5. Handle Friends League vs Global League
     if (type === 'friends') {
       if (!currentUserIdStr) {
         return sendSuccess(res, {

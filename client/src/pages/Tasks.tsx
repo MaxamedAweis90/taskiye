@@ -782,13 +782,11 @@ export const Tasks: React.FC = () => {
     const taskTitle = task.title || 'Task';
     const taskDate = (task.date || todayStr).slice(0, 10);
 
-    // 1. Close modal immediately and start smooth swipe-out CSS transition
     setTaskToDelete(null);
     setSwipingOutTaskId(targetId);
 
     // 2. Wait 380ms for swipe-out animation to complete
     setTimeout(async () => {
-      // Optimistically remove from History cache
       queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
         if (!old) return old;
         return {
@@ -984,7 +982,6 @@ export const Tasks: React.FC = () => {
       };
 
       if (isAuthenticated) {
-        // Optimistically insert into history cache
         queryClient.setQueryData(historyQueryKey, (old: typeof historyData) => {
           if (!old) return old;
 

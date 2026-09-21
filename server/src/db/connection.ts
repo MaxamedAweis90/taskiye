@@ -18,11 +18,9 @@ export async function connectDB(): Promise<void> {
   try {
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(MONGODB_URI);
-      console.log('[MongoDB] Mongoose connected successfully');
     }
 
     await mongoClient.connect();
-    console.log('[MongoDB] Native MongoClient connected successfully');
     isConnected = true;
   } catch (error) {
     console.error('[MongoDB] Connection failed:', error);

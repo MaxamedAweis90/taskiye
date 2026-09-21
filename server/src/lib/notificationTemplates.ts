@@ -1,23 +1,6 @@
-/**
- * ============================================================================
- * TASKIYE NOTIFICATION TEMPLATE ENGINE (DUOLINGO-STYLE)
- * ============================================================================
- * 
- * RULES & GUIDELINES FOR CUSTOMIZING:
- * ----------------------------------------------------------------------------
- * 1. All notification templates are defined here in code for full developer control.
- * 2. Each category has multiple rotating variants. The engine randomly selects
- *    one variant each time to keep alerts fresh, witty, and engaging (Duolingo style).
- * 3. Placeholders automatically replaced at runtime:
- *      {firstName}    -> User's first name, or "Champion" if anonymous
- *      {streakDays}   -> Current active streak count (e.g., "7")
- *      {pendingCount} -> Number of remaining habits/tasks for today
- *      {itemName}     -> Specific habit or task title (e.g., "Read 20 Pages")
- *      {daysLeft}     -> Number of days left before 30-day trash purge (e.g., "2")
- * 4. To add a new message:
- *    Simply append a new `{ title: '...', body: '...' }` object to any category array below.
- * ============================================================================
- */
+// Notification template engine. Placeholders replaced at runtime:
+//   {firstName}, {streakDays}, {pendingCount}, {itemName}, {daysLeft}
+//   Templates are picked randomly per category to keep alerts fresh.
 
 export interface NotificationCopy {
   title: string;
@@ -160,9 +143,6 @@ export const TASK_PLANNING_TEMPLATES: NotificationCopy[] = [
   },
 ];
 
-/**
- * Replaces dynamic variables ({firstName}, {streakDays}, etc.) with context data
- */
 export function renderTemplate(template: NotificationCopy, ctx: NotificationContext): NotificationCopy {
   const name = ctx.firstName || 'Champion';
   const streak = ctx.streakDays !== undefined ? String(ctx.streakDays) : '1';
@@ -184,9 +164,6 @@ export function renderTemplate(template: NotificationCopy, ctx: NotificationCont
   };
 }
 
-/**
- * Randomly selects one variant from an array of templates
- */
 export function pickRandomTemplate(templates: NotificationCopy[]): NotificationCopy {
   const index = Math.floor(Math.random() * templates.length);
   return templates[index] || templates[0] || { title: 'Taskiye Alert', body: 'Check in on your habits today!' };

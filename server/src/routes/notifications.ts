@@ -14,10 +14,6 @@ const router = Router();
 // Initialize VAPID
 configureWebPush();
 
-/**
- * GET /api/notifications
- * Retrieves unread count and latest 30 active (non-trashed) in-app notifications
- */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   try {
@@ -75,10 +71,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-/**
- * GET /api/notifications/trash
- * Retrieves trashed in-app notifications
- */
 router.get('/trash', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   try {
@@ -128,10 +120,6 @@ router.get('/trash', optionalAuth, async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-/**
- * PATCH /api/notifications/:id/read
- * Marks a single notification as read
- */
 router.patch('/:id/read', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -150,10 +138,6 @@ router.patch('/:id/read', optionalAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
-/**
- * POST /api/notifications/mark-all-read
- * Marks all active notifications for user or endpoint as read
- */
 router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || null;
@@ -181,10 +165,6 @@ router.post('/mark-all-read', optionalAuth, async (req: AuthenticatedRequest, re
   }
 });
 
-/**
- * POST /api/notifications/clear-all
- * Moves all active notifications to trash (Clear Bell)
- */
 router.post('/clear-all', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || null;
@@ -218,10 +198,6 @@ router.post('/clear-all', optionalAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
-/**
- * PATCH /api/notifications/:id/trash
- * Moves a single notification to trash (soft-delete)
- */
 router.patch('/:id/trash', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -240,10 +216,6 @@ router.patch('/:id/trash', optionalAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-/**
- * POST /api/notifications/:id/restore
- * Restores a trashed notification back to the active list
- */
 router.post('/:id/restore', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -262,10 +234,6 @@ router.post('/:id/restore', optionalAuth, async (req: AuthenticatedRequest, res:
   }
 });
 
-/**
- * DELETE /api/notifications/trash/empty
- * Permanently purges all trashed notifications for the user (Remove Junk)
- */
 router.delete('/trash/empty', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || null;
@@ -296,10 +264,6 @@ router.delete('/trash/empty', optionalAuth, async (req: AuthenticatedRequest, re
   }
 });
 
-/**
- * DELETE /api/notifications/:id
- * Soft-deletes a notification to trash (or permanently if already trashed)
- */
 router.delete('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -325,10 +289,6 @@ router.delete('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
-/**
- * GET /api/notifications/preferences
- * Retrieves saved user notification preferences from the database
- */
 router.get('/preferences', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   try {
@@ -351,10 +311,6 @@ router.get('/preferences', optionalAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-/**
- * POST /api/notifications/preferences
- * Updates user notification preferences in the database
- */
 router.post('/preferences', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || null;
@@ -387,19 +343,11 @@ router.post('/preferences', optionalAuth, async (req: AuthenticatedRequest, res:
   }
 });
 
-/**
- * GET /api/notifications/vapid-public-key
- * Returns the public key required for the browser to subscribe via PushManager
- */
 router.get('/vapid-public-key', (_req, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   return sendSuccess(res, { publicKey: getVapidPublicKey() });
 });
 
-/**
- * POST /api/notifications/subscribe
- * Registers or updates a device push subscription
- */
 router.post('/subscribe', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { endpoint, keys, timezone, preferences } = req.body;
@@ -440,10 +388,6 @@ router.post('/subscribe', optionalAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
-/**
- * POST /api/notifications/unsubscribe
- * Removes an existing device subscription
- */
 router.post('/unsubscribe', async (req, res: Response) => {
   try {
     const { endpoint } = req.body;
@@ -508,10 +452,6 @@ const NOTIFICATION_SIMULATIONS: Record<string, SimulationTemplate> = {
   system: DEFAULT_SIMULATION,
 };
 
-/**
- * POST /api/notifications/test
- * Sends an immediate simulation test notification for any notification type
- */
 router.post('/test', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { endpoint, type = 'system' } = req.body || {};

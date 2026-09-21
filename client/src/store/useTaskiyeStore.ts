@@ -389,7 +389,6 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         const nextCompleted = !targetTask.isCompleted;
         const taskDateStr = targetTask.date ? targetTask.date.slice(0, 10) : new Date().toISOString().slice(0, 10);
 
-        // 1. Update task completion status
         const updatedTasks = state.tasks.map((task) =>
           task.id === id ? { ...task, isCompleted: nextCompleted } : task
         );

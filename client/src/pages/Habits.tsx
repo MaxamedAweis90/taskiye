@@ -146,7 +146,6 @@ export const Habits: React.FC = () => {
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user);
 
-  // Zustand Store for Guest Mode
   const {
     habits: guestHabits,
     addGuestHabit,

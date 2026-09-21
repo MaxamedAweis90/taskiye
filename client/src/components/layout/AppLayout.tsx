@@ -84,7 +84,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export const AppLayout: React.FC = () => {
-  // Automated background midnight date rollover listener
   useMidnightRollover();
 
   const { data: session } = useSession();
@@ -149,14 +148,12 @@ export const AppLayout: React.FC = () => {
     return count;
   }, [activityLogs]);
 
-  // Effective base streak prior to today, strictly matching calendar activity logs
   const effectiveBaseStreak = pastConsecutiveDays;
 
   useEffect(() => {
     setBaseStreakDays(effectiveBaseStreak);
   }, [effectiveBaseStreak, setBaseStreakDays]);
 
-  // Live profile query to track verification status (silent 401 handling, no retries)
   const { data: userProfileData } = useQuery({
     queryKey: ['user', 'profile'],
     queryFn: async () => {
@@ -261,7 +258,6 @@ export const AppLayout: React.FC = () => {
     try {
       sessionStorage.setItem('taskiye_verify_banner_dismissed', 'true');
     } catch {
-      // ignore
     }
   };
 
@@ -270,7 +266,6 @@ export const AppLayout: React.FC = () => {
     try {
       sessionStorage.setItem('taskiye_finish_profile_dismissed', 'true');
     } catch {
-      // ignore
     }
   };
 
@@ -284,14 +279,12 @@ export const AppLayout: React.FC = () => {
   const [chatInitialLanguage, setChatInitialLanguage] = useState<'en' | 'so'>('en');
   const [isWelcomeBubbleVisible, setIsWelcomeBubbleVisible] = useState(false);
 
-  // Delay greeting bubble by 10 seconds on first mount (strictly once per browser session)
   useEffect(() => {
     try {
       if (sessionStorage.getItem('taskiye_welcome_bubble_shown') === 'true') {
         return;
       }
     } catch {
-      // ignore
     }
 
     const timer = setTimeout(() => {
@@ -299,7 +292,6 @@ export const AppLayout: React.FC = () => {
       try {
         sessionStorage.setItem('taskiye_welcome_bubble_shown', 'true');
       } catch {
-        // ignore
       }
     }, 10000);
     return () => clearTimeout(timer);
@@ -310,7 +302,6 @@ export const AppLayout: React.FC = () => {
     try {
       sessionStorage.setItem('taskiye_welcome_bubble_shown', 'true');
     } catch {
-      // ignore
     }
   };
 
@@ -324,7 +315,6 @@ export const AppLayout: React.FC = () => {
     e.stopPropagation();
     setRespondingNotifFriendId(notification.id);
 
-    // Extract friendshipId from tag or notification data
     const notifAny = notification as unknown as {
       tag?: string;
       data?: { friendshipId?: unknown };
@@ -355,7 +345,6 @@ export const AppLayout: React.FC = () => {
             }
           }
         } catch {
-          // ignore
         }
       }
 
@@ -372,7 +361,6 @@ export const AppLayout: React.FC = () => {
         }
       }
 
-      // Mark notification as read
       await fetch(`/api/notifications/${notification.id}/read`, {
         method: 'PATCH',
         credentials: 'include',
@@ -391,7 +379,6 @@ export const AppLayout: React.FC = () => {
         bc.postMessage({ type: 'FRIENDS_UPDATED' });
         bc.close();
       } catch {
-        // ignore
       }
 
       if (action === 'ACCEPT') {
@@ -423,7 +410,6 @@ export const AppLayout: React.FC = () => {
     setChatInitialPrompt(undefined);
   }, []);
 
-  // Automatically migrate guest chat history to cloud account when user logs in or registers
   useEffect(() => {
     if (session?.user?.id) {
       migrateGuestChatMessages(session.user.id);
@@ -491,7 +477,6 @@ export const AppLayout: React.FC = () => {
   const hasUnreadNotifications = useMemo(() => notifications.some((n) => !n.read), [notifications]);
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
-  // Sync with /api/notifications when user is logged in or when window focuses
   const fetchNotifications = useCallback(async () => {
     try {
       let endpoint = '';
@@ -551,7 +536,6 @@ export const AppLayout: React.FC = () => {
         );
 
         setNotifications((prev) => {
-          // Keep active local migration items that haven't been cleared
           const localMigrations = prev.filter(
             (item) => item.id.startsWith('notif_migration_') && !item.deletedAt
           );
@@ -564,13 +548,11 @@ export const AppLayout: React.FC = () => {
           try {
             localStorage.setItem('taskiye_notifications_cache', JSON.stringify(merged));
           } catch {
-            // ignore
           }
           return merged;
         });
       }
     } catch {
-      // Network failure, use cache
     }
   }, []);
 
@@ -593,7 +575,6 @@ export const AppLayout: React.FC = () => {
           try {
             localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
           } catch {
-            // ignore
           }
           return updated;
         });
@@ -605,7 +586,6 @@ export const AppLayout: React.FC = () => {
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('taskiye_refresh_notifications', handleCustomRefresh);
 
-    // Dynamic background polling every 8 seconds while app is active so bell counter & friend updates stay real-time
     const pollInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchNotifications();
@@ -620,7 +600,6 @@ export const AppLayout: React.FC = () => {
     };
   }, [fetchNotifications, session?.user]);
 
-  // Listen for live Service Worker push broadcasts
   useEffect(() => {
     const handleSwMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NOTIFICATION_RECEIVED') {
@@ -644,22 +623,18 @@ export const AppLayout: React.FC = () => {
           try {
             localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
           } catch {
-            // ignore
           }
           return updated;
         });
 
-        // Instant query invalidations for real-time reactivity
         queryClient.invalidateQueries({ queryKey: ['friends'] });
         queryClient.invalidateQueries({ queryKey: ['rankings'] });
         queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
-        // Show live in-app banner toast if a new friend request arrives
         if (payload.title?.toLowerCase().includes('friend')) {
           showToast(payload.title, payload.body || 'You received a new friend rivalry challenge!', 'info');
         }
 
-        // Trigger network re-sync to guarantee consistency
         fetchNotifications();
       }
     };
@@ -672,7 +647,6 @@ export const AppLayout: React.FC = () => {
     }
   }, [fetchNotifications, queryClient, showToast]);
 
-  // Live multi-tab and social state synchronization via BroadcastChannel
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -685,7 +659,6 @@ export const AppLayout: React.FC = () => {
         }
       };
     } catch {
-      // BroadcastChannel not supported in legacy environments
     }
     return () => {
       channel?.close();
@@ -698,7 +671,6 @@ export const AppLayout: React.FC = () => {
       try {
         localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
       } catch {
-        // ignore
       }
       return updated;
     });
@@ -718,18 +690,15 @@ export const AppLayout: React.FC = () => {
         body: JSON.stringify({ endpoint }),
       });
     } catch {
-      // ignore
     }
   };
 
   const handleNotificationClick = (item: InAppNotificationItem) => {
-    // 1. Mark as read
     setNotifications((prev) => {
       const updated = prev.map((n) => (n.id === item.id ? { ...n, read: true } : n));
       try {
         localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
       } catch {
-        // ignore
       }
       return updated;
     });
@@ -741,7 +710,6 @@ export const AppLayout: React.FC = () => {
       }).catch(() => null);
     }
 
-    // 2. Navigate and close dropdown
     setActiveDropdown(null);
     if (item.url) {
       navigate(item.url);
@@ -798,7 +766,6 @@ export const AppLayout: React.FC = () => {
         setTrashedNotifications(items);
       }
     } catch {
-      // ignore
     } finally {
       setIsLoadingTrash(false);
     }
@@ -808,18 +775,15 @@ export const AppLayout: React.FC = () => {
     async (item: InAppNotificationItem, e?: React.MouseEvent) => {
       if (e) e.stopPropagation();
 
-      // Optimistically remove from inbox
       setNotifications((prev) => {
         const updated = prev.filter((n) => n.id !== item.id);
         try {
           localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
         } catch {
-          // ignore
         }
         return updated;
       });
 
-      // Add to trashed
       setTrashedNotifications((prev) => [
         { ...item, deletedAt: new Date().toISOString() },
         ...prev.filter((n) => n.id !== item.id),
@@ -834,7 +798,6 @@ export const AppLayout: React.FC = () => {
             credentials: 'include',
           });
         } catch {
-          // ignore
         }
       }
     },
@@ -849,7 +812,6 @@ export const AppLayout: React.FC = () => {
     try {
       localStorage.setItem('taskiye_notifications_cache', JSON.stringify([]));
     } catch {
-      // ignore
     }
 
     setTrashedNotifications((prev) => [
@@ -861,7 +823,6 @@ export const AppLayout: React.FC = () => {
       try {
         navigator.clearAppBadge().catch(() => null);
       } catch {
-        // ignore
       }
     }
 
@@ -886,7 +847,6 @@ export const AppLayout: React.FC = () => {
         body: JSON.stringify({ endpoint }),
       });
     } catch {
-      // ignore
     }
   }, [notifications, showToast]);
 
@@ -894,17 +854,14 @@ export const AppLayout: React.FC = () => {
     async (item: InAppNotificationItem, e?: React.MouseEvent) => {
       if (e) e.stopPropagation();
 
-      // Optimistically remove from trash
       setTrashedNotifications((prev) => prev.filter((n) => n.id !== item.id));
 
-      // Restore to inbox
       const restoredItem = { ...item, deletedAt: null };
       setNotifications((prev) => {
         const updated = [restoredItem, ...prev.filter((n) => n.id !== item.id)].slice(0, 30);
         try {
           localStorage.setItem('taskiye_notifications_cache', JSON.stringify(updated));
         } catch {
-          // ignore
         }
         return updated;
       });
@@ -918,7 +875,6 @@ export const AppLayout: React.FC = () => {
             credentials: 'include',
           });
         } catch {
-          // ignore
         }
       }
     },
@@ -952,7 +908,6 @@ export const AppLayout: React.FC = () => {
         body: JSON.stringify({ endpoint }),
       });
     } catch {
-      // ignore
     }
   }, [trashedNotifications.length, showToast]);
 
@@ -970,14 +925,12 @@ export const AppLayout: React.FC = () => {
             credentials: 'include',
           });
         } catch {
-          // ignore
         }
       }
     },
     [showToast]
   );
 
-  // Check if a guest data migration just occurred to add to notification drawer
   useEffect(() => {
     try {
       const pendingCount = sessionStorage.getItem('taskiye_migration_notification');
@@ -1002,7 +955,6 @@ export const AppLayout: React.FC = () => {
     }
   }, []);
 
-  // Monthly Calendar Navigation & Data for Duolingo-style Streak Popover
   const [streakCalendarDate, setStreakCalendarDate] = useState(() => new Date());
 
   const canGoNextMonth = useMemo(() => {

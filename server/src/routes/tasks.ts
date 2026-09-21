@@ -9,10 +9,6 @@ import { dispatchUnifiedNotification } from '../lib/push.js';
 
 const router = Router();
 
-/**
- * GET /api/tasks
- * Query tasks by date (YYYY-MM-DD) or list recent tasks
- */
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -100,11 +96,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-/**
- * GET /api/tasks/activity
- * Aggregate historical completed and total tasks by date (YYYY-MM-DD)
- * for heatmap matrix rendering. Retains past completions.
- */
 router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -113,7 +104,6 @@ router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Res
 
     const userId = req.user.id;
 
-    // Fetch task metrics from the last 365 days via native database aggregation
     const oneYearAgo = new Date();
     oneYearAgo.setDate(oneYearAgo.getDate() - 365);
     oneYearAgo.setUTCHours(0, 0, 0, 0);
@@ -172,10 +162,7 @@ router.get('/activity', optionalAuth, async (req: AuthenticatedRequest, res: Res
   }
 });
 
-/**
- * Unifies task categories to the 5 global categories:
- * 'Work', 'Health & Fitness', 'Routine Activity', 'Mind Improving', 'Personal Growth'
- */
+// Categories: 'Work' | 'Health & Fitness' | 'Routine Activity' | 'Mind Improving' | 'Personal Growth'
 function normalizeTaskCategory(cat?: string | null): string {
   if (!cat) return 'Work';
   const lower = cat.toLowerCase().trim();
@@ -202,10 +189,6 @@ function normalizeTaskCategory(cat?: string | null): string {
   return 'Work';
 }
 
-/**
- * GET /api/tasks/history
- * Chronologically grouped, date-chunked historical tasks with lazy loading support
- */
 router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -252,7 +235,6 @@ router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Resp
 
     const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
 
-    // Fetch tasks within the date window and upcoming future tasks (if initial page)
     const [tasks, upcomingTasksRaw, totalLoggedCount, earlierCount] = await Promise.all([
       Task.find({
         ...baseHistoryFilter,
@@ -454,10 +436,6 @@ router.get('/history', optionalAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
-/**
- * POST /api/tasks/:id/reschedule
- * Clones a missed task to Today, Tomorrow, or a Specific Date
- */
 router.post('/:id/reschedule', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -534,10 +512,6 @@ router.post('/:id/reschedule', requireAuth, async (req: AuthenticatedRequest, re
   }
 });
 
-/**
- * POST /api/tasks
- * Create a new daily task
- */
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { title, date, sortOrder, isHabitInstance, habitId, isCompleted, category, priority, timeTag } = req.body;
@@ -638,10 +612,6 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-/**
- * PATCH /api/tasks/reorder
- * Batch update sortOrder for reordered daily tasks
- */
 router.patch('/reorder', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { items } = req.body as { items?: Array<{ id: string; sortOrder: number }> };
@@ -665,10 +635,6 @@ router.patch('/reorder', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 });
 
-/**
- * PATCH /api/tasks/:id
- * Update task completion state, title, date, category, priority, or timeTag
- */
 router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -802,11 +768,6 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-/**
- * GET /api/tasks/trash
- * Fetch all soft-deleted standalone tasks for the authenticated user (within 30-day retention window)
- * Explicitly excludes habit instances so deleted habits don't duplicate inside tasks trash.
- */
 router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const trashedTasks = await Task.find({
@@ -825,10 +786,6 @@ router.get('/trash', requireAuth, async (req: AuthenticatedRequest, res: Respons
   }
 });
 
-/**
- * DELETE /api/tasks/trash/empty
- * Permanently purge all soft-deleted standalone tasks in the user's trash
- */
 router.delete('/trash/empty', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const result = await Task.deleteMany({
@@ -844,10 +801,6 @@ router.delete('/trash/empty', requireAuth, async (req: AuthenticatedRequest, res
   }
 });
 
-/**
- * POST /api/tasks/:id/restore
- * Restore a soft-deleted task back to active checklist
- */
 router.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -867,10 +820,6 @@ router.post('/:id/restore', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-/**
- * DELETE /api/tasks/:id
- * Soft-delete task (retained in 30-day Trash) or permanent hard-delete if ?permanent=true
- */
 router.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;

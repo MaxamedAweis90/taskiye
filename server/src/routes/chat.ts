@@ -89,9 +89,7 @@ SOMALI VOCABULARY REFERENCE:
 - Guest Mode: Habka martida (ilaa 30 shay oo bilaash ah)
 - Dashboard: Bogga hore / Xarunta koontaroolka`;
 
-/**
- * Intelligent rule-based fallback responses when GEMINI_API_KEY is not configured or unavailable
- */
+// Rule-based responses for when GEMINI_API_KEY is unavailable
 function getFallbackResponse(
   query: string,
   lang: 'en' | 'so',
@@ -216,10 +214,6 @@ function getFallbackResponse(
   }
 }
 
-/**
- * POST /api/chat
- * Primary Gemini AI Chatbot endpoint with streaming and bilingual intelligence
- */
 router.post('/', async (req: Request, res: Response) => {
   try {
     const {

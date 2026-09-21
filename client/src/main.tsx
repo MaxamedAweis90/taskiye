@@ -25,14 +25,10 @@ if (rootElement) {
   );
 }
 
-// Register PWA Service Worker for offline capability and push notifications
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
-      .then((reg) => {
-        console.log('[Taskiye PWA] Service Worker active, scope:', reg.scope);
-      })
       .catch((err) => {
         console.warn('[Taskiye PWA] Service Worker registration failed:', err);
       });

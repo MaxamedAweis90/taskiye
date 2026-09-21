@@ -21,7 +21,6 @@ interface HeatmapMatrixProps {
 
 type HeatmapTimeFilter = '7d' | 'month' | 'year';
 
-// Generate dynamic calendar weeks based on selected filter
 const generateDynamicHeatmapData = (
   filter: HeatmapTimeFilter,
   todayCompleted: number,
@@ -33,13 +32,11 @@ const generateDynamicHeatmapData = (
   const currentJsDay = now.getDay(); // 0: Sun, 1: Mon, ..., 6: Sat
   const currentMonDay = (currentJsDay + 6) % 7; // Mon: 0, ..., Sun: 6
 
-  // Determine weekCount based on filter
   // '7d': 1 week (the current 7 days)
   // 'month': 5 weeks (~35 days covering the last month)
   // 'year': 18 weeks (standard high-density matrix overview)
   const weekCount = filter === '7d' ? 1 : filter === 'month' ? 5 : 18;
 
-  // Find the Monday of (weekCount - 1) weeks ago
   const startMonday = new Date(now);
   startMonday.setDate(now.getDate() - currentMonDay - (weekCount - 1) * 7);
   startMonday.setHours(0, 0, 0, 0);

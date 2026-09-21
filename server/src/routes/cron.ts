@@ -20,15 +20,10 @@ import {
 
 const router = Router();
 
-/**
- * Evaluates and personalizes an alert for a single push subscription.
- * Returns true if an alert was dispatched, false otherwise.
- */
 async function processSubscriptionReminder(sub: IPushSubscription, now: Date): Promise<boolean> {
   try {
     const tz = sub.timezone || 'UTC';
 
-    // 1. Calculate user's current local hour and date string in their timezone
     const hourFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       hour: 'numeric',
@@ -44,7 +39,6 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
     const localHour = parseInt(hourFormatter.format(now), 10);
     const localDate = dateFormatter.format(now);
 
-    // Helper to check and record alert history per category
     const alertHistory = sub.lastAlertsSent instanceof Map
       ? Object.fromEntries(sub.lastAlertsSent)
       : (sub.lastAlertsSent || {});
@@ -65,7 +59,6 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       sub.lastNotifiedDate = localDate;
     };
 
-    // 2. Fetch User Profile Info (First Name)
     let firstName = 'Champion';
     if (sub.userId) {
       try {
@@ -90,7 +83,6 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       }
     }
 
-    // 3. Query User's Habits and Today's Tasks
     const userFilter = sub.userId ? { userId: sub.userId } : { userId: null };
     const activeHabits = await Habit.find({
       ...userFilter,
@@ -102,7 +94,6 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       ? Math.max(...activeHabits.map((h) => h.streakDays || 0))
       : 0;
 
-    // Today's date range for task querying
     const startOfDay = new Date(localDate + 'T00:00:00.000Z');
     const endOfDay = new Date(localDate + 'T23:59:59.999Z');
 
@@ -116,9 +107,7 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
     const pendingTasksCount = todaysTasks.filter((t) => !t.isCompleted).length;
     const totalItemsCount = todaysTasks.length + activeHabits.length;
 
-    // ====================================================================
     // Scenario A: Trash items near 30-day TTL expiration
-    // ====================================================================
     if (!hasSentToday('trashAlert')) {
       const trashedTasks = await Task.find({
         ...userFilter,
@@ -186,9 +175,7 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       }
     }
 
-    // ====================================================================
     // Scenario B: Streak Freeze Worn Off (Next Day Notice)
-    // ====================================================================
     if (!hasSentToday('freezeMelted')) {
       const frozenHabit = activeHabits.find((h) => h.isStreakFrozen);
       if (frozenHabit && frozenHabit.lastCompletedDate && frozenHabit.lastCompletedDate !== localDate) {
@@ -216,9 +203,7 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       }
     }
 
-    // ====================================================================
     // Scenario C: 100% Clearance Celebration (User finished all tasks & habits)
-    // ====================================================================
     if (!hasSentToday('allCompleted')) {
       if (
         totalItemsCount > 0 &&
@@ -289,9 +274,7 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       }
     }
 
-    // ====================================================================
     // Scenario E: Morning Cadence Kickoff (Default: 08:00 AM)
-    // ====================================================================
     const isMorningEnabled = sub.preferences?.dailyReminders !== false;
     const morningTimeStr = sub.preferences?.morningReminderTime || '08:00';
     const targetMorningHour = parseInt(morningTimeStr.split(':')[0] || '8', 10) || 8;

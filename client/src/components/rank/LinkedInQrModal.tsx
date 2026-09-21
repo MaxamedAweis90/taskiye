@@ -100,14 +100,12 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
     [cleanHandle, userName]
   );
 
-  // Generate real QR code image & SVG on mount
   useEffect(() => {
     if (!isOpen) return;
 
     let mounted = true;
     const qrLib = getQrCodeLib();
 
-    // 1. Generate vector SVG
     if (qrLib && typeof qrLib.toString === 'function') {
       try {
         qrLib.toString(qrPayload, { type: 'svg', margin: 1, errorCorrectionLevel: 'H' })
@@ -122,7 +120,6 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
       }
     }
 
-    // 2. Render directly onto canvas for instant guaranteed rendering
     if (qrCanvasRef.current && qrLib && typeof qrLib.toCanvas === 'function') {
       try {
         qrLib.toCanvas(qrCanvasRef.current, qrPayload, {
@@ -263,7 +260,6 @@ export const LinkedInQrModal: React.FC<LinkedInQrModalProps> = ({
           return;
         }
 
-        // Valid rival QR code scanned
         setScanResult(handle);
         stopCamera();
 

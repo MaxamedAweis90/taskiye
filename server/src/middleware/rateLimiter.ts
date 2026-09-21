@@ -19,7 +19,6 @@ class InMemoryRateLimiter {
   private sweepInterval: NodeJS.Timeout;
 
   constructor() {
-    // Periodically sweep expired keys every 2 minutes to prevent memory leaks
     this.sweepInterval = setInterval(() => {
       const now = Date.now();
       for (const [key, record] of this.store.entries()) {
@@ -29,7 +28,6 @@ class InMemoryRateLimiter {
       }
     }, 2 * 60 * 1000);
 
-    // Ensure the interval doesn't prevent Node process from exiting
     if (this.sweepInterval.unref) {
       this.sweepInterval.unref();
     }
@@ -41,7 +39,6 @@ class InMemoryRateLimiter {
       max,
       message = 'Too many requests, please try again later.',
       keyGenerator = (req: Request) => {
-        // Fallback to IP or header-forwarded IP
         const forwarded = req.headers['x-forwarded-for'];
         const ip = typeof forwarded === 'string'
           ? forwarded.split(',')[0]?.trim() || '127.0.0.1'
@@ -56,7 +53,6 @@ class InMemoryRateLimiter {
       const record = this.store.get(key);
 
       if (!record || record.resetTime <= now) {
-        // Initialize new window
         const resetTime = now + windowMs;
         this.store.set(key, { count: 1, resetTime });
 
@@ -67,7 +63,6 @@ class InMemoryRateLimiter {
       }
 
       if (record.count >= max) {
-        // Exceeded limit
         const retryAfterSeconds = Math.max(1, Math.ceil((record.resetTime - now) / 1000));
         res.setHeader('RateLimit-Limit', String(max));
         res.setHeader('RateLimit-Remaining', '0');
@@ -78,7 +73,6 @@ class InMemoryRateLimiter {
         return;
       }
 
-      // Increment count
       record.count += 1;
       res.setHeader('RateLimit-Limit', String(max));
       res.setHeader('RateLimit-Remaining', String(Math.max(0, max - record.count)));
@@ -104,11 +98,6 @@ const baseAuthLimiter = rateLimiterManager.createMiddleware({
   },
 });
 
-/**
- * 1. Strict Auth Limiter: 10 requests / 15 minutes per IP & email
- * Protects login, signup, OTP, and password reset from brute-force attacks.
- * Read-only session checks (e.g. GET /api/auth/get-session) pass through to generalApiLimiter.
- */
 export const authLimiter = (req: Request, res: Response, next: NextFunction): void => {
   const isReadOnlyOrSession =
     req.method === 'GET' ||
@@ -124,10 +113,6 @@ export const authLimiter = (req: Request, res: Response, next: NextFunction): vo
   return baseAuthLimiter(req, res, next);
 };
 
-/**
- * 2. Social Action Limiter: 15 requests / 10 minutes per authenticated user/IP
- * Prevents friend request flooding and spam challenges
- */
 export const socialLimiter = rateLimiterManager.createMiddleware({
   windowMs: 10 * 60 * 1000,
   max: 15,
@@ -143,21 +128,12 @@ export const socialLimiter = rateLimiterManager.createMiddleware({
   },
 });
 
-/**
- * 3. Search Query Limiter: 90 requests / minute
- * Protects live user and habit search endpoints from automated enumeration and ReDoS
- * while accommodating fast debounced client typing (200ms)
- */
 export const searchLimiter = rateLimiterManager.createMiddleware({
   windowMs: 60 * 1000,
   max: 90,
   message: 'Search rate limit exceeded. Please wait a moment.',
 });
 
-/**
- * 4. General API Limiter: 250 requests / minute per IP
- * General perimeter protection against aggressive scraping and denial-of-service
- */
 export const generalApiLimiter = rateLimiterManager.createMiddleware({
   windowMs: 60 * 1000,
   max: 250,

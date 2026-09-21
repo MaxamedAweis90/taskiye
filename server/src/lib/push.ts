@@ -48,10 +48,6 @@ export interface PushNotificationPayload {
   };
 }
 
-/**
- * Send a push notification to a specific stored subscription.
- * Handles 410 Gone / 404 Not Found by pruning the expired subscription.
- */
 export async function sendPushNotification(
   sub: IPushSubscription,
   payload: PushNotificationPayload
@@ -80,9 +76,7 @@ export async function sendPushNotification(
     return true;
   } catch (error: unknown) {
     const err = error as { statusCode?: number; message?: string; body?: string };
-    // 410 Gone or 404 indicates the user unsubscribed or revoked permission on their device
     if (err?.statusCode === 410 || err?.statusCode === 404) {
-      console.log(`[WebPush] Pruning expired subscription for endpoint: ${sub.endpoint.slice(0, 30)}...`);
       try {
         await PushSubscription.deleteOne({ _id: sub._id });
       } catch (dbErr) {
@@ -95,11 +89,6 @@ export async function sendPushNotification(
   }
 }
 
-/**
- * Dispatches a dual notification:
- * 1. Creates an InAppNotification document in MongoDB (for the bell icon & activity feed)
- * 2. If a push subscription is provided, sends the native Web Push alert
- */
 export async function dispatchUnifiedNotification(params: {
   sub?: IPushSubscription | null;
   userId?: string | null;
@@ -117,7 +106,6 @@ export async function dispatchUnifiedNotification(params: {
   const targetUserId = params.userId || params.sub?.userId || null;
   const targetEndpoint = params.endpoint || params.sub?.endpoint || null;
 
-  // 1. Create InAppNotification in database
   try {
     await InAppNotification.create({
       userId: targetUserId,
@@ -137,7 +125,6 @@ export async function dispatchUnifiedNotification(params: {
     console.warn('[Notifications] Failed to save in-app notification:', err);
   }
 
-  // 2. If sub provided, dispatch web push
   if (params.sub) {
     pushSent = await sendPushNotification(params.sub, {
       title: params.title,

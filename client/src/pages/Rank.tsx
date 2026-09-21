@@ -116,7 +116,6 @@ export const Rank: React.FC = () => {
         }
       };
     } catch {
-      // ignore
     }
     return () => channel?.close();
   }, [queryClient]);
@@ -150,7 +149,6 @@ export const Rank: React.FC = () => {
         bc.postMessage({ type: 'FRIENDS_UPDATED' });
         bc.close();
       } catch {
-        // ignore
       }
 
       if (action === 'ACCEPT') {
@@ -190,7 +188,6 @@ export const Rank: React.FC = () => {
           bc.postMessage({ type: 'FRIENDS_UPDATED' });
           bc.close();
         } catch {
-          // ignore
         }
         showToast('Friend Removed', `${friendName || 'User'} removed from Friends League`, 'info');
       } else {

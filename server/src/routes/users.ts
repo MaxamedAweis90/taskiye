@@ -25,10 +25,6 @@ const upload = multer({
   },
 });
 
-/**
- * POST /api/users/avatar
- * Upload profile avatar to Vercel Blob, clean up old blob, and update user profile
- */
 router.post(
   '/avatar',
   requireAuth,
@@ -106,10 +102,6 @@ router.post(
   }
 );
 
-/**
- * DELETE /api/users/avatar
- * Remove profile avatar, delete blob asset from Vercel storage, and reset to default
- */
 router.delete('/avatar', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -151,10 +143,6 @@ router.delete('/avatar', requireAuth, async (req: AuthenticatedRequest, res: Res
   }
 });
 
-/**
- * GET /api/users/profile
- * Retrieve current user profile from database including email verification status and providers
- */
 router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -209,10 +197,6 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
-/**
- * POST /api/users/send-verification-email
- * Dispatch a fresh email verification link to the logged-in user
- */
 router.post(
   '/send-verification-email',
   requireAuth,
@@ -263,10 +247,6 @@ router.post(
   }
 );
 
-/**
- * POST /api/users/change-email-request
- * Change user email address with mandatory current password confirmation for standard accounts
- */
 router.post(
   '/change-email-request',
   requireAuth,
@@ -354,10 +334,6 @@ router.post(
   }
 );
 
-/**
- * POST /api/users/validate-email
- * Public endpoint to check if an email address has a valid syntax and non-disposable domain
- */
 router.post('/validate-email', async (req: Request, res: Response) => {
   const { email } = req.body || {};
   const validation = validateEmailAddress(email);
@@ -367,10 +343,6 @@ router.post('/validate-email', async (req: Request, res: Response) => {
   return sendSuccess(res, { isValid: true });
 });
 
-/**
- * PUT /api/users/profile
- * Update user display name, username, and avatar URL
- */
 router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
