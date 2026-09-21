@@ -198,6 +198,7 @@ self.addEventListener('push', (event) => {
           type: data.data?.type || 'system',
           url: data.data?.url || '/',
           tag: options.tag,
+          data: data.data || {},
           createdAt: new Date().toISOString(),
         },
       });

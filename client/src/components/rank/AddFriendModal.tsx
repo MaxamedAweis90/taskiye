@@ -63,35 +63,127 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
       return json.data;
     },
     enabled: isOpen && Boolean(session?.user),
+    refetchInterval: 3000,
+    staleTime: 1000,
   });
+
+  // Cross-tab real-time sync for social events
+  useEffect(() => {
+    if (!isOpen) return;
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('taskiye_social_sync');
+      channel.onmessage = (e) => {
+        if (e.data?.type === 'FRIENDS_UPDATED') {
+          queryClient.invalidateQueries({ queryKey: ['friends'] });
+          queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        }
+      };
+    } catch {
+      // BroadcastChannel not supported
+    }
+    return () => channel?.close();
+  }, [isOpen, queryClient]);
+
+  const broadcastSocialSync = () => {
+    try {
+      const bc = new BroadcastChannel('taskiye_social_sync');
+      bc.postMessage({ type: 'FRIENDS_UPDATED' });
+      bc.close();
+    } catch {
+      // ignore
+    }
+  };
 
   const acceptedFriendUserIds = useMemo(() => {
     const s = new Set<string>();
-    (friendsData?.friends || []).forEach((f: { id?: string; userId?: string; handle?: string }) => {
-      if (f.id) s.add(String(f.id));
-      if (f.userId) s.add(String(f.userId));
-      if (f.handle) s.add(f.handle.toLowerCase());
+    (friendsData?.friends || []).forEach((f: {
+      id?: string;
+      userId?: string;
+      requesterId?: string;
+      recipientId?: string;
+      handle?: string;
+      username?: string;
+      name?: string;
+    }) => {
+      if (f.id) s.add(String(f.id).toLowerCase());
+      if (f.userId) s.add(String(f.userId).toLowerCase());
+      if (f.requesterId) s.add(String(f.requesterId).toLowerCase());
+      if (f.recipientId) s.add(String(f.recipientId).toLowerCase());
+      if (f.handle) {
+        const h = f.handle.toLowerCase();
+        s.add(h);
+        s.add(h.replace(/^@/, ''));
+      }
+      if (f.username) {
+        const u = f.username.toLowerCase();
+        s.add(u);
+        s.add(u.replace(/^@/, ''));
+      }
+      if (f.name) s.add(f.name.toLowerCase());
     });
     return s;
   }, [friendsData?.friends]);
 
   const pendingOutgoingUserIds = useMemo(() => {
     const s = new Set<string>();
-    (friendsData?.pendingOutgoing || []).forEach((f: { id?: string; userId?: string; handle?: string }) => {
-      if (f.id) s.add(String(f.id));
-      if (f.userId) s.add(String(f.userId));
-      if (f.handle) s.add(f.handle.toLowerCase());
+    (friendsData?.pendingOutgoing || []).forEach((f: {
+      id?: string;
+      userId?: string;
+      requesterId?: string;
+      recipientId?: string;
+      handle?: string;
+      username?: string;
+      name?: string;
+    }) => {
+      if (f.id) s.add(String(f.id).toLowerCase());
+      if (f.userId) s.add(String(f.userId).toLowerCase());
+      if (f.requesterId) s.add(String(f.requesterId).toLowerCase());
+      if (f.recipientId) s.add(String(f.recipientId).toLowerCase());
+      if (f.handle) {
+        const h = f.handle.toLowerCase();
+        s.add(h);
+        s.add(h.replace(/^@/, ''));
+      }
+      if (f.username) {
+        const u = f.username.toLowerCase();
+        s.add(u);
+        s.add(u.replace(/^@/, ''));
+      }
+      if (f.name) s.add(f.name.toLowerCase());
     });
     return s;
   }, [friendsData?.pendingOutgoing]);
 
   const pendingIncomingMap = useMemo(() => {
     const map = new Map<string, string>();
-    (friendsData?.pendingIncoming || []).forEach((f: { friendshipId?: string; id?: string; userId?: string; handle?: string }) => {
+    (friendsData?.pendingIncoming || []).forEach((f: {
+      friendshipId?: string;
+      id?: string;
+      userId?: string;
+      requesterId?: string;
+      recipientId?: string;
+      handle?: string;
+      username?: string;
+      name?: string;
+    }) => {
       const fId = f.friendshipId || '';
-      if (f.id) map.set(String(f.id), fId);
-      if (f.userId) map.set(String(f.userId), fId);
-      if (f.handle) map.set(f.handle.toLowerCase(), fId);
+      if (!fId) return;
+      if (f.id) map.set(String(f.id).toLowerCase(), fId);
+      if (f.userId) map.set(String(f.userId).toLowerCase(), fId);
+      if (f.requesterId) map.set(String(f.requesterId).toLowerCase(), fId);
+      if (f.recipientId) map.set(String(f.recipientId).toLowerCase(), fId);
+      if (f.handle) {
+        const h = f.handle.toLowerCase();
+        map.set(h, fId);
+        map.set(h.replace(/^@/, ''), fId);
+      }
+      if (f.username) {
+        const u = f.username.toLowerCase();
+        map.set(u, fId);
+        map.set(u.replace(/^@/, ''), fId);
+      }
+      if (f.name) map.set(f.name.toLowerCase(), fId);
     });
     return map;
   }, [friendsData?.pendingIncoming]);
@@ -166,6 +258,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         }));
         await queryClient.invalidateQueries({ queryKey: ['friends'] });
         await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        broadcastSocialSync();
         setNotificationToast(data.message || `Friend request sent to ${member.name}! Rivalry challenge delivered.`);
         setTimeout(() => setNotificationToast(null), 3500);
       } else {
@@ -198,6 +291,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         });
         await queryClient.invalidateQueries({ queryKey: ['friends'] });
         await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        broadcastSocialSync();
         setNotificationToast(`Invitation to ${member.name} cancelled.`);
         setTimeout(() => setNotificationToast(null), 3000);
       }
@@ -222,6 +316,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         await queryClient.invalidateQueries({ queryKey: ['friends'] });
         await queryClient.invalidateQueries({ queryKey: ['rankings'] });
         await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        broadcastSocialSync();
         setNotificationToast(`Connected with ${memberName}! 🎉 Challenge accepted.`);
         setTimeout(() => setNotificationToast(null), 3500);
       } else {
@@ -248,6 +343,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         await queryClient.invalidateQueries({ queryKey: ['friends'] });
         await queryClient.invalidateQueries({ queryKey: ['rankings'] });
         await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        broadcastSocialSync();
         setNotificationToast(`Request from ${memberName} declined.`);
         setTimeout(() => setNotificationToast(null), 3000);
       }
@@ -357,21 +453,32 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </div>
           ) : (
             displayedMembers.map((member) => {
-              const memberIdStr = String(member.id);
+              const memberIdStr = String(member.id).toLowerCase();
               const memberHandleLower = member.handle.toLowerCase();
+              const memberHandleClean = memberHandleLower.replace(/^@/, '');
+              const memberNameLower = (member.name || '').toLowerCase();
 
               const isAcceptedFriend =
                 acceptedFriendUserIds.has(memberIdStr) ||
-                acceptedFriendUserIds.has(memberHandleLower);
-
-              const isPendingOutgoing =
-                pendingOutgoingUserIds.has(memberIdStr) ||
-                pendingOutgoingUserIds.has(memberHandleLower) ||
-                Boolean(connectedHandles[member.handle]);
+                acceptedFriendUserIds.has(memberHandleLower) ||
+                acceptedFriendUserIds.has(memberHandleClean) ||
+                (memberNameLower ? acceptedFriendUserIds.has(memberNameLower) : false);
 
               const incomingFriendshipId =
                 pendingIncomingMap.get(memberIdStr) ||
-                pendingIncomingMap.get(memberHandleLower);
+                pendingIncomingMap.get(memberHandleLower) ||
+                pendingIncomingMap.get(memberHandleClean) ||
+                (memberNameLower ? pendingIncomingMap.get(memberNameLower) : undefined);
+
+              const isPendingOutgoing =
+                !incomingFriendshipId && (
+                  pendingOutgoingUserIds.has(memberIdStr) ||
+                  pendingOutgoingUserIds.has(memberHandleLower) ||
+                  pendingOutgoingUserIds.has(memberHandleClean) ||
+                  (memberNameLower ? pendingOutgoingUserIds.has(memberNameLower) : false) ||
+                  Boolean(connectedHandles[member.handle]) ||
+                  Boolean(connectedHandles[member.id])
+                );
 
               const isLoading =
                 loadingHandle === member.handle ||

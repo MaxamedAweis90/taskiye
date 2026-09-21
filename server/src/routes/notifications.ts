@@ -28,12 +28,37 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       return sendSuccess(res, { notifications: [], unreadCount: 0 });
     }
 
-    const userOrEndpoint = userId
-      ? { userId: String(userId) }
-      : { endpoint, userId: null };
+    const userIds: string[] = [];
+    if (userId) {
+      userIds.push(String(userId));
+      const altId = req.user && (req.user as unknown as { _id?: string })._id;
+      if (altId && String(altId) !== String(userId)) {
+        userIds.push(String(altId));
+      }
+      const username = (req.user as unknown as { username?: string })?.username;
+      if (username) {
+        userIds.push(String(username));
+      }
+
+      if (endpoint) {
+        // Automatically claim any unlinked push subscription for the logged-in user
+        PushSubscription.updateOne(
+          { endpoint, userId: null },
+          { $set: { userId: String(userId) } }
+        ).catch(() => {});
+      }
+    }
+
+    const orClauses: Record<string, unknown>[] = [];
+    if (userIds.length > 0) {
+      orClauses.push({ userId: { $in: userIds } });
+    }
+    if (endpoint) {
+      orClauses.push({ endpoint });
+    }
 
     const filter = {
-      ...userOrEndpoint,
+      $or: orClauses,
       deletedAt: null,
     };
 
@@ -64,12 +89,29 @@ router.get('/trash', optionalAuth, async (req: AuthenticatedRequest, res: Respon
       return sendSuccess(res, { notifications: [], totalCount: 0 });
     }
 
-    const userOrEndpoint = userId
-      ? { userId: String(userId) }
-      : { endpoint, userId: null };
+    const userIds: string[] = [];
+    if (userId) {
+      userIds.push(String(userId));
+      const altId = req.user && (req.user as unknown as { _id?: string })._id;
+      if (altId && String(altId) !== String(userId)) {
+        userIds.push(String(altId));
+      }
+      const username = (req.user as unknown as { username?: string })?.username;
+      if (username) {
+        userIds.push(String(username));
+      }
+    }
+
+    const orClauses: Record<string, unknown>[] = [];
+    if (userIds.length > 0) {
+      orClauses.push({ userId: { $in: userIds } });
+    }
+    if (endpoint) {
+      orClauses.push({ endpoint });
+    }
 
     const filter = {
-      ...userOrEndpoint,
+      $or: orClauses,
       deletedAt: { $ne: null },
     };
 

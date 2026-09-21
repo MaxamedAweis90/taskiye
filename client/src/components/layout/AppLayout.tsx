@@ -327,10 +327,15 @@ export const AppLayout: React.FC = () => {
     // Extract friendshipId from tag or notification data
     const notifAny = notification as unknown as {
       tag?: string;
-      data?: { friendshipId?: string };
+      data?: { friendshipId?: unknown };
     };
+    const rawFId = notifAny.data?.friendshipId;
     const friendshipId =
-      notifAny.data?.friendshipId ||
+      (typeof rawFId === 'string'
+        ? rawFId
+        : rawFId
+          ? String(rawFId)
+          : null) ||
       (notifAny.tag?.startsWith('friend-request-')
         ? notifAny.tag.replace('friend-request-', '')
         : null) ||
@@ -364,6 +369,15 @@ export const AppLayout: React.FC = () => {
 
       await queryClient.invalidateQueries({ queryKey: ['friends'] });
       await queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+      try {
+        const bc = new BroadcastChannel('taskiye_social_sync');
+        bc.postMessage({ type: 'FRIENDS_UPDATED' });
+        bc.close();
+      } catch {
+        // ignore
+      }
 
       if (action === 'ACCEPT') {
         showToast('Friend Connected! ⚡', 'Challenge accepted! Check your new rank in Friends League.', 'success');
@@ -492,22 +506,33 @@ export const AppLayout: React.FC = () => {
           body?: string;
           isRead?: boolean;
           type?: string;
-          data?: { url?: string };
+          data?: { url?: string; tag?: string; friendshipId?: unknown; [key: string]: unknown };
           createdAt?: string;
           deletedAt?: string | null;
         }
         const serverItems: InAppNotificationItem[] = json.data.notifications.map(
-          (n: RawNotificationDoc) => ({
-            id: n._id || n.id || `notif_${Date.now()}`,
-            title: n.title || 'Notification',
-            description: n.body || '',
-            time: formatNotificationTime(n.createdAt),
-            read: Boolean(n.isRead),
-            type: (n.type as InAppNotificationItem['type']) || 'system',
-            url: n.data?.url || '/',
-            createdAt: n.createdAt,
-            deletedAt: n.deletedAt || null,
-          })
+          (n: RawNotificationDoc) => {
+            const rawFriendshipId = n.data?.friendshipId ? String(n.data.friendshipId) : undefined;
+            const computedTag =
+              (n.data?.tag as string) ||
+              (rawFriendshipId ? `friend-request-${rawFriendshipId}` : undefined);
+            return {
+              id: n._id || n.id || `notif_${Date.now()}`,
+              title: n.title || 'Notification',
+              description: n.body || '',
+              time: formatNotificationTime(n.createdAt),
+              read: Boolean(n.isRead),
+              type: (n.type as InAppNotificationItem['type']) || 'system',
+              url: n.data?.url || '/',
+              tag: computedTag,
+              data: {
+                ...(n.data || {}),
+                ...(rawFriendshipId ? { friendshipId: rawFriendshipId } : {}),
+              },
+              createdAt: n.createdAt,
+              deletedAt: n.deletedAt || null,
+            };
+          }
         );
 
         setNotifications((prev) => {
@@ -565,12 +590,12 @@ export const AppLayout: React.FC = () => {
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('taskiye_refresh_notifications', handleCustomRefresh);
 
-    // Dynamic background polling every 20 seconds while app is active so bell counter stays real-time
+    // Dynamic background polling every 8 seconds while app is active so bell counter & friend updates stay real-time
     const pollInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchNotifications();
       }
-    }, 20000);
+    }, 8000);
 
     return () => {
       window.removeEventListener('focus', onFocus);
@@ -593,6 +618,8 @@ export const AppLayout: React.FC = () => {
           read: false,
           type: payload.type || 'system',
           url: payload.url || '/',
+          tag: payload.tag,
+          data: payload.data || {},
           createdAt: new Date().toISOString(),
         };
 
@@ -607,6 +634,16 @@ export const AppLayout: React.FC = () => {
           return updated;
         });
 
+        // Instant query invalidations for real-time reactivity
+        queryClient.invalidateQueries({ queryKey: ['friends'] });
+        queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+        // Show live in-app banner toast if a new friend request arrives
+        if (payload.title?.toLowerCase().includes('friend')) {
+          showToast(payload.title, payload.body || 'You received a new friend rivalry challenge!', 'info');
+        }
+
         // Trigger network re-sync to guarantee consistency
         fetchNotifications();
       }
@@ -618,7 +655,27 @@ export const AppLayout: React.FC = () => {
         navigator.serviceWorker.removeEventListener('message', handleSwMessage);
       };
     }
-  }, [fetchNotifications]);
+  }, [fetchNotifications, queryClient, showToast]);
+
+  // Live multi-tab and social state synchronization via BroadcastChannel
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('taskiye_social_sync');
+      channel.onmessage = (e) => {
+        if (e.data?.type === 'FRIENDS_UPDATED') {
+          queryClient.invalidateQueries({ queryKey: ['friends'] });
+          queryClient.invalidateQueries({ queryKey: ['rankings'] });
+          fetchNotifications();
+        }
+      };
+    } catch {
+      // BroadcastChannel not supported in legacy environments
+    }
+    return () => {
+      channel?.close();
+    };
+  }, [queryClient, fetchNotifications]);
 
   const markAllNotificationsRead = async () => {
     setNotifications((prev) => {

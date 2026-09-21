@@ -73,7 +73,7 @@ export const Rank: React.FC = () => {
   const [isLinkedInQrModalOpen, setIsLinkedInQrModalOpen] = useState(false);
   const [respondingFriendshipId, setRespondingFriendshipId] = useState<string | null>(null);
 
-  // Fetch real registered users and live streak rankings from database
+  // Fetch real registered users and live streak rankings from database (polls every 10s)
   const { data: rankData, isLoading } = useQuery<RankingsApiResponse>({
     queryKey: ['rankings', leagueType],
     queryFn: async () => {
@@ -83,9 +83,10 @@ export const Rank: React.FC = () => {
       const json = await res.json();
       return json.data;
     },
+    refetchInterval: 10000,
   });
 
-  // Fetch friends and incoming connection invitations (LinkedIn style)
+  // Fetch friends and incoming connection invitations (polls every 5s for live real-time sync)
   const { data: friendsData } = useQuery({
     queryKey: ['friends'],
     queryFn: async () => {
@@ -97,8 +98,26 @@ export const Rank: React.FC = () => {
       return json.data;
     },
     enabled: Boolean(session?.user),
-    staleTime: 10000,
+    refetchInterval: 5000,
+    staleTime: 3000,
   });
+
+  // Multi-tab real-time sync via BroadcastChannel
+  React.useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('taskiye_social_sync');
+      channel.onmessage = (e) => {
+        if (e.data?.type === 'FRIENDS_UPDATED') {
+          queryClient.invalidateQueries({ queryKey: ['friends'] });
+          queryClient.invalidateQueries({ queryKey: ['rankings'] });
+        }
+      };
+    } catch {
+      // ignore
+    }
+    return () => channel?.close();
+  }, [queryClient]);
 
   const pendingInvitations: PendingIncomingFriend[] = friendsData?.pendingIncoming || [];
 
@@ -123,6 +142,14 @@ export const Rank: React.FC = () => {
       await queryClient.invalidateQueries({ queryKey: ['friends'] });
       await queryClient.invalidateQueries({ queryKey: ['rankings'] });
       await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+      try {
+        const bc = new BroadcastChannel('taskiye_social_sync');
+        bc.postMessage({ type: 'FRIENDS_UPDATED' });
+        bc.close();
+      } catch {
+        // ignore
+      }
 
       if (action === 'ACCEPT') {
         showToast(

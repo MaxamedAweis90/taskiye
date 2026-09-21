@@ -5,7 +5,8 @@ import { sendSuccess, sendError } from '../utils/response.js';
 import { Friendship } from '../models/Friendship.js';
 import { Habit } from '../models/Habit.js';
 import { PushSubscription } from '../models/PushSubscription.js';
-import { dispatchUnifiedNotification } from '../lib/push.js';
+import { InAppNotification } from '../models/InAppNotification.js';
+import { sendPushNotification } from '../lib/push.js';
 import { mongoDb } from '../db/connection.js';
 import { searchLimiter, socialLimiter } from '../middleware/rateLimiter.js';
 import { invalidateRankingsCache } from './rankings.js';
@@ -34,7 +35,22 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       ? String((req.user as unknown as { _id?: string })._id)
       : currentUserId;
 
-    const userIds = Array.from(new Set([currentUserId, currentAltId]));
+    const currentUsername = req.user?.username ? String(req.user.username) : '';
+    const currentName = req.user?.name ? String(req.user.name) : '';
+    const currentEmail = req.user?.email ? String(req.user.email) : '';
+    const currentCleanHandle = (currentUsername || currentName.toLowerCase().replace(/\s+/g, '')).replace(/^@/, '');
+
+    const userIds = Array.from(
+      new Set([
+        currentUserId,
+        currentAltId,
+        currentUsername,
+        currentName,
+        currentEmail,
+        currentCleanHandle,
+        `@${currentCleanHandle}`,
+      ])
+    ).filter(Boolean);
 
     const friendships = await Friendship.find({
       $or: [
@@ -57,6 +73,8 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     // Fetch user profiles for all related users
     const queryOr: Record<string, unknown>[] = [
       { id: { $in: otherIdsArray } },
+      { username: { $in: otherIdsArray } },
+      { name: { $in: otherIdsArray } },
     ];
     for (const idStr of otherIdsArray) {
       try {
@@ -79,6 +97,8 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       const obj = { name: rawName, username: rawUsername, handle, avatarUrl };
       userMap.set(uId, obj);
       if (u._id) userMap.set(u._id.toString(), obj);
+      if (u.username) userMap.set(String(u.username).toLowerCase(), obj);
+      if (u.name) userMap.set(String(u.name).toLowerCase(), obj);
     }
 
     // Fetch habits for streaks
@@ -113,6 +133,8 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         friendshipId: String(f._id),
         id: targetUserId,
         userId: targetUserId,
+        requesterId: String(f.requesterId),
+        recipientId: String(f.recipientId),
         name: profile.name,
         username: profile.username,
         handle: profile.handle,
@@ -269,6 +291,119 @@ router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequ
 });
 
 /**
+ * Deliver friend request notification:
+ * 1. Creates exactly ONE in-app notification in MongoDB with friendshipId and tag
+ * 2. Sends native Web Push to all active devices registered under any of recipient's aliases
+ */
+async function deliverFriendRequestNotification(
+  targetUserId: string,
+  targetUserDoc: Record<string, unknown>,
+  senderName: string,
+  friendshipId: string
+) {
+  try {
+    const targetUserIds = Array.from(
+      new Set([
+        targetUserId,
+        targetUserDoc.id ? String(targetUserDoc.id) : null,
+        targetUserDoc._id ? targetUserDoc._id.toString() : null,
+        targetUserDoc.username ? String(targetUserDoc.username) : null,
+        targetUserDoc.email ? String(targetUserDoc.email) : null,
+      ])
+    ).filter(Boolean) as string[];
+
+    // 1. Create a single in-app notification in database
+    await InAppNotification.create({
+      userId: targetUserId,
+      title: 'New Friend Request! 🏆',
+      body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
+      type: 'system',
+      data: {
+        url: '/rank',
+        tag: `friend-request-${friendshipId}`,
+        friendshipId: String(friendshipId),
+      },
+      isRead: false,
+    });
+
+    // 2. Query all active push subscriptions for the recipient across all aliases
+    const recipientSubs = await PushSubscription.find({ userId: { $in: targetUserIds } });
+    for (const sub of recipientSubs) {
+      await sendPushNotification(sub, {
+        title: 'New Friend Request! 🏆',
+        body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
+        icon: '/logo.png',
+        badge: '/logo.png',
+        tag: `friend-request-${friendshipId}`,
+        data: {
+          url: '/rank',
+          type: 'system',
+          friendshipId: String(friendshipId),
+        },
+      });
+    }
+  } catch (notifErr) {
+    console.warn('[Friends] Failed to deliver notification:', notifErr);
+  }
+}
+
+/**
+ * Deliver friend accepted notification:
+ * 1. Creates exactly ONE in-app notification in MongoDB
+ * 2. Sends native Web Push to all active devices registered for the requester
+ */
+async function deliverFriendAcceptedNotification(
+  requesterId: string,
+  accepterName: string,
+  friendshipId: string
+) {
+  try {
+    const requesterIds = [requesterId];
+    if (ObjectId.isValid(requesterId)) {
+      const u = await mongoDb.collection('user').findOne({ _id: new ObjectId(requesterId) });
+      if (u) {
+        if (u.id) requesterIds.push(String(u.id));
+        if (u.username) requesterIds.push(String(u.username));
+        if (u.email) requesterIds.push(String(u.email));
+      }
+    }
+
+    // 1. Create a single in-app notification
+    await InAppNotification.create({
+      userId: requesterId,
+      title: 'Friend Request Accepted! ⚡',
+      body: `${accepterName} accepted your friend request! View their streak on the leaderboard.`,
+      type: 'system',
+      data: {
+        url: '/rank',
+        tag: `friend-accepted-${friendshipId}`,
+        friendshipId: String(friendshipId),
+      },
+      isRead: false,
+    });
+
+    // 2. Push to all requester subscriptions across all aliases
+    const requesterSubs = await PushSubscription.find({ userId: { $in: requesterIds } });
+    for (const sub of requesterSubs) {
+      await sendPushNotification(sub, {
+        title: 'Friend Request Accepted! ⚡',
+        body: `${accepterName} accepted your friend request! View their streak on the leaderboard.`,
+        icon: '/logo.png',
+        badge: '/logo.png',
+        tag: `friend-accepted-${friendshipId}`,
+        data: {
+          url: '/rank',
+          type: 'system',
+          friendshipId: String(friendshipId),
+        },
+      });
+    }
+  } catch (notifErr) {
+    console.warn('[Friends] Failed to deliver accept notification:', notifErr);
+  }
+}
+
+/**
  * POST /api/friends/request
  * Send a friend request to a real user via targetUserId, targetUsername search, or QR code token
  */
@@ -369,18 +504,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
           await existing.save();
           invalidateRankingsCache();
 
-          try {
-            await dispatchUnifiedNotification({
-              userId: targetUserId,
-              title: 'Friend Request Accepted! ⚡',
-              body: `${senderName} connected with you! View your rank in Friends League.`,
-              type: 'system',
-              tag: `friend-accepted-${existing._id}`,
-              url: '/rank',
-            });
-          } catch (notifErr) {
-            console.warn('[Friends] Failed to deliver notification:', notifErr);
-          }
+          await deliverFriendAcceptedNotification(targetUserId, senderName, String(existing._id));
 
           return sendSuccess(
             res,
@@ -405,35 +529,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
         existing.status = 'PENDING';
         await existing.save();
 
-        try {
-          const recipientSubs = await PushSubscription.find({ userId: targetUserId });
-          if (recipientSubs.length > 0) {
-            for (const sub of recipientSubs) {
-              await dispatchUnifiedNotification({
-                sub,
-                userId: targetUserId,
-                title: 'New Friend Request! 🏆',
-                body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
-                type: 'system',
-                tag: `friend-request-${existing._id}`,
-                url: '/rank',
-                data: { friendshipId: String(existing._id) },
-              });
-            }
-          } else {
-            await dispatchUnifiedNotification({
-              userId: targetUserId,
-              title: 'New Friend Request! 🏆',
-              body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
-              type: 'system',
-              tag: `friend-request-${existing._id}`,
-              url: '/rank',
-              data: { friendshipId: String(existing._id) },
-            });
-          }
-        } catch (notifErr) {
-          console.warn('[Friends] Failed to deliver notification:', notifErr);
-        }
+        await deliverFriendRequestNotification(targetUserId, targetUserDoc, senderName, String(existing._id));
 
         return sendSuccess(
           res,
@@ -478,35 +574,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     }
 
     // Deliver unified notification (in-app + web push) to recipient devices
-    try {
-      const recipientSubs = await PushSubscription.find({ userId: targetUserId });
-      if (recipientSubs.length > 0) {
-        for (const sub of recipientSubs) {
-          await dispatchUnifiedNotification({
-            sub,
-            userId: targetUserId,
-            title: 'New Friend Request! 🏆',
-            body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
-            type: 'system',
-            tag: `friend-request-${friendship._id}`,
-            url: '/rank',
-            data: { friendshipId: String(friendship._id) },
-          });
-        }
-      } else {
-        await dispatchUnifiedNotification({
-          userId: targetUserId,
-          title: 'New Friend Request! 🏆',
-          body: `${senderName} challenged you to a streak rivalry on Taskiye!`,
-          type: 'system',
-          tag: `friend-request-${friendship._id}`,
-          url: '/rank',
-          data: { friendshipId: String(friendship._id) },
-        });
-      }
-    } catch (notifErr) {
-      console.warn('[Friends] Failed to deliver notification:', notifErr);
-    }
+    await deliverFriendRequestNotification(targetUserId, targetUserDoc, senderName, String(friendship._id));
 
     return sendSuccess(
       res,
@@ -541,7 +609,23 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
       ? String((req.user as unknown as { _id?: string })._id)
       : currentUserId;
-    const userIds = Array.from(new Set([currentUserId, currentAltId])).filter(Boolean);
+
+    const currentUsername = req.user?.username ? String(req.user.username) : '';
+    const currentName = req.user?.name ? String(req.user.name) : '';
+    const currentEmail = req.user?.email ? String(req.user.email) : '';
+    const currentCleanHandle = (currentUsername || currentName.toLowerCase().replace(/\s+/g, '')).replace(/^@/, '');
+
+    const userIds = Array.from(
+      new Set([
+        currentUserId,
+        currentAltId,
+        currentUsername,
+        currentName,
+        currentEmail,
+        currentCleanHandle,
+        `@${currentCleanHandle}`,
+      ])
+    ).filter(Boolean);
 
     const nextStatus = action === 'ACCEPT' ? 'ACCEPTED' : 'REJECTED';
 
@@ -567,34 +651,8 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
     invalidateRankingsCache();
 
     if (action === 'ACCEPT') {
-      try {
-        const accepterName = req.user?.name || 'A friend';
-        const requesterSubs = await PushSubscription.find({ userId: friendship.requesterId });
-        if (requesterSubs.length > 0) {
-          for (const sub of requesterSubs) {
-            await dispatchUnifiedNotification({
-              sub,
-              userId: friendship.requesterId,
-              title: 'Friend Request Accepted! ⚡',
-              body: `${accepterName} accepted your friend request! View their streak on the leaderboard.`,
-              type: 'system',
-              tag: `friend-accepted-${friendship._id}`,
-              url: '/rank',
-            });
-          }
-        } else {
-          await dispatchUnifiedNotification({
-            userId: friendship.requesterId,
-            title: 'Friend Request Accepted! ⚡',
-            body: `${accepterName} accepted your friend request! View their streak on the leaderboard.`,
-            type: 'system',
-            tag: `friend-accepted-${friendship._id}`,
-            url: '/rank',
-          });
-        }
-      } catch (notifErr) {
-        console.warn('[Friends] Failed to deliver accept notification:', notifErr);
-      }
+      const accepterName = req.user?.name || req.user?.username || 'A friend';
+      await deliverFriendAcceptedNotification(String(friendship.requesterId), accepterName, String(friendship._id));
     }
 
     return sendSuccess(
