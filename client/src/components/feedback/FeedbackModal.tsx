@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Flag, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Flag, Lock, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
 import { useSession } from '../../lib/auth-client';
 
 interface FeedbackModalProps {
@@ -24,10 +24,13 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [type, setType] = useState<FeedbackType | ''>('');
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  const dropdownContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -35,6 +38,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
     setErrorMsg('');
     setMessage('');
     setType('');
+    setIsTypeDropdownOpen(false);
 
     if (session?.user) {
       setName(session.user.name || '');
@@ -44,6 +48,21 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
       setEmail('');
     }
   }, [isOpen, session]);
+
+  // Close type dropdown when clicking outside
+  useEffect(() => {
+    if (!isTypeDropdownOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        dropdownContainerRef.current &&
+        !dropdownContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsTypeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isTypeDropdownOpen]);
 
   if (!isOpen) return null;
 
@@ -81,7 +100,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
     'w-full px-4 py-3 rounded-xl text-sm font-medium transition-all outline-none ' +
     'bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.10] ' +
     'text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 ' +
-    'focus:border-slate-400 dark:focus:border-white/30 focus:ring-2 focus:ring-slate-300/40 dark:focus:ring-white/[0.08]';
+    'focus:border-amber-500/50 dark:focus:border-amber-400/50 focus:ring-2 focus:ring-amber-500/15';
 
   const readOnlyClass =
     'w-full px-4 py-3 rounded-xl text-sm font-medium ' +
@@ -109,8 +128,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
       <div className="w-full max-w-md mx-auto px-4 pb-16 flex flex-col">
         {/* Icon + heading */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.10] flex items-center justify-center mb-4">
-            <Flag className="w-6 h-6 text-slate-500 dark:text-slate-400" />
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/20 flex items-center justify-center mb-4">
+            <Flag className="w-6 h-6 text-amber-600 dark:text-amber-400" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             Report a Problem
@@ -165,21 +184,57 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
             )}
           </div>
 
-          {/* Type dropdown */}
+          {/* Type dropdown — custom accessible dark mode select */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
               Type of Feedback
             </label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as FeedbackType)}
-              className={`${inputClass} appearance-none`}
-            >
-              <option value="" disabled>Select a type…</option>
-              {FEEDBACK_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+            <div ref={dropdownContainerRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setIsTypeDropdownOpen((prev) => !prev)}
+                className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all outline-none flex items-center justify-between text-left cursor-pointer
+                  bg-slate-100 dark:bg-white/[0.06] border ${
+                    isTypeDropdownOpen
+                      ? 'border-amber-500/60 dark:border-amber-400/60 ring-2 ring-amber-500/15'
+                      : 'border-slate-200 dark:border-white/[0.10]'
+                  }`}
+              >
+                <span className={type ? 'text-slate-900 dark:text-white font-medium' : 'text-slate-400 dark:text-slate-500'}>
+                  {type ? FEEDBACK_TYPES.find((t) => t.value === type)?.label : 'Select a type…'}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                    isTypeDropdownOpen ? 'rotate-180 text-amber-500 dark:text-amber-400' : ''
+                  }`}
+                />
+              </button>
+
+              {isTypeDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 p-1.5 rounded-2xl bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.12] shadow-2xl z-50 animate-in fade-in duration-150 flex flex-col gap-1">
+                  {FEEDBACK_TYPES.map((t) => {
+                    const isSelected = type === t.value;
+                    return (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => {
+                          setType(t.value);
+                          setIsTypeDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 dark:border-amber-400/30'
+                            : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Message textarea */}
@@ -220,9 +275,9 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
           <button
             type="submit"
             disabled={isSubmitting || Boolean(successMsg)}
-            className="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all cursor-pointer
-              bg-slate-900 dark:bg-white text-white dark:text-slate-900
-              hover:bg-slate-700 dark:hover:bg-slate-100
+            className="w-full py-3.5 rounded-xl text-sm font-extrabold tracking-wide transition-all cursor-pointer
+              bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950
+              shadow-md dark:shadow-[0_0_24px_rgba(250,204,21,0.25)] hover:brightness-105
               disabled:opacity-40 disabled:cursor-not-allowed
               active:scale-[0.98]"
           >

@@ -786,19 +786,28 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
       {/* Main Chat Container - Strictly fixed dimensions on desktop (w-[410px] h-[580px]), mobile h-[100dvh] */}
       <div
         ref={modalRef}
-        className={`fixed z-50 flex flex-col bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.1] shadow-2xl transition-all duration-300 ease-out inset-0 md:inset-auto md:bottom-6 md:left-20 w-full rounded-none md:rounded-3xl animate-in slide-in-from-bottom duration-200 overflow-hidden ${
+        className={`fixed z-50 flex flex-col transition-all duration-300 ease-out inset-0 md:inset-auto md:bottom-[4.75rem] md:left-[6.25rem] w-full animate-in slide-in-from-bottom duration-200 ${
           isExpanded
-            ? 'h-[100dvh] md:w-[720px] md:h-[720px] md:max-h-[86vh] md:shadow-[0_25px_60px_rgba(0,0,0,0.6)]'
-            : 'h-[100dvh] md:w-[410px] md:h-[580px] md:max-h-[85vh] md:shadow-[0_20px_50px_rgba(0,0,0,0.5)]'
+            ? 'h-[100dvh] md:w-[720px] md:h-[720px] md:max-h-[86vh]'
+            : 'h-[100dvh] md:w-[410px] md:h-[580px] md:max-h-[85vh]'
         }`}
       >
-        {/* Speech Bubble Pointer Tail (Desktop bottom-left) */}
+        {/* Speech Bubble Pointer Tail (Desktop bottom-left) - sits outside inner overflow-hidden to point at Chat Button */}
         {!isExpanded && (
           <div
-            className="hidden md:block absolute bottom-5 -left-2 w-4 h-4 bg-white dark:bg-[#10192D] border-l border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[-3px_3px_6px_rgba(0,0,0,0.04)]"
+            className="hidden md:block absolute bottom-3.5 -left-2 w-4 h-4 bg-white dark:bg-[#10192D] border-l border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[-3px_3px_6px_rgba(0,0,0,0.04)] z-20"
             aria-hidden="true"
           />
         )}
+
+        {/* Inner Card Container (with rounded corners, border, shadow, and overflow-hidden for chat scroll) */}
+        <div
+          className={`relative flex flex-col w-full h-full bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.1] shadow-2xl rounded-none md:rounded-3xl overflow-hidden ${
+            isExpanded
+              ? 'md:shadow-[0_25px_60px_rgba(0,0,0,0.6)]'
+              : 'md:shadow-[0_20px_50px_rgba(0,0,0,0.5)]'
+          }`}
+        >
 
         {/* Top Header */}
         <div className="flex items-center justify-between px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/80 dark:bg-[#0B132B]/80 backdrop-blur-md shrink-0 md:rounded-t-3xl">
@@ -1521,6 +1530,7 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
             </div>
           </>
         )}
+        </div>
       </div>
     </>
   );

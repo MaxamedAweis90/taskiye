@@ -102,7 +102,7 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
       className={`z-50 animate-in fade-in slide-in-from-bottom-4 zoom-in-90 duration-500 select-none ${
         isMobile
           ? 'absolute bottom-[calc(100%+0.75rem)] right-0 max-w-[calc(100vw-1.75rem)] w-[20.5rem] filter drop-shadow-2xl'
-          : 'fixed bottom-6 left-20 w-84'
+          : 'absolute bottom-0 left-[calc(100%+1rem)] w-[21rem]'
       }`}
     >
       <div className="relative p-4 rounded-3xl bg-white dark:bg-[#10192D] border border-slate-200 dark:border-white/[0.1] shadow-2xl text-slate-800 dark:text-slate-100 flex flex-col gap-3">
@@ -203,12 +203,12 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
         {/* Speech Bubble Pointer Tail (Matching chat popup tail geometry) */}
         {isMobile ? (
           <div
-            className="absolute -bottom-2 right-8 w-4 h-4 bg-white dark:bg-[#10192D] border-r border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[2px_2px_4px_rgba(0,0,0,0.06)]"
+            className="absolute -bottom-2 right-7 w-4 h-4 bg-white dark:bg-[#10192D] border-r border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[2px_2px_4px_rgba(0,0,0,0.06)]"
             aria-hidden="true"
           />
         ) : (
           <div
-            className="hidden md:block absolute bottom-5 -left-2 w-4 h-4 bg-white dark:bg-[#10192D] border-l border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[-3px_3px_6px_rgba(0,0,0,0.04)]"
+            className="hidden md:block absolute bottom-3.5 -left-2 w-4 h-4 bg-white dark:bg-[#10192D] border-l border-b border-slate-200 dark:border-white/[0.1] rotate-45 transform pointer-events-none shadow-[-3px_3px_6px_rgba(0,0,0,0.04)]"
             aria-hidden="true"
           />
         )}

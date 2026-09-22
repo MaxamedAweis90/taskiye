@@ -1251,16 +1251,20 @@ export const AppLayout: React.FC = () => {
             )}
           </div>
 
-          {/* Feedback button — subtle, below AI chat */}
-          <button
-            type="button"
-            onClick={() => setIsFeedbackOpen(true)}
-            className="w-11 h-11 rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#10192D] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.15] transition-all flex items-center justify-center cursor-pointer"
-            title="Send Feedback or Report a Bug"
-            aria-label="Send Feedback"
-          >
-            <Flag className="w-4 h-4" />
-          </button>
+          {/* Feedback button — circular with smooth horizontal expandable pill on hover */}
+          <div className="relative w-11 h-11 z-30">
+            <button
+              type="button"
+              onClick={() => setIsFeedbackOpen(true)}
+              className="group absolute left-0 top-0 h-11 w-11 hover:w-[152px] rounded-full border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#10192D] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-white/[0.2] transition-all duration-300 ease-in-out flex items-center pl-3.5 overflow-hidden cursor-pointer shadow-sm hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+              aria-label="Feedback Report"
+            >
+              <Flag className="w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-110 text-slate-500 dark:text-slate-400 group-hover:text-amber-500 dark:group-hover:text-amber-400" />
+              <span className="ml-2.5 whitespace-nowrap text-xs font-semibold tracking-normal text-slate-700 dark:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity duration-200 delay-75 select-none">
+                Feedback Report
+              </span>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -2383,61 +2387,64 @@ export const AppLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* Mobile Floating Chat Trigger (< md) - Positioned safely above bottom navigation bar, respecting safe-area-inset-bottom */}
-      <div className="md:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3.5 z-40 flex items-center">
-        {isWelcomeBubbleVisible && !isChatOpen && isMobile && (
-          <WelcomeSpeechBubble
-            position="mobile"
-            onOpenChat={handleOpenChatWithPrompt}
-            onDismiss={handleDismissWelcomeBubble}
-            user={chatUser}
-          />
-        )}
-
-        <button
-          type="button"
-          data-chat-toggle="true"
-          onClick={() => {
-            handleDismissWelcomeBubble();
-            setIsChatOpen((prev) => !prev);
-          }}
-          className={`flex items-center gap-1.5 py-2 transition-all cursor-pointer group shadow-lg active:scale-95 ${
-            isChatOpen
-              ? 'px-3 rounded-full bg-amber-500 dark:bg-amber-400 border border-amber-600 dark:border-amber-300 text-white dark:text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.45)]'
-              : 'pl-2.5 pr-3 rounded-full bg-white/95 dark:bg-[#10192D]/95 backdrop-blur-xl border border-amber-500/40 dark:border-amber-400/40 text-amber-600 dark:text-amber-400 shadow-[0_4px_20px_rgba(245,158,11,0.25)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.6)]'
-          }`}
-          title={isChatOpen ? 'Close Taskiye AI' : 'Taskiye AI Assistant'}
-          aria-label={isChatOpen ? 'Close Taskiye AI' : 'Open Taskiye AI Chatbot'}
-        >
-          {isChatOpen ? (
-            <div className="flex items-center gap-1">
-              <X className="w-4 h-4 transition-transform duration-200" />
-              <span className="text-xs font-black">Close</span>
-            </div>
-          ) : (
-            <>
-              <ChevronLeft className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 transition-transform group-hover:-translate-x-0.5" />
-              <div className="relative">
-                <MessageSquare className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-[#10192D] animate-ping" />
-              </div>
-              <span className="text-[11px] font-black tracking-wide bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
-                AI
-              </span>
-            </>
-          )}
-        </button>
-
-        {/* Feedback button — minimal, below AI chat (mobile) */}
+      {/* Mobile Floating Chat & Feedback Triggers (< md) - Positioned safely above bottom navigation bar */}
+      <div className="md:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3.5 z-40 flex items-center gap-2">
+        {/* Feedback button (mobile) */}
         <button
           type="button"
           onClick={() => setIsFeedbackOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#10192D]/90 border border-slate-200/60 dark:border-white/[0.07] text-slate-400 dark:text-slate-500 text-[10px] font-medium backdrop-blur-xl hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 dark:bg-[#10192D]/90 border border-slate-200/60 dark:border-white/[0.07] text-slate-500 dark:text-slate-400 text-[10px] font-medium backdrop-blur-xl hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer shadow-sm active:scale-95"
           aria-label="Send Feedback"
         >
-          <Flag className="w-3 h-3" />
+          <Flag className="w-3.5 h-3.5 text-amber-500/80 dark:text-amber-400/80" />
           <span>Feedback</span>
         </button>
+
+        {/* AI Chat button with isolated WelcomeSpeechBubble anchor */}
+        <div className="relative flex items-center">
+          {isWelcomeBubbleVisible && !isChatOpen && isMobile && (
+            <WelcomeSpeechBubble
+              position="mobile"
+              onOpenChat={handleOpenChatWithPrompt}
+              onDismiss={handleDismissWelcomeBubble}
+              user={chatUser}
+            />
+          )}
+
+          <button
+            type="button"
+            data-chat-toggle="true"
+            onClick={() => {
+              handleDismissWelcomeBubble();
+              setIsChatOpen((prev) => !prev);
+            }}
+            className={`flex items-center gap-1.5 py-2 transition-all cursor-pointer group shadow-lg active:scale-95 ${
+              isChatOpen
+                ? 'px-3 rounded-full bg-amber-500 dark:bg-amber-400 border border-amber-600 dark:border-amber-300 text-white dark:text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.45)]'
+                : 'pl-2.5 pr-3 rounded-full bg-white/95 dark:bg-[#10192D]/95 backdrop-blur-xl border border-amber-500/40 dark:border-amber-400/40 text-amber-600 dark:text-amber-400 shadow-[0_4px_20px_rgba(245,158,11,0.25)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.6)]'
+            }`}
+            title={isChatOpen ? 'Close Taskiye AI' : 'Taskiye AI Assistant'}
+            aria-label={isChatOpen ? 'Close Taskiye AI' : 'Open Taskiye AI Chatbot'}
+          >
+            {isChatOpen ? (
+              <div className="flex items-center gap-1">
+                <X className="w-4 h-4 transition-transform duration-200" />
+                <span className="text-xs font-black">Close</span>
+              </div>
+            ) : (
+              <>
+                <ChevronLeft className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 transition-transform group-hover:-translate-x-0.5" />
+                <div className="relative">
+                  <MessageSquare className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-[#10192D] animate-ping" />
+                </div>
+                <span className="text-[11px] font-black tracking-wide bg-gradient-to-r from-amber-600 to-amber-500 dark:from-amber-400 dark:to-amber-300 bg-clip-text text-transparent">
+                  AI
+                </span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
