@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   GripVertical,
   Snowflake,
-  WifiOff,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -1015,10 +1014,23 @@ export const Habits: React.FC = () => {
 
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-  const isOfflineWithoutCache =
-    isAuthenticated &&
-    !isOnline &&
-    serverHabits.length === 0;
+  if (!isOnline) {
+    return (
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4 select-none">
+        <SEOHead
+          title="Habits & Routines - Taskiye Habit Tracker"
+          description="Build positive habits, customize cadences, freeze streaks, and track daily consistency on Taskiye."
+          canonicalPath="/habits"
+        />
+        <OfflineEmptyState
+          resourceName="Habit Manager"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: ['habits'] });
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-10">
@@ -1034,12 +1046,6 @@ export const Habits: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Habit Library
             </h1>
-            {!isOnline && (
-              <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                <WifiOff className="w-2.5 h-2.5" />
-                <span>Cached</span>
-              </span>
-            )}
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
             Manage recurring daily routines and active commitments
@@ -1137,14 +1143,7 @@ export const Habits: React.FC = () => {
       </div>
 
       {/* 3. Active Habits Grid (3 Columns) */}
-      {isOfflineWithoutCache ? (
-        <OfflineEmptyState
-          resourceName="Habit Manager"
-          onRetry={() => {
-            queryClient.invalidateQueries({ queryKey: ['habits'] });
-          }}
-        />
-      ) : filteredActiveHabits.length === 0 ? (
+      {filteredActiveHabits.length === 0 ? (
         <div className="bg-white dark:bg-[#152033] border border-slate-200/80 dark:border-white/[0.06] rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-3 shadow-sm dark:shadow-none">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/20 dark:text-amber-400 flex items-center justify-center">
             <Repeat className="w-6 h-6" />

@@ -1174,10 +1174,23 @@ export const Tasks: React.FC = () => {
     setIsEditCreateOpen(true);
   };
 
-  const isOfflineWithoutCache =
-    isAuthenticated &&
-    !isOnline &&
-    (!historyData || (historyData.days.length === 0 && (!historyData.upcomingTasks || historyData.upcomingTasks.length === 0)));
+  if (!isOnline) {
+    return (
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4 select-none">
+        <SEOHead
+          title="Daily Tasks & Focus - Taskiye Task Manager"
+          description="Organize your daily tasks, set priorities, reschedule with one click, and maintain productive momentum on Taskiye."
+          canonicalPath="/tasks"
+        />
+        <OfflineEmptyState
+          resourceName="Task History"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: historyQueryKey });
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4 select-none">
@@ -1199,8 +1212,7 @@ export const Tasks: React.FC = () => {
       />
 
       {/* 2. Upcoming Scheduled Tasks (Expandable Section at top) */}
-      {!isOfflineWithoutCache && (
-        <TaskHistoryUpcomingSection
+      <TaskHistoryUpcomingSection
           upcomingTasks={upcomingTasks}
           expandedTaskId={expandedTaskId}
           creatingTaskId={creatingTaskId}
@@ -1217,17 +1229,9 @@ export const Tasks: React.FC = () => {
           }}
           onAddTask={() => handleOpenNewTask(tomorrowStr)}
         />
-      )}
 
       {/* 3. Chronological Day Sections */}
-      {isOfflineWithoutCache ? (
-        <OfflineEmptyState
-          resourceName="Task History"
-          onRetry={() => {
-            queryClient.invalidateQueries({ queryKey: historyQueryKey });
-          }}
-        />
-      ) : isLoadingInitial ? (
+      {isLoadingInitial ? (
         <TaskHistorySkeleton />
       ) : days.length > 0 ? (
         <div className="flex flex-col gap-6 w-full">

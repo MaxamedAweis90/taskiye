@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Trophy,
   UserMinus,
-  WifiOff,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -287,10 +286,41 @@ export const Rank: React.FC = () => {
     return 'Bronze Tier';
   };
 
-  const isOfflineWithoutCache =
-    !isOnline &&
-    (!rankData || !rankData.leaderboard || rankData.leaderboard.length === 0);
-
+  if (!isOnline) {
+    return (
+      <div className="flex flex-col gap-5 max-w-7xl mx-auto pb-16 text-left">
+        <SEOHead
+          title="Streak Leaderboard & Rivalry Leagues - Taskiye"
+          description="Compete on the live streak leaderboard, join Friends League, challenge rivals, and build the highest consecutive habit streaks on Taskiye."
+          canonicalPath="/rank"
+        />
+        <OfflineEmptyState
+          resourceName="Leaderboard & Rankings"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: ['rankings'] });
+          }}
+        />
+        <AddFriendModal
+          isOpen={isAddFriendModalOpen}
+          onClose={() => setIsAddFriendModalOpen(false)}
+          onOpenQr={() => setIsLinkedInQrModalOpen(true)}
+        />
+        <LinkedInQrModal
+          isOpen={isLinkedInQrModalOpen}
+          onClose={() => setIsLinkedInQrModalOpen(false)}
+          currentUser={
+            currentUser
+              ? {
+                  name: currentUser.name,
+                  handle: currentUser.handle,
+                  avatarUrl: currentUser.avatarUrl || undefined,
+                }
+              : undefined
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto pb-16 text-left">
@@ -306,12 +336,6 @@ export const Rank: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Leaderboard & Rank
             </h1>
-            {!isOnline && (
-              <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                <WifiOff className="w-2.5 h-2.5" />
-                <span>Cached</span>
-              </span>
-            )}
             <span className="bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/35 text-amber-700 dark:text-amber-300 font-bold text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
               <span>All-Time Streak League • Ongoing</span>
@@ -356,7 +380,6 @@ export const Rank: React.FC = () => {
             onClick={() => setIsAddFriendModalOpen(true)}
             className="bg-amber-400 hover:bg-amber-300 dark:bg-[#FACC15] dark:hover:bg-amber-300 text-slate-950 font-black px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(250,204,21,0.25)] transition-all cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
           >
-            <span className="text-base font-bold leading-none">+</span>
             <span>+ Add Friend</span>
           </button>
         </div>
@@ -440,17 +463,8 @@ export const Rank: React.FC = () => {
         </div>
       )}
 
-      {isOfflineWithoutCache ? (
-        <OfflineEmptyState
-          resourceName="Leaderboard & Rankings"
-          onRetry={() => {
-            queryClient.invalidateQueries({ queryKey: ['rankings', leagueType] });
-          }}
-        />
-      ) : (
-        <>
-          {/* 2. PINNED CURRENT-USER BANNER (Real streak & consistency based) */}
-          {currentUser ? (
+      {/* 2. PINNED CURRENT-USER BANNER (Real streak & consistency based) */}
+      {currentUser ? (
         <div className="bg-white dark:bg-[#0B1322] border-2 border-amber-400 dark:border-[#FACC15] rounded-2xl p-3.5 sm:p-5 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.12)] flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4">
           {/* Left Section: Rank Badge, Avatar, Username, Tier, Streak & Completions */}
           <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
@@ -1060,8 +1074,6 @@ export const Rank: React.FC = () => {
           </div>
         </div>
       )}
-    </>
-  )}
 
       {/* 5. ADD FRIEND MODAL (Live search + Connect + Mobile QR icon) */}
       <AddFriendModal

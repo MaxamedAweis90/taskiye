@@ -10,7 +10,6 @@ import {
   TrendingUp,
   ChevronDown,
   X,
-  WifiOff,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -1043,11 +1042,24 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const isOfflineWithoutCache =
-    isAuthenticated &&
-    !isOnline &&
-    serverTasks.length === 0 &&
-    serverHabits.length === 0;
+  if (!isOnline) {
+    return (
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-6 w-full min-w-0">
+        <SEOHead
+          title="Taskiye - Daily Habits, Tasks & Heatmap Tracker"
+          description="Track daily habits with interactive heatmaps, manage today's task checklist, and build unstoppable streaks on Taskiye."
+          canonicalPath="/"
+        />
+        <OfflineEmptyState
+          resourceName="Dashboard"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: ['habits'] });
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-6 w-full min-w-0 overflow-x-hidden">
@@ -1064,12 +1076,6 @@ export const Dashboard: React.FC = () => {
               <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                 Total Habit & Task Completion
               </span>
-              {!isOnline && (
-                <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.2 rounded-full">
-                  <WifiOff className="w-2.5 h-2.5" />
-                  <span>Cached</span>
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
               <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 dark:text-white tracking-tight leading-none">
@@ -1519,29 +1525,18 @@ export const Dashboard: React.FC = () => {
 
         {/* Today's Focus & Routine Checklist - Order 2 on mobile (directly after Cards!), Full width bottom row on desktop */}
         <div className="order-2 lg:order-3 w-full min-w-0 lg:col-span-12">
-          {isOfflineWithoutCache ? (
-            <OfflineEmptyState
-              resourceName="Today's Checklist & Routines"
-              onRetry={() => {
-                queryClient.invalidateQueries({ queryKey: ['tasks'] });
-                queryClient.invalidateQueries({ queryKey: ['habits'] });
-                queryClient.invalidateQueries({ queryKey: ['tasks', 'activity'] });
-              }}
-            />
-          ) : (
-            <TodayChecklist
-              items={checklistItems}
-              onToggle={handleToggleItem}
-              onReorder={handleReorderChecklist}
-              onQuickTaskClick={focusQuickAction}
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
-              updatingTaskId={updatingTaskId}
-              creatingTaskId={creatingTaskId}
-              highlightedTaskId={highlightedTaskId}
-              onCreationAnimationComplete={handleCreationAnimationComplete}
-            />
-          )}
+          <TodayChecklist
+            items={checklistItems}
+            onToggle={handleToggleItem}
+            onReorder={handleReorderChecklist}
+            onQuickTaskClick={focusQuickAction}
+            onEdit={handleEditItem}
+            onDelete={handleDeleteItem}
+            updatingTaskId={updatingTaskId}
+            creatingTaskId={creatingTaskId}
+            highlightedTaskId={highlightedTaskId}
+            onCreationAnimationComplete={handleCreationAnimationComplete}
+          />
         </div>
       </div>
 

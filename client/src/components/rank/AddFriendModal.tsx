@@ -11,11 +11,14 @@ import {
   Clock,
   UserCheck,
   UserMinus,
+  WifiOff,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../../lib/auth-client';
 import { apiFetch } from '../../lib/api';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { OfflineEmptyState } from '../common/OfflineEmptyState';
 
 interface AddFriendModalProps {
   isOpen: boolean;
@@ -42,6 +45,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const { openAuthModal } = useTaskiyeStore();
+  const { isOnline } = useOnlineStatus();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [members, setMembers] = useState<CommunityMember[]>([]);
@@ -433,9 +437,10 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by @name or handle..."
-              autoFocus
-              className="w-full bg-transparent text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
+              placeholder={!isOnline ? 'Search unavailable while offline' : 'Search by @name or handle...'}
+              disabled={!isOnline}
+              autoFocus={isOnline}
+              className="w-full bg-transparent text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none disabled:opacity-50"
             />
 
             {/* LinkedIn-style QR icon at far right of searchbar - Mobile only (< sm) */}
@@ -455,6 +460,14 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
           </div>
         </div>
 
+        {/* Offline Warning Banner */}
+        {!isOnline && (
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center gap-2.5 shrink-0">
+            <WifiOff className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>You are offline. Connect to a network to search and connect with rivals.</span>
+          </div>
+        )}
+
         {/* Notification Toast */}
         {notificationToast && (
           <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-in fade-in shrink-0">
@@ -464,7 +477,13 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         )}
 
         {/* User Listing with Individual Connect Buttons */}
-        <div className="flex flex-col gap-2 overflow-y-auto pr-1 flex-1 min-h-[260px] max-h-[380px]">
+        {!isOnline ? (
+          <OfflineEmptyState
+            resourceName="Friend & Rivalry Search"
+            isCompact={true}
+          />
+        ) : (
+          <div className="flex flex-col gap-2 overflow-y-auto pr-1 flex-1 min-h-[260px] max-h-[380px]">
           <div className="px-1 text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span>
               {searchQuery ? `Matching Members (${displayedMembers.length})` : 'Active Community Rivals'}
@@ -644,7 +663,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             })
           )}
         </div>
-      </div>
+      )}
     </div>
+  </div>
   );
 };
