@@ -17,12 +17,16 @@ import {
   AlertTriangle,
   GripVertical,
   Snowflake,
+  WifiOff,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
 import { useTaskiyeStore, GuestHabit } from '../store/useTaskiyeStore';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
+import { saveQueryCache, getQueryCache, addToOutbox } from '../lib/offlineDb';
 
 type CadenceType = 'Daily' | 'Specific Days' | 'Times per Week';
 
@@ -35,6 +39,26 @@ interface HabitFormData {
   timeOfDay?: string;
   targetUnit?: string;
   isStreakFrozen?: boolean;
+}
+
+interface ServerHabit {
+  _id: string;
+  title: string;
+  frequency: string;
+  category?: string;
+  timeOfDay?: string;
+  targetUnit?: string;
+  streakDays?: number;
+  totalCompletions?: number;
+  consistencyRate?: number;
+  activeDays?: number[];
+  warnings?: number;
+  lastCompletedDate?: string;
+  isStreakFrozen?: boolean;
+  isArchived: boolean;
+  archivedAt?: string;
+  lastStreak?: number;
+  createdAt: string;
 }
 
 const SETUP_CATEGORIES = [
@@ -145,6 +169,7 @@ export const Habits: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user);
+  const { isOnline } = useOnlineStatus();
 
   const {
     habits: guestHabits,
@@ -206,38 +231,43 @@ export const Habits: React.FC = () => {
   const [isDragOverActiveZone, setIsDragOverActiveZone] = useState(false);
   const [customHabitOrder, setCustomHabitOrder] = useState<string[]>([]);
 
-  // TanStack Query for Authenticated Habits
-  const { data: serverHabits = [] } = useQuery({
+  // TanStack Query for Authenticated Habits with offline fallback
+  const { data: serverHabits = [] } = useQuery<ServerHabit[]>({
     queryKey: ['habits'],
     queryFn: async () => {
-      const res = await fetch('/api/habits?includeArchived=true', { credentials: 'include' });
-      const json = await res.json();
-      return (json.data || []) as Array<{
-        _id: string;
-        title: string;
-        frequency: string;
-        category?: string;
-        timeOfDay?: string;
-        targetUnit?: string;
-        streakDays?: number;
-        totalCompletions?: number;
-        consistencyRate?: number;
-        activeDays?: number[];
-        warnings?: number;
-        lastCompletedDate?: string;
-        isStreakFrozen?: boolean;
-        isArchived: boolean;
-        archivedAt?: string;
-        lastStreak?: number;
-        createdAt: string;
-      }>;
+      try {
+        const res = await fetch('/api/habits?includeArchived=true', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const list = (json.data || []) as ServerHabit[];
+        saveQueryCache('habits_include_archived', list);
+        return list;
+      } catch (err) {
+        const cached = await getQueryCache<ServerHabit[]>('habits_include_archived');
+        if (cached) return cached;
+        throw err;
+      }
     },
     enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
   });
 
-  // TanStack Mutation: Create Habit
+  // TanStack Mutation: Create Habit with offline outbox queuing
   const createHabitMutation = useMutation({
     mutationFn: async (newHabit: HabitFormData) => {
+      if (!navigator.onLine) {
+        const tempId = `temp_habit_${Date.now()}`;
+        await addToOutbox({
+          type: 'CREATE_HABIT',
+          endpoint: '/api/habits',
+          method: 'POST',
+          payload: newHabit,
+          tempId,
+        });
+        return { success: true, offline: true, data: { _id: tempId } };
+      }
+
       const res = await fetch('/api/habits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,9 +276,13 @@ export const Habits: React.FC = () => {
       });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    onSuccess: (res) => {
+      if (res?.offline) {
+        showToast('Habit saved offline. Will sync when reconnected.', 'info');
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['habits'] });
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      }
     },
   });
 
@@ -981,6 +1015,11 @@ export const Habits: React.FC = () => {
 
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
+  const isOfflineWithoutCache =
+    isAuthenticated &&
+    !isOnline &&
+    serverHabits.length === 0;
+
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-10">
       <SEOHead
@@ -991,9 +1030,17 @@ export const Habits: React.FC = () => {
       {/* 1. Header Section */}
       <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Habit Library
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              Habit Library
+            </h1>
+            {!isOnline && (
+              <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                <WifiOff className="w-2.5 h-2.5" />
+                <span>Cached</span>
+              </span>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
             Manage recurring daily routines and active commitments
           </p>
@@ -1090,7 +1137,14 @@ export const Habits: React.FC = () => {
       </div>
 
       {/* 3. Active Habits Grid (3 Columns) */}
-      {filteredActiveHabits.length === 0 ? (
+      {isOfflineWithoutCache ? (
+        <OfflineEmptyState
+          resourceName="Habit Manager"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: ['habits'] });
+          }}
+        />
+      ) : filteredActiveHabits.length === 0 ? (
         <div className="bg-white dark:bg-[#152033] border border-slate-200/80 dark:border-white/[0.06] rounded-2xl p-12 text-center flex flex-col items-center justify-center gap-3 shadow-sm dark:shadow-none">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-400/10 dark:border-amber-400/20 dark:text-amber-400 flex items-center justify-center">
             <Repeat className="w-6 h-6" />

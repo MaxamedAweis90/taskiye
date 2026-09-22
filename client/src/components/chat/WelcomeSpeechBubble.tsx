@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Compass, ArrowRight, Bot } from 'lucide-react';
+import { X, Compass, ArrowRight, Bot, WifiOff } from 'lucide-react';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface WelcomeSpeechBubbleProps {
   onOpenChat: (initialPrompt?: string, language?: 'en' | 'so') => void;
@@ -20,6 +21,7 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
   position = 'desktop',
   user,
 }) => {
+  const { isOnline } = useOnlineStatus();
   const [isVisible, setIsVisible] = useState(false);
 
   const [storedLanguage, setStoredLanguage] = useState<'en' | 'so' | null>(() => {
@@ -111,20 +113,22 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-md shrink-0">
               <Bot className="w-4 h-4" />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#10192D]" />
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-[#10192D] ${
+                  isOnline ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+              />
             </div>
             <span className="text-xs font-black text-slate-900 dark:text-white truncate">
-              {firstName ? (
-                currentLang === 'so' ? (
-                  `Ku soo dhawoow, ${firstName}! ⚡`
-                ) : (
-                  `Welcome back, ${firstName}! ⚡`
-                )
-              ) : currentLang === 'so' ? (
-                'Soo dhowow, Marti sharafle! ⚡'
-              ) : (
-                'Welcome, Guest! ⚡'
-              )}
+              {!isOnline
+                ? 'Taskiye AI (Offline)'
+                : firstName
+                ? currentLang === 'so'
+                  ? `Ku soo dhawoow, ${firstName}! ⚡`
+                  : `Welcome back, ${firstName}! ⚡`
+                : currentLang === 'so'
+                ? 'Soo dhowow, Marti sharafle! ⚡'
+                : 'Welcome, Guest! ⚡'}
             </span>
           </div>
 
@@ -141,8 +145,18 @@ export const WelcomeSpeechBubble: React.FC<WelcomeSpeechBubbleProps> = ({
           </button>
         </div>
 
-        {/* Body content based on whether language has been chosen */}
-        {!storedLanguage ? (
+        {/* Offline Notice or Normal Greeting */}
+        {!isOnline ? (
+          <div className="flex flex-col gap-2 p-2.5 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-1.5 font-bold text-xs text-amber-700 dark:text-amber-300">
+              <WifiOff className="w-3.5 h-3.5 shrink-0" />
+              <span>No Internet Available</span>
+            </div>
+            <p className="text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+              Connect to a Network to load your Taskiye AI Assistant.
+            </p>
+          </div>
+        ) : !storedLanguage ? (
           <>
             {/* First time: prompt to choose language */}
             <p className="text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">

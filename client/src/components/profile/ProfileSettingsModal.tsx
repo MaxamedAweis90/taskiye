@@ -12,9 +12,11 @@ import {
   Moon,
   Monitor,
   Mail,
+  WifiOff,
 } from 'lucide-react';
 import { useSession } from '../../lib/auth-client';
 import { useThemeStore } from '../../store/useThemeStore';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 }) => {
   const { data: session } = useSession();
   const { theme, setTheme } = useThemeStore();
+  const { isOnline } = useOnlineStatus();
 
   const [initialData, setInitialData] = useState<ProfileData>(initialProfile);
   const [name, setName] = useState('');
@@ -413,7 +416,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
     await executeSaveProfile();
   };
 
-  const isSaveDisabled = !hasChanges || isSaving || !name.trim();
+  const isSaveDisabled = !hasChanges || isSaving || !name.trim() || !isOnline;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-[#0B132B] text-slate-900 dark:text-slate-100 flex flex-col justify-between select-none overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom,0px))] animate-in fade-in duration-200">
@@ -432,6 +435,16 @@ function compressAvatarImage(file: File): Promise<Blob> {
           Profile Settings
         </div>
       </div>
+
+      {/* Offline Status Warning Banner */}
+      {!isOnline && (
+        <div className="w-full max-w-md mx-auto px-4 -mt-2 mb-2">
+          <div className="flex items-center gap-2 p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-medium">
+            <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>No Internet Available. Settings changes cannot be saved until you reconnect.</span>
+          </div>
+        </div>
+      )}
 
       {/* Centered Main Content Area */}
       <div className="w-full max-w-md mx-auto px-4 py-8 flex flex-col items-center">

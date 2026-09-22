@@ -12,6 +12,9 @@ import { TaskHistorySkeleton } from '../components/tasks/TaskHistorySkeleton';
 import { Calendar, CheckCircle2, Trash2, X } from 'lucide-react';
 import { normalizeCategory } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
+import { saveQueryCache, getQueryCache } from '../lib/offlineDb';
 
 interface DashboardCacheTask {
   _id?: string;
@@ -31,6 +34,7 @@ export const Tasks: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user);
+  const { isOnline } = useOnlineStatus();
 
   const {
     showToast,
@@ -80,38 +84,53 @@ export const Tasks: React.FC = () => {
     [searchQuery, selectedCategory, hideCompleted]
   );
 
-  // TanStack Query: Cached Historical Tasks Data (5 min staleTime, 10 min gcTime)
+  // TanStack Query: Cached Historical Tasks Data (5 min staleTime, 10 min gcTime) with offline fallback
   const {
     data: historyData,
     isLoading: isHistoryLoading,
   } = useQuery({
     queryKey: historyQueryKey,
     queryFn: async () => {
-      const queryParams = new URLSearchParams();
-      queryParams.set('days', '14');
-      if (searchQuery) queryParams.set('search', searchQuery);
-      if (selectedCategory && selectedCategory !== 'All Categories') {
-        queryParams.set('category', selectedCategory);
+      try {
+        const queryParams = new URLSearchParams();
+        queryParams.set('days', '14');
+        if (searchQuery) queryParams.set('search', searchQuery);
+        if (selectedCategory && selectedCategory !== 'All Categories') {
+          queryParams.set('category', selectedCategory);
+        }
+        if (hideCompleted) queryParams.set('hideCompleted', 'true');
+
+        const res = await fetch(`/api/tasks/history?${queryParams.toString()}`, {
+          credentials: 'include',
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch history');
+        const json = await res.json();
+        const data = json?.data as {
+          upcomingTasks?: HistoryTask[];
+          days: HistoryDayBucket[];
+          nextCursorDate: string | null;
+          hasMore: boolean;
+          totalLoggedCount: number;
+        };
+        saveQueryCache('tasks_history_latest', data);
+        return data;
+      } catch (err) {
+        const cached = await getQueryCache<{
+          upcomingTasks?: HistoryTask[];
+          days: HistoryDayBucket[];
+          nextCursorDate: string | null;
+          hasMore: boolean;
+          totalLoggedCount: number;
+        }>('tasks_history_latest');
+        if (cached) return cached;
+        throw err;
       }
-      if (hideCompleted) queryParams.set('hideCompleted', 'true');
-
-      const res = await fetch(`/api/tasks/history?${queryParams.toString()}`, {
-        credentials: 'include',
-      });
-
-      if (!res.ok) throw new Error('Failed to fetch history');
-      const json = await res.json();
-      return json?.data as {
-        upcomingTasks?: HistoryTask[];
-        days: HistoryDayBucket[];
-        nextCursorDate: string | null;
-        hasMore: boolean;
-        totalLoggedCount: number;
-      };
     },
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    retry: false,
   });
 
   /**
@@ -1155,6 +1174,11 @@ export const Tasks: React.FC = () => {
     setIsEditCreateOpen(true);
   };
 
+  const isOfflineWithoutCache =
+    isAuthenticated &&
+    !isOnline &&
+    (!historyData || (historyData.days.length === 0 && (!historyData.upcomingTasks || historyData.upcomingTasks.length === 0)));
+
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4 select-none">
       <SEOHead
@@ -1175,26 +1199,35 @@ export const Tasks: React.FC = () => {
       />
 
       {/* 2. Upcoming Scheduled Tasks (Expandable Section at top) */}
-      <TaskHistoryUpcomingSection
-        upcomingTasks={upcomingTasks}
-        expandedTaskId={expandedTaskId}
-        creatingTaskId={creatingTaskId}
-        highlightedTaskId={highlightedTaskId}
-        swipingOutTaskId={swipingOutTaskId}
-        onCreationAnimationComplete={handleCreationAnimationComplete}
-        onToggleExpand={(id) => setExpandedTaskId((prev) => (prev === id ? null : id))}
-        onToggle={handleToggleTask}
-        onEdit={handleOpenEdit}
-        onDelete={(task) => setTaskToDelete(task)}
-        onOpenReschedule={(task) => {
-          setRescheduleTask(task);
-          setIsRescheduleOpen(true);
-        }}
-        onAddTask={() => handleOpenNewTask(tomorrowStr)}
-      />
+      {!isOfflineWithoutCache && (
+        <TaskHistoryUpcomingSection
+          upcomingTasks={upcomingTasks}
+          expandedTaskId={expandedTaskId}
+          creatingTaskId={creatingTaskId}
+          highlightedTaskId={highlightedTaskId}
+          swipingOutTaskId={swipingOutTaskId}
+          onCreationAnimationComplete={handleCreationAnimationComplete}
+          onToggleExpand={(id) => setExpandedTaskId((prev) => (prev === id ? null : id))}
+          onToggle={handleToggleTask}
+          onEdit={handleOpenEdit}
+          onDelete={(task) => setTaskToDelete(task)}
+          onOpenReschedule={(task) => {
+            setRescheduleTask(task);
+            setIsRescheduleOpen(true);
+          }}
+          onAddTask={() => handleOpenNewTask(tomorrowStr)}
+        />
+      )}
 
       {/* 3. Chronological Day Sections */}
-      {isLoadingInitial ? (
+      {isOfflineWithoutCache ? (
+        <OfflineEmptyState
+          resourceName="Task History"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: historyQueryKey });
+          }}
+        />
+      ) : isLoadingInitial ? (
         <TaskHistorySkeleton />
       ) : days.length > 0 ? (
         <div className="flex flex-col gap-6 w-full">

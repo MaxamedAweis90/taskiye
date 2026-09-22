@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Flag, Lock, CheckCircle2, AlertCircle, ChevronDown } from 'lucide-react';
+import { X, Flag, Lock, CheckCircle2, AlertCircle, ChevronDown, WifiOff } from 'lucide-react';
 import { useSession } from '../../lib/auth-client';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ const FEEDBACK_TYPES: { value: FeedbackType; label: string }[] = [
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const { data: session } = useSession();
   const isAuth = Boolean(session?.user);
+  const { isOnline } = useOnlineStatus();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -71,6 +73,10 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
     setErrorMsg('');
     setSuccessMsg('');
 
+    if (!isOnline) {
+      return setErrorMsg('No Internet Available. Connect to a network to submit feedback.');
+    }
+
     if (!name.trim()) return setErrorMsg('Please enter your name.');
     if (!email.trim() || !email.includes('@')) return setErrorMsg('Please enter a valid email address.');
     if (!type) return setErrorMsg('Please select a feedback type.');
@@ -115,14 +121,24 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
           type="button"
           onClick={onClose}
           className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08] transition-all cursor-pointer"
-          title="Close"
+          title="Close Feedback"
         >
           <X className="w-6 h-6 stroke-[2.5]" />
         </button>
         <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wider uppercase">
-          Send Feedback
+          Feedback & Bug Report
         </div>
       </div>
+
+      {/* Offline Status Warning Banner */}
+      {!isOnline && (
+        <div className="w-full max-w-lg mx-auto px-4 -mt-2 mb-2">
+          <div className="flex items-center gap-2 p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-medium">
+            <WifiOff className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>No Internet Available. Connect to a network to submit feedback.</span>
+          </div>
+        </div>
+      )}
 
       {/* Centered form content */}
       <div className="w-full max-w-md mx-auto px-4 pb-16 flex flex-col">
@@ -274,7 +290,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
           {/* Submit */}
           <button
             type="submit"
-            disabled={isSubmitting || Boolean(successMsg)}
+            disabled={isSubmitting || Boolean(successMsg) || !isOnline}
             className="w-full py-3.5 rounded-xl text-sm font-extrabold tracking-wide transition-all cursor-pointer
               bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950
               shadow-md dark:shadow-[0_0_24px_rgba(250,204,21,0.25)] hover:brightness-105

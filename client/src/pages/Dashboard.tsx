@@ -10,6 +10,7 @@ import {
   TrendingUp,
   ChevronDown,
   X,
+  WifiOff,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -19,6 +20,9 @@ import { TodayChecklist, ChecklistItem } from '../components/dashboard/TodayChec
 import { CustomScrollArea } from '../components/common/CustomScrollArea';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
+import { saveQueryCache, getQueryCache, addToOutbox } from '../lib/offlineDb';
 
 interface ServerTaskItem {
   _id: string;
@@ -33,10 +37,26 @@ interface ServerTaskItem {
   createdAt?: string;
 }
 
+interface ServerHabitItem {
+  _id: string;
+  title: string;
+  frequency: string;
+  category?: string;
+  timeOfDay?: string;
+  activeDays?: number[];
+  isArchived?: boolean;
+  streakDays?: number;
+  totalCompletions?: number;
+  warnings?: number;
+  lastCompletedDate?: string;
+  isStreakFrozen?: boolean;
+}
+
 export const Dashboard: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user);
+  const { isOnline } = useOnlineStatus();
 
   const {
     tasks: guestTasks,
@@ -151,37 +171,48 @@ export const Dashboard: React.FC = () => {
     }
   }, [isAuthenticated, syncHabitsToTodayTasks, todayStr]);
 
-  // TanStack Query for Authenticated Tasks
+  // TanStack Query for Authenticated Tasks with offline fallback
   const { data: serverTasks = [] } = useQuery({
     queryKey: ['tasks', todayStr],
     queryFn: async () => {
-      const res = await fetch(`/api/tasks?date=${todayStr}`, { credentials: 'include' });
-      const json = await res.json();
-      return (json.data || []) as Array<{
-        _id: string;
-        title: string;
-        isCompleted: boolean;
-        isHabitInstance: boolean;
-        habitId?: string | { _id: string };
-        sortOrder: number;
-        category?: string;
-        priority?: 'normal' | 'high';
-        timeTag?: string;
-        createdAt?: string;
-      }>;
+      try {
+        const res = await fetch(`/api/tasks?date=${todayStr}`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const list = (json.data || []) as ServerTaskItem[];
+        saveQueryCache(`tasks_${todayStr}`, list);
+        return list;
+      } catch (err) {
+        const cached = await getQueryCache<ServerTaskItem[]>(`tasks_${todayStr}`);
+        if (cached) return cached;
+        throw err;
+      }
     },
     enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 2,
+    retry: false,
   });
 
-  // TanStack Query for Authenticated Tasks Activity Map (Heatmap Historical Activity)
+  // TanStack Query for Authenticated Tasks Activity Map with offline fallback
   const { data: serverActivity = {} } = useQuery({
     queryKey: ['tasks', 'activity'],
     queryFn: async () => {
-      const res = await fetch('/api/tasks/activity', { credentials: 'include' });
-      const json = await res.json();
-      return (json.data || {}) as Record<string, { completedCount: number; totalCount: number }>;
+      try {
+        const res = await fetch('/api/tasks/activity', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const activity = (json.data || {}) as Record<string, { completedCount: number; totalCount: number }>;
+        saveQueryCache('tasks_activity', activity);
+        return activity;
+      } catch (err) {
+        const cached = await getQueryCache<Record<string, { completedCount: number; totalCount: number }>>('tasks_activity');
+        if (cached) return cached;
+        throw err;
+      }
     },
     enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
   });
 
   // Unified Activity Data for Heatmap
@@ -193,33 +224,42 @@ export const Dashboard: React.FC = () => {
     return getGuestActivityMap();
   }, [isAuthenticated, serverActivity, getGuestActivityMap, guestTasks, guestHabits]);
 
-  // TanStack Query for Authenticated Habits
-  const { data: serverHabits = [] } = useQuery({
+  // TanStack Query for Authenticated Habits with offline fallback
+  const { data: serverHabits = [] } = useQuery<ServerHabitItem[]>({
     queryKey: ['habits'],
     queryFn: async () => {
-      const res = await fetch('/api/habits', { credentials: 'include' });
-      const json = await res.json();
-      return (json.data || []) as Array<{
-        _id: string;
-        title: string;
-        frequency: string;
-        category?: string;
-        timeOfDay?: string;
-        activeDays?: number[];
-        isArchived?: boolean;
-        streakDays?: number;
-        totalCompletions?: number;
-        warnings?: number;
-        lastCompletedDate?: string;
-        isStreakFrozen?: boolean;
-      }>;
+      try {
+        const res = await fetch('/api/habits', { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const habitsList = (json.data || []) as ServerHabitItem[];
+        saveQueryCache('habits_all', habitsList);
+        return habitsList;
+      } catch (err) {
+        const cached = await getQueryCache<ServerHabitItem[]>('habits_all');
+        if (cached) return cached;
+        throw err;
+      }
     },
     enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
   });
 
   // Task Toggle Mutation (Auth Mode) with instant Optimistic Updates
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isCompleted }: { id: string; isCompleted: boolean }) => {
+      if (!navigator.onLine) {
+        await addToOutbox({
+          type: 'UPDATE_TASK',
+          endpoint: `/api/tasks/${id}`,
+          method: 'PATCH',
+          payload: { isCompleted },
+          tempId: id,
+        });
+        return { success: true, offline: true };
+      }
+
       const res = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -251,8 +291,10 @@ export const Dashboard: React.FC = () => {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      if (navigator.onLine) {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['habits'] });
+      }
     },
   });
 
@@ -266,6 +308,18 @@ export const Dashboard: React.FC = () => {
       timeTag?: string;
       isHabitInstance?: boolean;
     }) => {
+      if (!navigator.onLine) {
+        const tempId = `temp_task_${Date.now()}`;
+        await addToOutbox({
+          type: 'CREATE_TASK',
+          endpoint: '/api/tasks',
+          method: 'POST',
+          payload: { ...newTask, date: newTask.date || todayStr },
+          tempId,
+        });
+        return { success: true, offline: true, data: { _id: tempId } };
+      }
+
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -274,8 +328,12 @@ export const Dashboard: React.FC = () => {
       });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    onSuccess: (res) => {
+      if (res?.offline) {
+        showToast('Task saved offline. Will sync when reconnected.', 'info');
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      }
     },
   });
 
@@ -985,6 +1043,12 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const isOfflineWithoutCache =
+    isAuthenticated &&
+    !isOnline &&
+    serverTasks.length === 0 &&
+    serverHabits.length === 0;
+
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-6 w-full min-w-0 overflow-x-hidden">
       <SEOHead
@@ -996,9 +1060,17 @@ export const Dashboard: React.FC = () => {
       <div className="flex flex-wrap items-end justify-between gap-4 pt-1 w-full min-w-0">
         <div className="flex items-start sm:items-end justify-between gap-3 w-full sm:w-auto">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 block mb-1">
-              Total Habit & Task Completion
-            </span>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                Total Habit & Task Completion
+              </span>
+              {!isOnline && (
+                <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.2 rounded-full">
+                  <WifiOff className="w-2.5 h-2.5" />
+                  <span>Cached</span>
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
               <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-extrabold text-slate-900 dark:text-white tracking-tight leading-none">
                 {completionRate}%
@@ -1447,18 +1519,29 @@ export const Dashboard: React.FC = () => {
 
         {/* Today's Focus & Routine Checklist - Order 2 on mobile (directly after Cards!), Full width bottom row on desktop */}
         <div className="order-2 lg:order-3 w-full min-w-0 lg:col-span-12">
-          <TodayChecklist
-            items={checklistItems}
-            onToggle={handleToggleItem}
-            onReorder={handleReorderChecklist}
-            onQuickTaskClick={focusQuickAction}
-            onEdit={handleEditItem}
-            onDelete={handleDeleteItem}
-            updatingTaskId={updatingTaskId}
-            creatingTaskId={creatingTaskId}
-            highlightedTaskId={highlightedTaskId}
-            onCreationAnimationComplete={handleCreationAnimationComplete}
-          />
+          {isOfflineWithoutCache ? (
+            <OfflineEmptyState
+              resourceName="Today's Checklist & Routines"
+              onRetry={() => {
+                queryClient.invalidateQueries({ queryKey: ['tasks'] });
+                queryClient.invalidateQueries({ queryKey: ['habits'] });
+                queryClient.invalidateQueries({ queryKey: ['tasks', 'activity'] });
+              }}
+            />
+          ) : (
+            <TodayChecklist
+              items={checklistItems}
+              onToggle={handleToggleItem}
+              onReorder={handleReorderChecklist}
+              onQuickTaskClick={focusQuickAction}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteItem}
+              updatingTaskId={updatingTaskId}
+              creatingTaskId={creatingTaskId}
+              highlightedTaskId={highlightedTaskId}
+              onCreationAnimationComplete={handleCreationAnimationComplete}
+            />
+          )}
         </div>
       </div>
 

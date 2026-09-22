@@ -24,7 +24,9 @@ import {
   Sparkles,
   Trophy,
   LayoutDashboard,
+  WifiOff,
 } from 'lucide-react';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useChatMind, type SuggestedRoute } from './chatmind';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 import {
@@ -306,6 +308,8 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
   initialLanguage = 'en',
   user,
 }) => {
+  const { isOnline } = useOnlineStatus();
+
   // Initialize language preference from localStorage if available
   const [language, setLanguage] = useState<'en' | 'so'>(() => {
     try {
@@ -617,7 +621,7 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
   // Send message to Gemini API (with ChatMind scope guardrail & agentic action handling)
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
-    if (!text || isLoading) return;
+    if (!text || isLoading || !isOnline) return;
 
     setHasSelectedSuggestion(true);
 
@@ -840,13 +844,24 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-md shrink-0">
                   <Bot className="w-5 h-5" />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#10192D]" />
+                  <span
+                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-[#10192D] ${
+                      isOnline ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
                 </div>
 
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-black text-slate-900 dark:text-white truncate">
-                    Taskiye AI
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-black text-slate-900 dark:text-white truncate">
+                      Taskiye AI
+                    </span>
+                    {!isOnline && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                        Offline
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
                     {language === 'so' ? 'Kaaliyahaaga Wax-soosaarka' : 'Productivity Assistant'}
                   </span>
@@ -1426,6 +1441,18 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
 
             {/* Gemini-Style Input Footer */}
             <div className="border-t border-slate-100 dark:border-white/[0.08] bg-white dark:bg-[#10192D] shrink-0 md:rounded-b-3xl">
+              {/* Offline Status Warning Bar */}
+              {!isOnline && (
+                <div className="px-3.5 py-2.5 bg-amber-500/10 dark:bg-amber-400/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-200 flex items-center gap-2 text-xs">
+                  <WifiOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="font-semibold text-[11px] leading-tight">
+                    {language === 'so'
+                      ? 'Ma jiro internet. Ku xidhnow shabakad si aad u isticmaasho Taskiye AI.'
+                      : 'No Internet Available, Connect to a Network to load your Taskiye AI Assistant.'}
+                  </span>
+                </div>
+              )}
+
               {/* Expanded textarea mode — full-area editor */}
               {isInputExpanded ? (
                 <div className="flex flex-col">
@@ -1436,12 +1463,17 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
                       rows={8}
+                      disabled={!isOnline}
                       placeholder={
-                        language === 'so'
+                        !isOnline
+                          ? language === 'so'
+                            ? 'Ma jiro internet...'
+                            : 'No internet connection...'
+                          : language === 'so'
                           ? 'I weydii wax ku saabsan Taskiye...'
                           : 'Ask about habits, tasks, streaks, or ranks...'
                       }
-                      className="w-full resize-none p-4 bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none leading-relaxed custom-scrollbar"
+                      className="w-full resize-none p-4 bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none leading-relaxed custom-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ height: '200px' }}
                     />
                   </div>
@@ -1457,9 +1489,9 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSendMessage()}
-                      disabled={!inputValue.trim() || isLoading}
+                      disabled={!inputValue.trim() || isLoading || !isOnline}
                       className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0 cursor-pointer ${
-                        inputValue.trim() && !isLoading
+                        inputValue.trim() && !isLoading && isOnline
                           ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-40'
                       }`}
@@ -1481,19 +1513,26 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
                   }}
                   className="p-3"
                 >
-                  <div className="flex items-end rounded-2xl bg-slate-100 dark:bg-[#0B132B] border border-slate-200/80 dark:border-white/[0.08] focus-within:border-amber-500/50 dark:focus-within:border-amber-400/50 transition-[border-color] min-h-[40px] overflow-hidden">
+                  <div className={`flex items-end rounded-2xl bg-slate-100 dark:bg-[#0B132B] border border-slate-200/80 dark:border-white/[0.08] focus-within:border-amber-500/50 dark:focus-within:border-amber-400/50 transition-[border-color] min-h-[40px] overflow-hidden ${
+                    !isOnline ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}>
                     <textarea
                       ref={textareaRef}
                       value={inputValue}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
                       rows={1}
+                      disabled={!isOnline}
                       placeholder={
-                        language === 'so'
+                        !isOnline
+                          ? language === 'so'
+                            ? 'Ma jiro internet...'
+                            : 'No internet connection...'
+                          : language === 'so'
                           ? 'I weydii wax ku saabsan Taskiye...'
                           : 'Ask about habits, tasks, streaks, or ranks...'
                       }
-                      className="flex-1 resize-none py-2.5 pl-3.5 pr-2 bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none min-h-[40px] overflow-hidden custom-scrollbar leading-relaxed"
+                      className="flex-1 resize-none py-2.5 pl-3.5 pr-2 bg-transparent text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none min-h-[40px] overflow-hidden custom-scrollbar leading-relaxed disabled:cursor-not-allowed"
                     />
 
                     {/* Expand button — appears when textarea content overflows */}
@@ -1513,8 +1552,8 @@ export const TaskiyeChatModal: React.FC<TaskiyeChatModalProps> = ({
                     {inputValue.trim() && (
                       <button
                         type="submit"
-                        disabled={isLoading}
-                        className="shrink-0 w-7 h-7 mb-[6.5px] mr-[6.5px] rounded-lg flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white shadow-sm active:scale-95 transition-all cursor-pointer animate-in fade-in zoom-in-75 duration-150"
+                        disabled={isLoading || !isOnline}
+                        className="shrink-0 w-7 h-7 mb-[6.5px] mr-[6.5px] rounded-lg flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white shadow-sm active:scale-95 transition-all cursor-pointer animate-in fade-in zoom-in-75 duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Send message"
                       >
                         {isLoading ? (

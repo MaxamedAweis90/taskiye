@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Trophy,
   UserMinus,
+  WifiOff,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -18,6 +19,9 @@ import { AddFriendModal } from '../components/rank/AddFriendModal';
 import { LinkedInQrModal } from '../components/rank/LinkedInQrModal';
 import { useTaskiyeStore } from '../store/useTaskiyeStore';
 import { SEOHead } from '../components/common/SEOHead';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
+import { saveQueryCache, getQueryCache } from '../lib/offlineDb';
 
 export interface LeaderboardMember {
   id: string;
@@ -69,23 +73,34 @@ export const Rank: React.FC = () => {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const { showToast, openAuthModal } = useTaskiyeStore();
+  const { isOnline } = useOnlineStatus();
 
   const [leagueType, setLeagueType] = useState<'friends' | 'global'>('friends');
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
   const [isLinkedInQrModalOpen, setIsLinkedInQrModalOpen] = useState(false);
   const [respondingFriendshipId, setRespondingFriendshipId] = useState<string | null>(null);
 
-  // Fetch real registered users and live streak rankings from database (polls every 10s)
+  // Fetch real registered users and live streak rankings from database with offline cache fallback
   const { data: rankData, isLoading } = useQuery<RankingsApiResponse>({
     queryKey: ['rankings', leagueType],
     queryFn: async () => {
-      const res = await fetch(`/api/rankings?type=${leagueType}`, {
-        credentials: 'include',
-      });
-      const json = await res.json();
-      return json.data;
+      try {
+        const res = await fetch(`/api/rankings?type=${leagueType}`, {
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        const data = json.data as RankingsApiResponse;
+        saveQueryCache(`rankings_${leagueType}`, data);
+        return data;
+      } catch (err) {
+        const cached = await getQueryCache<RankingsApiResponse>(`rankings_${leagueType}`);
+        if (cached) return cached;
+        throw err;
+      }
     },
-    refetchInterval: 10000,
+    refetchInterval: isOnline ? 10000 : false,
+    retry: false,
   });
 
   // Fetch friends and incoming connection invitations (polls every 5s for live real-time sync)
@@ -272,6 +287,11 @@ export const Rank: React.FC = () => {
     return 'Bronze Tier';
   };
 
+  const isOfflineWithoutCache =
+    !isOnline &&
+    (!rankData || !rankData.leaderboard || rankData.leaderboard.length === 0);
+
+
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto pb-16 text-left">
       <SEOHead
@@ -286,6 +306,12 @@ export const Rank: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Leaderboard & Rank
             </h1>
+            {!isOnline && (
+              <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                <WifiOff className="w-2.5 h-2.5" />
+                <span>Cached</span>
+              </span>
+            )}
             <span className="bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 dark:border-amber-400/35 text-amber-700 dark:text-amber-300 font-bold text-xs px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
               <span>All-Time Streak League • Ongoing</span>
@@ -414,8 +440,17 @@ export const Rank: React.FC = () => {
         </div>
       )}
 
-      {/* 2. PINNED CURRENT-USER BANNER (Real streak & consistency based) */}
-      {currentUser ? (
+      {isOfflineWithoutCache ? (
+        <OfflineEmptyState
+          resourceName="Leaderboard & Rankings"
+          onRetry={() => {
+            queryClient.invalidateQueries({ queryKey: ['rankings', leagueType] });
+          }}
+        />
+      ) : (
+        <>
+          {/* 2. PINNED CURRENT-USER BANNER (Real streak & consistency based) */}
+          {currentUser ? (
         <div className="bg-white dark:bg-[#0B1322] border-2 border-amber-400 dark:border-[#FACC15] rounded-2xl p-3.5 sm:p-5 shadow-sm dark:shadow-[0_0_24px_rgba(250,204,21,0.12)] flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4">
           {/* Left Section: Rank Badge, Avatar, Username, Tier, Streak & Completions */}
           <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
@@ -1025,6 +1060,8 @@ export const Rank: React.FC = () => {
           </div>
         </div>
       )}
+    </>
+  )}
 
       {/* 5. ADD FRIEND MODAL (Live search + Connect + Mobile QR icon) */}
       <AddFriendModal

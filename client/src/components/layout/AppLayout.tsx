@@ -43,6 +43,7 @@ import { TaskiyeChatModal } from '../chat/TaskiyeChatModal';
 import { WelcomeSpeechBubble } from '../chat/WelcomeSpeechBubble';
 import { migrateGuestChatMessages } from '../chat/chatStorage';
 import { FeedbackModal } from '../feedback/FeedbackModal';
+import { OfflineIndicator } from '../common/OfflineIndicator';
 
 interface InAppNotificationItem {
   id: string;
@@ -2520,6 +2521,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Feedback & Bug Report Modal */}
       <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
+
+      {/* Persistent Floating Offline Status Pill */}
+      <OfflineIndicator />
     </div>
   );
 };

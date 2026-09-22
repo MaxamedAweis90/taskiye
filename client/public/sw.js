@@ -1,5 +1,5 @@
 // Taskiye Native High-Performance Service Worker
-const CACHE_NAME = 'taskiye-cache-v3';
+const CACHE_NAME = 'taskiye-cache-v4';
 
 // Critical Shell Assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -72,7 +72,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // B. API endpoints (/api/): Always Live, never cache personalized API data across sessions
+  // B. API endpoints (/api/): Return 503 when offline so queries trigger local offline cache
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request).catch(() => {
@@ -84,7 +84,7 @@ self.addEventListener('fetch', (event) => {
           }),
           {
             headers: { 'Content-Type': 'application/json' },
-            status: 200,
+            status: 503,
           }
         );
       })
