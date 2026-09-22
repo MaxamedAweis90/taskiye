@@ -28,6 +28,7 @@ import {
   RotateCcw,
   X,
   Loader2,
+  Flag,
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession, signOut } from '../../lib/auth-client';
@@ -41,6 +42,7 @@ import { useMidnightRollover } from '../../hooks/useMidnightRollover';
 import { TaskiyeChatModal } from '../chat/TaskiyeChatModal';
 import { WelcomeSpeechBubble } from '../chat/WelcomeSpeechBubble';
 import { migrateGuestChatMessages } from '../chat/chatStorage';
+import { FeedbackModal } from '../feedback/FeedbackModal';
 
 interface InAppNotificationItem {
   id: string;
@@ -275,6 +277,7 @@ export const AppLayout: React.FC = () => {
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
   const [chatInitialLanguage, setChatInitialLanguage] = useState<'en' | 'so'>('en');
   const [isWelcomeBubbleVisible, setIsWelcomeBubbleVisible] = useState(false);
@@ -1247,6 +1250,17 @@ export const AppLayout: React.FC = () => {
               />
             )}
           </div>
+
+          {/* Feedback button — subtle, below AI chat */}
+          <button
+            type="button"
+            onClick={() => setIsFeedbackOpen(true)}
+            className="w-11 h-11 rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#10192D] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.15] transition-all flex items-center justify-center cursor-pointer"
+            title="Send Feedback or Report a Bug"
+            aria-label="Send Feedback"
+          >
+            <Flag className="w-4 h-4" />
+          </button>
         </div>
       </aside>
 
@@ -2413,6 +2427,17 @@ export const AppLayout: React.FC = () => {
             </>
           )}
         </button>
+
+        {/* Feedback button — minimal, below AI chat (mobile) */}
+        <button
+          type="button"
+          onClick={() => setIsFeedbackOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#10192D]/90 border border-slate-200/60 dark:border-white/[0.07] text-slate-400 dark:text-slate-500 text-[10px] font-medium backdrop-blur-xl hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer"
+          aria-label="Send Feedback"
+        >
+          <Flag className="w-3 h-3" />
+          <span>Feedback</span>
+        </button>
       </div>
 
       {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
@@ -2485,6 +2510,9 @@ export const AppLayout: React.FC = () => {
         initialLanguage={chatInitialLanguage}
         user={chatUser}
       />
+
+      {/* Feedback & Bug Report Modal */}
+      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </div>
   );
 };

@@ -16,6 +16,7 @@ import syncRouter from './routes/sync.js';
 import notificationsRouter from './routes/notifications.js';
 import cronRouter from './routes/cron.js';
 import chatRouter from './routes/chat.js';
+import feedbackRouter from './routes/feedback.js';
 
 dotenv.config();
 dotenv.config({ path: '../.env' });
@@ -83,6 +84,7 @@ app.use('/api/sync', syncRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/cron', cronRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/feedback', feedbackRouter);
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
