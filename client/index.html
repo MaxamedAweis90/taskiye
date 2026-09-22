@@ -163,6 +163,8 @@
       React mounts to #root and seamlessly hydrates/renders the interactive interface.
     -->
     <div id="root">
+      <!-- Visually hidden SEO snapshot: readable by crawlers, invisible to users -->
+      <div aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">
       <header
         style="
           padding: 24px;
@@ -260,6 +262,7 @@
           </div>
         </section>
       </main>
+      </div>
 
       <noscript>
         <div
