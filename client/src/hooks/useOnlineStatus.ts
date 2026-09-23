@@ -2,8 +2,26 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { flushOutboxQueue, getPendingOutbox } from '../lib/offlineDb';
 
+const OFFLINE_STORAGE_KEY = 'taskiye_is_offline';
+
+function getStoredOffline(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const val = localStorage.getItem(OFFLINE_STORAGE_KEY);
+    if (val !== null) return val === 'true';
+  } catch {}
+  return typeof navigator !== 'undefined' ? !navigator.onLine : false;
+}
+
+function setStoredOffline(offline: boolean) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(OFFLINE_STORAGE_KEY, offline ? 'true' : 'false');
+  } catch {}
+}
+
 // Shared singleton state across all pages and components
-let globalIsOffline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+let globalIsOffline = getStoredOffline();
 let globalIsNetworkReconnected = false;
 let globalIsChecking = false;
 let globalIsSyncing = false;
@@ -13,6 +31,16 @@ const listeners = new Set<() => void>();
 
 function notifyAll() {
   listeners.forEach((listener) => listener());
+}
+
+// Exportable helper: allows any failing query / API call to immediately flag offline mode
+export function reportNetworkFailure() {
+  if (!globalIsOffline) {
+    globalIsOffline = true;
+    globalIsNetworkReconnected = false;
+    setStoredOffline(true);
+    notifyAll();
+  }
 }
 
 // Perform a real network ping check to verify true internet reachability
@@ -37,6 +65,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => {
     globalIsOffline = true;
     globalIsNetworkReconnected = false;
+    setStoredOffline(true);
     notifyAll();
   });
 
@@ -47,6 +76,29 @@ if (typeof window !== 'undefined') {
     if (globalIsOffline) {
       globalIsNetworkReconnected = true;
       notifyAll();
+    }
+  });
+
+  // Re-verify network status when the PWA is resumed from background
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      pingConnection().then((reachable) => {
+        if (!reachable) {
+          if (!globalIsOffline) {
+            globalIsOffline = true;
+            globalIsNetworkReconnected = false;
+            setStoredOffline(true);
+            notifyAll();
+          }
+        } else {
+          // Internet restored while in background:
+          // Do NOT auto-refresh! Mark as reconnected so user can click Retry.
+          if (globalIsOffline) {
+            globalIsNetworkReconnected = true;
+            notifyAll();
+          }
+        }
+      });
     }
   });
 
@@ -73,6 +125,27 @@ export function useOnlineStatus() {
       })
       .catch(() => {});
 
+    // Initial verification of real network reachability on boot / refresh
+    pingConnection().then((reachable) => {
+      if (!reachable) {
+        if (!globalIsOffline) {
+          globalIsOffline = true;
+          globalIsNetworkReconnected = false;
+          setStoredOffline(true);
+          notifyAll();
+        }
+      } else {
+        if (globalIsOffline) {
+          // It was marked offline, but internet is reachable now:
+          // Indicate internet is back without auto-refreshing
+          globalIsNetworkReconnected = true;
+          notifyAll();
+        } else {
+          setStoredOffline(false);
+        }
+      }
+    });
+
     return () => {
       listeners.delete(onChange);
     };
@@ -91,6 +164,7 @@ export function useOnlineStatus() {
       // Internet is available: exit offline mode and refresh content
       globalIsOffline = false;
       globalIsNetworkReconnected = false;
+      setStoredOffline(false);
       notifyAll();
 
       // Flush any queued mutations in the background
@@ -108,6 +182,7 @@ export function useOnlineStatus() {
       // Still offline
       globalIsOffline = true;
       globalIsNetworkReconnected = false;
+      setStoredOffline(true);
       notifyAll();
       return false;
     }

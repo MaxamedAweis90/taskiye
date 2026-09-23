@@ -12,7 +12,7 @@ import { TaskHistorySkeleton } from '../components/tasks/TaskHistorySkeleton';
 import { Calendar, CheckCircle2, Trash2, X } from 'lucide-react';
 import { normalizeCategory } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useOnlineStatus, reportNetworkFailure } from '../hooks/useOnlineStatus';
 import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
 import { saveQueryCache, getQueryCache } from '../lib/offlineDb';
 
@@ -116,6 +116,7 @@ export const Tasks: React.FC = () => {
         saveQueryCache('tasks_history_latest', data);
         return data;
       } catch (err) {
+        reportNetworkFailure();
         const cached = await getQueryCache<{
           upcomingTasks?: HistoryTask[];
           days: HistoryDayBucket[];

@@ -19,7 +19,7 @@ import { TodayChecklist, ChecklistItem } from '../components/dashboard/TodayChec
 import { CustomScrollArea } from '../components/common/CustomScrollArea';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useOnlineStatus, reportNetworkFailure } from '../hooks/useOnlineStatus';
 import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
 import { saveQueryCache, getQueryCache, addToOutbox } from '../lib/offlineDb';
 
@@ -182,6 +182,7 @@ export const Dashboard: React.FC = () => {
         saveQueryCache(`tasks_${todayStr}`, list);
         return list;
       } catch (err) {
+        reportNetworkFailure();
         const cached = await getQueryCache<ServerTaskItem[]>(`tasks_${todayStr}`);
         if (cached) return cached;
         throw err;
@@ -204,6 +205,7 @@ export const Dashboard: React.FC = () => {
         saveQueryCache('tasks_activity', activity);
         return activity;
       } catch (err) {
+        reportNetworkFailure();
         const cached = await getQueryCache<Record<string, { completedCount: number; totalCount: number }>>('tasks_activity');
         if (cached) return cached;
         throw err;
@@ -235,6 +237,7 @@ export const Dashboard: React.FC = () => {
         saveQueryCache('habits_all', habitsList);
         return habitsList;
       } catch (err) {
+        reportNetworkFailure();
         const cached = await getQueryCache<ServerHabitItem[]>('habits_all');
         if (cached) return cached;
         throw err;

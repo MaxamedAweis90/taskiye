@@ -23,7 +23,7 @@ import { useSession } from '../lib/auth-client';
 import { useTaskiyeStore, GuestHabit } from '../store/useTaskiyeStore';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useOnlineStatus, reportNetworkFailure } from '../hooks/useOnlineStatus';
 import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
 import { saveQueryCache, getQueryCache, addToOutbox } from '../lib/offlineDb';
 
@@ -242,6 +242,7 @@ export const Habits: React.FC = () => {
         saveQueryCache('habits_include_archived', list);
         return list;
       } catch (err) {
+        reportNetworkFailure();
         const cached = await getQueryCache<ServerHabit[]>('habits_include_archived');
         if (cached) return cached;
         throw err;

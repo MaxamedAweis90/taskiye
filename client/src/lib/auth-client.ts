@@ -50,7 +50,9 @@ export function useSession() {
     }
   }, [sessionResult.data]);
 
-  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+  const isOffline =
+    (typeof window !== 'undefined' && localStorage.getItem('taskiye_is_offline') === 'true') ||
+    (typeof navigator !== 'undefined' && !navigator.onLine);
   const effectiveData = sessionResult.data || (isOffline ? cachedSession : null);
 
   return {

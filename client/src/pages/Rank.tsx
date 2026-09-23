@@ -18,7 +18,7 @@ import { AddFriendModal } from '../components/rank/AddFriendModal';
 import { LinkedInQrModal } from '../components/rank/LinkedInQrModal';
 import { useTaskiyeStore } from '../store/useTaskiyeStore';
 import { SEOHead } from '../components/common/SEOHead';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useOnlineStatus, reportNetworkFailure } from '../hooks/useOnlineStatus';
 import { OfflineEmptyState } from '../components/common/OfflineEmptyState';
 import { saveQueryCache, getQueryCache } from '../lib/offlineDb';
 
@@ -93,6 +93,7 @@ export const Rank: React.FC = () => {
         saveQueryCache(`rankings_${leagueType}`, data);
         return data;
       } catch (err) {
+        reportNetworkFailure();
         const cached = await getQueryCache<RankingsApiResponse>(`rankings_${leagueType}`);
         if (cached) return cached;
         throw err;
