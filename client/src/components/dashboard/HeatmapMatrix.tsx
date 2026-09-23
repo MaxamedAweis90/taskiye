@@ -121,6 +121,48 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
     [timeFilter, todayCompletedCount, todayTotalCount, historyLogs]
   );
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState(1);
+  const [canScroll, setCanScroll] = useState(false);
+  const [thumbWidthPercent, setThumbWidthPercent] = useState(30);
+
+  const updateScrollState = React.useCallback(() => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+      const maxScroll = scrollWidth - clientWidth;
+      const hasOverflow = maxScroll > 8;
+      setCanScroll(hasOverflow);
+      if (hasOverflow) {
+        const visibleRatio = Math.min(Math.max(clientWidth / scrollWidth, 0.18), 0.5);
+        setThumbWidthPercent(Math.round(visibleRatio * 100));
+        setScrollProgress(Math.min(Math.max(scrollLeft / maxScroll, 0), 1));
+      } else {
+        setScrollProgress(1);
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const scrollToToday = () => {
+      if (scrollContainerRef.current) {
+        const el = scrollContainerRef.current;
+        el.scrollLeft = el.scrollWidth - el.clientWidth;
+        updateScrollState();
+      }
+    };
+
+    scrollToToday();
+    const rafId = requestAnimationFrame(scrollToToday);
+    const timeoutId = setTimeout(scrollToToday, 60);
+
+    window.addEventListener('resize', updateScrollState);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [timeFilter, weekCount, updateScrollState]);
 
   const getIntensityClass = (intensity: number, isToday?: boolean) => {
     let baseClass = '';
@@ -228,7 +270,11 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
       </div>
 
       {/* 7 Days Grid with Weekday Labels */}
-      <div className="overflow-x-auto pb-1 scrollbar-none w-full max-w-full overscroll-x-contain touch-pan-x">
+      <div
+        ref={scrollContainerRef}
+        onScroll={updateScrollState}
+        className="overflow-x-auto pb-1 scrollbar-none w-full max-w-full overscroll-x-contain touch-pan-x"
+      >
         <div className={weekCount === 1 ? 'max-w-[240px]' : weekCount === 5 ? 'max-w-[380px]' : 'min-w-[560px]'}>
           <div
             className="grid gap-2"
@@ -267,6 +313,37 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Scroll indicator for mobile/smaller screens (before the hover text and border line) */}
+      {canScroll && (
+        <div className="flex items-center justify-center pt-2 pb-0.5 w-full select-none">
+          <div
+            onClick={(e) => {
+              if (!scrollContainerRef.current) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickX = e.clientX - rect.left;
+              const ratio = Math.min(Math.max(clickX / rect.width, 0), 1);
+              const maxScroll =
+                scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+              scrollContainerRef.current.scrollTo({
+                left: ratio * maxScroll,
+                behavior: 'smooth',
+              });
+            }}
+            className="w-24 sm:w-32 h-1 rounded-full bg-slate-200/90 dark:bg-white/[0.08] overflow-hidden relative cursor-pointer"
+            title="Scroll through weeks"
+          >
+            <div
+              className="h-full rounded-full bg-amber-500/90 dark:bg-amber-400 shadow-sm transition-[left] duration-75"
+              style={{
+                width: `${thumbWidthPercent}%`,
+                left: `${scrollProgress * (100 - thumbWidthPercent)}%`,
+                position: 'absolute',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Hover Info Tooltip Bar */}
       <div className="mt-3 min-h-[20px] flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/[0.04] pt-2.5 px-1">
