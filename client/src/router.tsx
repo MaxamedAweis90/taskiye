@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Habits } from './pages/Habits';
 import { Tasks } from './pages/Tasks';
 import { Rank } from './pages/Rank';
+import { NotFound } from './pages/NotFound';
 
 export const router = createBrowserRouter([
   {
@@ -33,9 +34,17 @@ export const router = createBrowserRouter([
         element: <Navigate to="/rank" replace />,
       },
       {
-        path: '*',
-        element: <Navigate to="/" replace />,
+        path: 'habit',
+        element: <Navigate to="/habits" replace />,
+      },
+      {
+        path: 'task',
+        element: <Navigate to="/tasks" replace />,
       },
     ],
+  },
+  {
+    path: '*',
+    element: <NotFound />,
   },
 ]);

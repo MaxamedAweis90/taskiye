@@ -1,9 +1,14 @@
 import React from 'react';
 import { useRouteError, isRouteErrorResponse, Link } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, Home, Sparkles } from 'lucide-react';
+import { NotFound } from '../../pages/NotFound';
 
 export const RouteErrorBoundary: React.FC = () => {
   const error = useRouteError();
+
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    return <NotFound />;
+  }
 
   let errorMessage = 'An unexpected error occurred in the application.';
   let errorStatus = 500;
