@@ -787,7 +787,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
               ...existing,
               title: habit.title,
               category: normalizeCategory(habit.category || 'Routine Activity'),
-              timeTag: habit.timeOfDay || existing.timeTag,
+              timeTag: undefined,
               habitId: habit.id,
               isHabitInstance: true,
             };
@@ -803,7 +803,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
               sortOrder: -1,
               category: normalizeCategory(habit.category || 'Routine Activity'),
               priority: 'normal',
-              timeTag: habit.timeOfDay || 'Continuous',
+              timeTag: undefined,
               createdAt: new Date().toISOString(),
             };
             updatedTasks = [newTask, ...updatedTasks];
@@ -905,7 +905,6 @@ export const useTaskiyeStore = create<TaskiyeState>()(
               ...task,
               ...(updates.title ? { title: updates.title } : {}),
               ...(updates.category ? { category: normalizeCategory(updates.category) } : {}),
-              ...(updates.timeOfDay ? { timeTag: updates.timeOfDay } : {}),
             };
           });
 

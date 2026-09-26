@@ -1459,9 +1459,7 @@ export const Habits: React.FC = () => {
                 {/* Schedule Info */}
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
                   <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                  <span className="truncate">
-                    {habit.frequency} • {habit.timeOfDay || 'Continuous'}
-                  </span>
+                  <span className="truncate">{habit.frequency}</span>
                 </div>
 
                 {/* Inset Metrics Container */}
