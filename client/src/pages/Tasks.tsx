@@ -465,16 +465,34 @@ export const Tasks: React.FC = () => {
   /**
    * Intra-day Task Reordering Handler (Strictly scoped within a day's date container)
    */
-  const handleReorderTaskInDay = (dateStr: string, taskId: string, direction: 'up' | 'down') => {
+  const handleReorderTaskInDay = (
+    dateStr: string,
+    sourceTaskId: string,
+    targetOrDirection: string | 'up' | 'down'
+  ) => {
     const targetDay = days.find((d) => d.date === dateStr);
     if (!targetDay || !targetDay.tasks || targetDay.tasks.length <= 1) return;
 
-    const currentIndex = targetDay.tasks.findIndex((t) => t.id === taskId);
+    const currentIndex = targetDay.tasks.findIndex((t) => t.id === sourceTaskId);
     if (currentIndex === -1) return;
 
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    let targetIndex: number;
+    if (targetOrDirection === 'up') {
+      targetIndex = currentIndex - 1;
+    } else if (targetOrDirection === 'down') {
+      targetIndex = currentIndex + 1;
+    } else {
+      targetIndex = targetDay.tasks.findIndex((t) => t.id === targetOrDirection);
+    }
+
     // Strictly clamp within current day boundaries - impossible to cross into another day
-    if (targetIndex < 0 || targetIndex >= targetDay.tasks.length) return;
+    if (
+      targetIndex < 0 ||
+      targetIndex >= targetDay.tasks.length ||
+      targetIndex === currentIndex
+    ) {
+      return;
+    }
 
     const reorderedTasks = [...targetDay.tasks];
     const [moved] = reorderedTasks.splice(currentIndex, 1);

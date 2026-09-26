@@ -49,6 +49,7 @@ interface ServerHabitItem {
   warnings?: number;
   lastCompletedDate?: string;
   isStreakFrozen?: boolean;
+  sortOrder?: number;
 }
 
 export const Dashboard: React.FC = () => {

@@ -19,6 +19,7 @@ export interface IHabit extends Document {
   consistencyRate: number;
   activeDays: number[];
   isArchived: boolean;
+  sortOrder: number;
   deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -109,6 +110,10 @@ const habitSchema = new Schema<IHabit>(
       default: false,
       index: true,
     },
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
     deletedAt: {
       type: Date,
       default: null,
@@ -119,8 +124,8 @@ const habitSchema = new Schema<IHabit>(
   }
 );
 
-// Optimize query for fetching active habits for a user
-habitSchema.index({ userId: 1, deletedAt: 1, isArchived: 1 });
+// Optimize query for fetching active habits for a user with sorting
+habitSchema.index({ userId: 1, deletedAt: 1, isArchived: 1, sortOrder: 1 });
 
 // MongoDB TTL Index: automatically hard-deletes habits 30 days after soft-deletion
 habitSchema.index(

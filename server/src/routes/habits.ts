@@ -167,7 +167,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
     }
 
     // Slice completedDates to the most recent 30 entries to prevent memory and payload bloat
-    const habits = await Habit.find(filter, { completedDates: { $slice: -30 } }).sort({ createdAt: -1 });
+    const habits = await Habit.find(filter, { completedDates: { $slice: -30 } }).sort({ sortOrder: 1, createdAt: -1 });
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const evaluatedHabits = await Promise.all(
@@ -197,6 +197,29 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
+router.patch('/reorder', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { items } = req.body as { items?: Array<{ id: string; sortOrder: number }> };
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return sendError(res, 'Items array with id and sortOrder required', 400);
+    }
+
+    const bulkOps = items.map((item) => ({
+      updateOne: {
+        filter: { _id: item.id, userId: req.user!.id },
+        update: { $set: { sortOrder: item.sortOrder } },
+      },
+    }));
+
+    await Habit.bulkWrite(bulkOps);
+
+    return sendSuccess(res, { updatedCount: items.length }, 'Habits reordered successfully');
+  } catch (error) {
+    return sendError(res, 'Failed to batch reorder habits', 500, error);
+  }
+});
+
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { title, category, frequency, timeOfDay, targetUnit, activeDays } = req.body;
@@ -204,6 +227,11 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     if (!title || typeof title !== 'string' || !title.trim()) {
       return sendError(res, 'Habit title is required', 400);
     }
+
+    const lastHabit = await Habit.findOne({ userId: req.user!.id, deletedAt: null })
+      .sort({ sortOrder: -1 })
+      .select('sortOrder');
+    const nextSortOrder = (lastHabit?.sortOrder ?? -1) + 1;
 
     const habit = await Habit.create({
       userId: req.user!.id,
@@ -213,6 +241,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       timeOfDay: timeOfDay?.trim() || 'Morning (08:00 AM)',
       targetUnit: targetUnit?.trim() || 'sessions',
       activeDays: Array.isArray(activeDays) ? activeDays : [0, 1, 2, 3, 4, 5, 6],
+      sortOrder: nextSortOrder,
       streakDays: 0,
       totalCompletions: 0,
       warnings: 0,

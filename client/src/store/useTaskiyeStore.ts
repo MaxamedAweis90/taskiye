@@ -34,6 +34,7 @@ export interface GuestHabit {
   isArchived: boolean;
   archivedAt?: string;
   lastStreak?: number;
+  sortOrder?: number;
   createdAt: string;
 }
 

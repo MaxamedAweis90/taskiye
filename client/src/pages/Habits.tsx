@@ -54,6 +54,7 @@ interface ServerHabit {
   lastCompletedDate?: string;
   isStreakFrozen?: boolean;
   isArchived: boolean;
+  sortOrder?: number;
   archivedAt?: string;
   lastStreak?: number;
   createdAt: string;
@@ -227,7 +228,31 @@ export const Habits: React.FC = () => {
   const [dragOverHabitId, setDragOverHabitId] = useState<string | null>(null);
   const [isDragOverArchiveZone, setIsDragOverArchiveZone] = useState(false);
   const [isDragOverActiveZone, setIsDragOverActiveZone] = useState(false);
-  const [customHabitOrder, setCustomHabitOrder] = useState<string[]>([]);
+  // Persistent habit order key per user
+  const habitOrderStorageKey = `taskiye_habit_order_${session?.user?.id || 'guest'}`;
+
+  const [customHabitOrder, setCustomHabitOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(habitOrderStorageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Re-sync saved order whenever active user changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(habitOrderStorageKey);
+      if (saved) {
+        setCustomHabitOrder(JSON.parse(saved));
+      } else {
+        setCustomHabitOrder([]);
+      }
+    } catch {
+      setCustomHabitOrder([]);
+    }
+  }, [habitOrderStorageKey]);
 
   // TanStack Query for Authenticated Habits with offline fallback
   const { data: serverHabits = [] } = useQuery<ServerHabit[]>({
@@ -376,6 +401,7 @@ export const Habits: React.FC = () => {
         frequency: h.frequency || 'Daily',
         timeOfDay: h.timeOfDay || 'Morning',
         targetUnit: h.targetUnit || 'sessions',
+        sortOrder: typeof h.sortOrder === 'number' ? h.sortOrder : 0,
         streakDays: typeof h.streakDays === 'number' ? h.streakDays : 0,
         totalCompletions: typeof h.totalCompletions === 'number' ? h.totalCompletions : 0,
         consistencyRate: typeof h.consistencyRate === 'number' ? h.consistencyRate : 100,
@@ -389,12 +415,13 @@ export const Habits: React.FC = () => {
         createdAt: h.createdAt,
       }));
     }
-    return (guestHabits || []).map((h) => ({
+    return (guestHabits || []).map((h, idx) => ({
       ...h,
       title: h.title || 'Untitled Habit',
       category: h.category || 'Routine',
       frequency: h.frequency || 'Daily',
       activeDays: h.activeDays ?? [0, 1, 2, 3, 4, 5, 6],
+      sortOrder: typeof h.sortOrder === 'number' ? h.sortOrder : idx,
       streakDays: typeof h.streakDays === 'number' ? h.streakDays : 0,
       totalCompletions: typeof h.totalCompletions === 'number' ? h.totalCompletions : 0,
       consistencyRate: typeof h.consistencyRate === 'number' ? h.consistencyRate : 100,
@@ -428,11 +455,13 @@ export const Habits: React.FC = () => {
       if (optimisticallyRestoredIds.has(h.id)) return true;
       return !h.isArchived;
     });
-    if (customHabitOrder.length === 0) return base;
+    if (customHabitOrder.length === 0) {
+      return [...base].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    }
     const orderMap = new Map(customHabitOrder.map((id, index) => [id, index]));
     return [...base].sort((a, b) => {
-      const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 9999;
-      const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 9999;
+      const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : (a.sortOrder ?? 9999);
+      const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : (b.sortOrder ?? 9999);
       return orderA - orderB;
     });
   }, [habitsList, deletedHabitIds, optimisticallyArchivedIds, optimisticallyRestoredIds, customHabitOrder]);
@@ -879,6 +908,11 @@ export const Habits: React.FC = () => {
     }
 
     if (sourceId === targetId) return;
+    performHabitReorder(sourceId, targetId);
+  };
+
+  const performHabitReorder = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
 
     const currentList = [...filteredActiveHabits];
     const sourceIndex = currentList.findIndex((h) => h.id === sourceId);
@@ -891,8 +925,42 @@ export const Habits: React.FC = () => {
 
     const newIdOrder = currentList.map((h) => h.id);
     setCustomHabitOrder(newIdOrder);
+    try {
+      localStorage.setItem(habitOrderStorageKey, JSON.stringify(newIdOrder));
+    } catch {
+      // ignore storage write errors
+    }
 
-    if (!isAuthenticated) {
+    const reorderedPayload = currentList.map((h, idx) => ({
+      id: h.id,
+      sortOrder: idx,
+    }));
+
+    if (isAuthenticated) {
+      // Optimistically update query cache
+      queryClient.setQueryData<ServerHabit[]>(['habits'], (old) => {
+        if (!old || !Array.isArray(old)) return old;
+        const sortMap = new Map(reorderedPayload.map((p) => [p.id, p.sortOrder]));
+        return [...old]
+          .map((item) => {
+            if (sortMap.has(item._id)) {
+              return { ...item, sortOrder: sortMap.get(item._id)! };
+            }
+            return item;
+          })
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      });
+
+      // Persist to backend database
+      fetch('/api/habits/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: reorderedPayload }),
+        credentials: 'include',
+      }).catch((err) => {
+        console.error('Failed to persist habit reordering:', err);
+      });
+    } else {
       const fullList = [...guestHabits];
       const itemMap = new Map(fullList.map((h) => [h.id, h]));
       const reordered: GuestHabit[] = [];
@@ -900,13 +968,66 @@ export const Habits: React.FC = () => {
       newIdOrder.forEach((id) => {
         const h = itemMap.get(id);
         if (h) {
-          reordered.push(h);
+          reordered.push({ ...h, sortOrder: reordered.length });
           itemMap.delete(id);
         }
       });
-      itemMap.forEach((h) => reordered.push(h));
+      itemMap.forEach((h) => reordered.push({ ...h, sortOrder: reordered.length }));
       reorderGuestHabits(reordered);
     }
+  };
+
+  // Cross-Platform Mobile Touch Drag Handlers
+  const touchHabitDragRef = useRef<{ sourceId: string | null; targetId: string | null }>({
+    sourceId: null,
+    targetId: null,
+  });
+
+  const handleHabitTouchStart = (_e: React.TouchEvent, id: string) => {
+    touchHabitDragRef.current = { sourceId: id, targetId: null };
+    setDraggedHabitId(id);
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(10);
+      } catch {
+        // ignore vibrate errors
+      }
+    }
+  };
+
+  const handleHabitTouchMove = (e: React.TouchEvent) => {
+    if (!touchHabitDragRef.current.sourceId) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!targetEl) return;
+
+    const card = targetEl.closest<HTMLElement>('[data-habit-card-id]');
+    if (card) {
+      const targetId = card.getAttribute('data-habit-card-id');
+      if (targetId && targetId !== touchHabitDragRef.current.sourceId) {
+        touchHabitDragRef.current.targetId = targetId;
+        setDragOverHabitId(targetId);
+      }
+    }
+  };
+
+  const handleHabitTouchEnd = () => {
+    const { sourceId, targetId } = touchHabitDragRef.current;
+    if (sourceId && targetId && sourceId !== targetId) {
+      performHabitReorder(sourceId, targetId);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(15);
+        } catch {
+          // ignore vibrate errors
+        }
+      }
+    }
+    touchHabitDragRef.current = { sourceId: null, targetId: null };
+    setDraggedHabitId(null);
+    setDragOverHabitId(null);
   };
 
   // Active Zone drop handlers (Option 2: Drag out of archive to restore)
@@ -1203,6 +1324,7 @@ export const Habits: React.FC = () => {
               <div
                 key={habit.id}
                 id={`habit-card-${habit.id}`}
+                data-habit-card-id={habit.id}
                 draggable={!isDeleting && !isArchiving}
                 onDragStart={(e) => handleActiveDragStart(e, habit.id)}
                 onDragOver={(e) => handleActiveCardDragOver(e, habit.id)}
@@ -1260,8 +1382,11 @@ export const Habits: React.FC = () => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div
-                      className="text-slate-400 hover:text-slate-600 dark:text-slate-600 dark:group-hover:text-slate-400 hover:!text-amber-500 dark:hover:!text-amber-400 cursor-grab active:cursor-grabbing transition-colors p-1 -ml-1 rounded hover:bg-slate-100 dark:hover:bg-white/5 shrink-0"
-                      title="Option 2: Drag down to Archived section to archive, or drag to reorder"
+                      className="text-slate-400 hover:text-slate-600 dark:text-slate-600 dark:group-hover:text-slate-400 hover:!text-amber-500 dark:hover:!text-amber-400 cursor-grab active:cursor-grabbing transition-colors p-1 -ml-1 rounded hover:bg-slate-100 dark:hover:bg-white/5 shrink-0 touch-none select-none"
+                      title="Drag to reorder, or drag down to Archived section"
+                      onTouchStart={(e) => handleHabitTouchStart(e, habit.id)}
+                      onTouchMove={handleHabitTouchMove}
+                      onTouchEnd={handleHabitTouchEnd}
                     >
                       <GripVertical className="w-3.5 h-3.5" />
                     </div>

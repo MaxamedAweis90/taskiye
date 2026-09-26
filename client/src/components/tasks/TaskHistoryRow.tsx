@@ -11,6 +11,7 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle2,
+  GripVertical,
 } from 'lucide-react';
 import { playCelebrationChime } from '../../hooks/usePushNotifications';
 import { getCategoryBadgeStyle, normalizeCategory } from '../../constants/categories';
@@ -125,6 +126,16 @@ interface TaskHistoryRowProps {
   isLastInDay?: boolean;
   canReorder?: boolean;
   showDateBadge?: boolean;
+  dayDate?: string;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  onTouchStart?: (e: React.TouchEvent) => void;
+  onTouchMove?: (e: React.TouchEvent) => void;
+  onTouchEnd?: () => void;
 }
 
 export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
@@ -148,6 +159,16 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
   isFirstInDay = false,
   isLastInDay = false,
   canReorder = false,
+  dayDate,
+  isDragging = false,
+  isDragOver = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
 }) => {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = typeof isExpandedProp === 'boolean' ? isExpandedProp : internalExpanded;
@@ -220,9 +241,20 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
   return (
     <div
       id={`task-history-item-${task.id}`}
+      data-task-history-id={task.id}
+      data-day-date={dayDate}
+      draggable={canReorder}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       className={`rounded-2xl border transition-all duration-300 overflow-visible select-none ${
         isSwipingOut
           ? 'animate-task-swipe-left z-20 pointer-events-none'
+          : isDragging
+          ? 'opacity-40 scale-[0.98] border-dashed border-amber-500 dark:border-amber-400/80 bg-amber-50/50 dark:bg-[#162238] cursor-grabbing z-30'
+          : isDragOver
+          ? 'border-2 border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-400/10 shadow-[0_0_20px_rgba(250,204,21,0.3)] scale-[1.01] z-20'
           : isCreating
           ? 'bg-amber-500/10 dark:bg-[#111A2E] border-amber-500 dark:border-amber-400/80 shadow-[0_0_22px_rgba(245,158,11,0.2)] dark:shadow-[0_0_22px_rgba(250,204,21,0.28)] scale-[1.01]'
           : isHighlighted
@@ -239,8 +271,20 @@ export const TaskHistoryRow: React.FC<TaskHistoryRowProps> = ({
         onClick={handleToggleExpand}
         className="px-3.5 sm:px-5 py-3 sm:py-3.5 flex items-center justify-between gap-3 cursor-pointer group"
       >
-        {/* Left: Checkbox + Title */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+        {/* Left: Grip Handle (if canReorder) + Checkbox + Title */}
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          {canReorder && (
+            <div
+              className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:!text-amber-500 dark:hover:!text-amber-400 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded transition-colors touch-none select-none shrink-0"
+              title="Drag to reorder within day"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+          )}
           {/* Checkbox Wrapper with Tooltip */}
           <div className="relative shrink-0" ref={tooltipRef}>
             <button

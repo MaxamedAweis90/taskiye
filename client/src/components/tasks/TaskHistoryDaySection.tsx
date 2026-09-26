@@ -29,7 +29,11 @@ interface TaskHistoryDaySectionProps {
   onOpenReschedule: (task: HistoryTask) => void;
   onQuickReschedule: (id: string, targetDate: 'today' | 'tomorrow') => void;
   onAddTaskForDay?: (date: string) => void;
-  onReorderTask?: (dateStr: string, taskId: string, direction: 'up' | 'down') => void;
+  onReorderTask?: (
+    dateStr: string,
+    sourceTaskId: string,
+    targetOrDirection: string | 'up' | 'down'
+  ) => void;
 }
 
 export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
@@ -48,6 +52,87 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
   onAddTaskForDay,
   onReorderTask,
 }) => {
+  const [draggedTaskId, setDraggedTaskId] = React.useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = React.useState<string | null>(null);
+
+  // Desktop HTML5 drag & drop handlers (strictly intra-day scoped)
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedTaskId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverTaskId !== id) {
+      setDragOverTaskId(id);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (draggedTaskId && draggedTaskId !== targetId) {
+      onReorderTask?.(day.date, draggedTaskId, targetId);
+    }
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+  };
+
+  // Cross-Platform Mobile Touch Drag Handlers
+  const touchTaskDragRef = React.useRef<{ sourceId: string | null; targetId: string | null }>({
+    sourceId: null,
+    targetId: null,
+  });
+
+  const handleTouchStart = (_e: React.TouchEvent, id: string) => {
+    touchTaskDragRef.current = { sourceId: id, targetId: null };
+    setDraggedTaskId(id);
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(10);
+      } catch {}
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchTaskDragRef.current.sourceId) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!targetEl) return;
+
+    const row = targetEl.closest<HTMLElement>(`[data-day-date="${day.date}"][data-task-history-id]`);
+    if (row) {
+      const targetId = row.getAttribute('data-task-history-id');
+      if (targetId && targetId !== touchTaskDragRef.current.sourceId) {
+        touchTaskDragRef.current.targetId = targetId;
+        setDragOverTaskId(targetId);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    const { sourceId, targetId } = touchTaskDragRef.current;
+    if (sourceId && targetId && sourceId !== targetId) {
+      onReorderTask?.(day.date, sourceId, targetId);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(15);
+        } catch {}
+      }
+    }
+    touchTaskDragRef.current = { sourceId: null, targetId: null };
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+  };
+
   const hasMissed = day.tasks.some((t) => t.status === 'missed');
   const isAllCompleted = day.totalCount > 0 && day.completedCount === day.totalCount;
 
@@ -146,6 +231,7 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
             <TaskHistoryRow
               key={task.id}
               task={task}
+              dayDate={day.date}
               isTomorrow={day.isTomorrow}
               isToday={day.isToday}
               isExpanded={expandedTaskId === task.id}
@@ -155,6 +241,15 @@ export const TaskHistoryDaySection: React.FC<TaskHistoryDaySectionProps> = ({
               isFirstInDay={index === 0}
               isLastInDay={index === day.tasks.length - 1}
               canReorder={day.tasks.length > 1 && Boolean(onReorderTask)}
+              isDragging={draggedTaskId === task.id}
+              isDragOver={dragOverTaskId === task.id}
+              onDragStart={(e) => handleDragStart(e, task.id)}
+              onDragOver={(e) => handleDragOver(e, task.id)}
+              onDrop={(e) => handleDrop(e, task.id)}
+              onDragEnd={handleDragEnd}
+              onTouchStart={(e) => handleTouchStart(e, task.id)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
               onMoveUp={() => onReorderTask?.(day.date, task.id, 'up')}
               onMoveDown={() => onReorderTask?.(day.date, task.id, 'down')}
               onCreationAnimationComplete={onCreationAnimationComplete}
