@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useIsFetching } from '@tanstack/react-query';
 import { useSession } from '../../lib/auth-client';
 import { useTaskiyeStore } from '../../store/useTaskiyeStore';
+import { verifyInitialConnection } from '../../hooks/useOnlineStatus';
 
 export const SplashScreen: React.FC = () => {
   const { data: session, isPending: isSessionLoading } = useSession();
@@ -11,9 +12,11 @@ export const SplashScreen: React.FC = () => {
   const [progress, setProgress] = useState(15);
   const [isDone, setIsDone] = useState(false);
   const [shouldRender, setShouldRender] = useState(true);
-  const [activeMessage, setActiveMessage] = useState<string>('Getting user info...');
+  const [activeMessage, setActiveMessage] = useState<string>('Verifying connection...');
   const [hasAuthSettled, setHasAuthSettled] = useState(false);
   const [isDataReady, setIsDataReady] = useState(false);
+  const [isNetworkOnline, setIsNetworkOnline] = useState(true);
+  const [networkChecked, setNetworkChecked] = useState(false);
 
   // Safety ceiling ref to avoid hanging indefinitely if network stalls
   const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -33,7 +36,22 @@ export const SplashScreen: React.FC = () => {
     return () => clearInterval(interval);
   }, [isLoggingOut]);
 
-  // 2. Allow React component tree to mount and trigger background queries once session is known
+  // 2. Perform authoritative connection check right during splash display
+  useEffect(() => {
+    if (isLoggingOut) return;
+
+    verifyInitialConnection().then((online) => {
+      setIsNetworkOnline(online);
+      setNetworkChecked(true);
+      if (!online) {
+        setActiveMessage('Offline mode: loading cached workspace...');
+        // In offline mode, do not block waiting for live network queries
+        setIsDataReady(true);
+      }
+    });
+  }, [isLoggingOut]);
+
+  // 3. Allow React component tree to mount and trigger background queries once session is known
   useEffect(() => {
     if (isLoggingOut) return;
 
@@ -45,7 +63,7 @@ export const SplashScreen: React.FC = () => {
     }
   }, [isSessionLoading, isLoggingOut, hasAuthSettled]);
 
-  // 3. Safety Timeout (Maximum 3.2s)
+  // 4. Safety Timeout (Maximum 3.2s)
   useEffect(() => {
     if (isLoggingOut) return;
 
@@ -58,9 +76,15 @@ export const SplashScreen: React.FC = () => {
     };
   }, [isLoggingOut]);
 
-  // 4. Data Readiness Detection: Wait until session is loaded AND remote queries have finished
+  // 5. Data Readiness Detection: Wait until session is loaded AND remote queries have finished
   useEffect(() => {
     if (isLoggingOut || isDataReady) return;
+
+    // If offline check already resolved to offline, data is ready from cache
+    if (networkChecked && !isNetworkOnline) {
+      setIsDataReady(true);
+      return;
+    }
 
     if (!isSessionLoading) {
       if (session?.user) {
@@ -76,13 +100,17 @@ export const SplashScreen: React.FC = () => {
         }
       }
     }
-  }, [isSessionLoading, session?.user, hasAuthSettled, isFetching, isLoggingOut, isDataReady]);
+  }, [isSessionLoading, session?.user, hasAuthSettled, isFetching, isLoggingOut, isDataReady, networkChecked, isNetworkOnline]);
 
-  // 5. Completion Transition: Once data is 100% ready, smoothly complete progress and fade out
+  // 6. Completion Transition: Once data is 100% ready, smoothly complete progress and fade out
   useEffect(() => {
     if (isLoggingOut || !isDataReady) return;
 
-    setActiveMessage(session?.user ? 'Workspace ready' : 'Guest workspace ready');
+    if (networkChecked && !isNetworkOnline) {
+      setActiveMessage('Offline workspace ready');
+    } else {
+      setActiveMessage(session?.user ? 'Workspace ready' : 'Guest workspace ready');
+    }
     setProgress(100);
 
     const fadeTimer = setTimeout(() => {
@@ -94,9 +122,9 @@ export const SplashScreen: React.FC = () => {
     }, 280);
 
     return () => clearTimeout(fadeTimer);
-  }, [isDataReady, isLoggingOut, session?.user]);
+  }, [isDataReady, isLoggingOut, session?.user, networkChecked, isNetworkOnline]);
 
-  // 2. Handle Logout Transition Splash
+  // 7. Handle Logout Transition Splash
   useEffect(() => {
     if (isLoggingOut) {
       setShouldRender(true);

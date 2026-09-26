@@ -6,6 +6,10 @@ const OFFLINE_STORAGE_KEY = 'taskiye_is_offline';
 
 function getStoredOffline(): boolean {
   if (typeof window === 'undefined') return false;
+  // If the browser explicitly knows it is online, do not blindly assume offline
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    return false;
+  }
   try {
     const val = localStorage.getItem(OFFLINE_STORAGE_KEY);
     if (val !== null) return val === 'true';
@@ -33,18 +37,11 @@ function notifyAll() {
   listeners.forEach((listener) => listener());
 }
 
-// Exportable helper: allows any failing query / API call to immediately flag offline mode
-export function reportNetworkFailure() {
-  if (!globalIsOffline) {
-    globalIsOffline = true;
-    globalIsNetworkReconnected = false;
-    setStoredOffline(true);
-    notifyAll();
-  }
-}
-
 // Perform a real network ping check to verify true internet reachability
 export async function pingConnection(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return false;
+  }
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -60,6 +57,47 @@ export async function pingConnection(): Promise<boolean> {
   }
 }
 
+// Authoritative boot/splash connectivity verification
+export async function verifyInitialConnection(): Promise<boolean> {
+  const reachable = await pingConnection();
+  if (reachable) {
+    globalIsOffline = false;
+    globalIsNetworkReconnected = false;
+    setStoredOffline(false);
+  } else {
+    globalIsOffline = true;
+    globalIsNetworkReconnected = false;
+    setStoredOffline(true);
+  }
+  notifyAll();
+  return reachable;
+}
+
+// Exportable helper: allows any failing query / API call to report network failure
+export async function reportNetworkFailure() {
+  // If the browser knows it's offline, mark offline immediately
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    if (!globalIsOffline) {
+      globalIsOffline = true;
+      globalIsNetworkReconnected = false;
+      setStoredOffline(true);
+      notifyAll();
+    }
+    return;
+  }
+
+  // If navigator says online, verify with ping before declaring full offline
+  const reachable = await pingConnection();
+  if (!reachable) {
+    if (!globalIsOffline) {
+      globalIsOffline = true;
+      globalIsNetworkReconnected = false;
+      setStoredOffline(true);
+      notifyAll();
+    }
+  }
+}
+
 // Global browser event listeners
 if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => {
@@ -70,8 +108,8 @@ if (typeof window !== 'undefined') {
   });
 
   window.addEventListener('online', () => {
-    // When internet comes back, do NOT auto-refresh the page!
-    // Instead, update the bottom indicator to "You are online. Retry"
+    // When internet comes back during active session, do NOT auto-refresh the page!
+    // Instead, update the bottom indicator to 'You are online. Retry'
     // and wait for the user to explicitly click the button.
     if (globalIsOffline) {
       globalIsNetworkReconnected = true;
@@ -91,8 +129,7 @@ if (typeof window !== 'undefined') {
             notifyAll();
           }
         } else {
-          // Internet restored while in background:
-          // Do NOT auto-refresh! Mark as reconnected so user can click Retry.
+          // Internet restored while in background during active session:
           if (globalIsOffline) {
             globalIsNetworkReconnected = true;
             notifyAll();
@@ -126,25 +163,7 @@ export function useOnlineStatus() {
       .catch(() => {});
 
     // Initial verification of real network reachability on boot / refresh
-    pingConnection().then((reachable) => {
-      if (!reachable) {
-        if (!globalIsOffline) {
-          globalIsOffline = true;
-          globalIsNetworkReconnected = false;
-          setStoredOffline(true);
-          notifyAll();
-        }
-      } else {
-        if (globalIsOffline) {
-          // It was marked offline, but internet is reachable now:
-          // Indicate internet is back without auto-refreshing
-          globalIsNetworkReconnected = true;
-          notifyAll();
-        } else {
-          setStoredOffline(false);
-        }
-      }
-    });
+    verifyInitialConnection();
 
     return () => {
       listeners.delete(onChange);
@@ -204,4 +223,3 @@ export function useOnlineStatus() {
     syncNow,
   };
 }
-
