@@ -13,6 +13,7 @@ export interface IHabit extends Document {
   lastCompletedDate?: string | null; // YYYY-MM-DD
   lastStreak?: number; // Preserved streak for pause/travel mode
   isStreakFrozen?: boolean; // Vacation/freeze mode to pause streak tracking
+  frozenAt?: Date | null; // Timestamp when freeze mode was initiated
   completedDates?: string[]; // Historical completion dates (YYYY-MM-DD)
   archivedAt?: Date | null;
   consistencyRate: number;
@@ -82,6 +83,10 @@ const habitSchema = new Schema<IHabit>(
     isStreakFrozen: {
       type: Boolean,
       default: false,
+    },
+    frozenAt: {
+      type: Date,
+      default: null,
     },
     completedDates: {
       type: [String],

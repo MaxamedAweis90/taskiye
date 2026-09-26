@@ -7,7 +7,7 @@ import { invalidateRankingsCache } from './rankings.js';
 
 const router = Router();
 
-// warnings: 0 = safe, 1–2 = at-risk days missed, reset to 0 on too many missed
+// warnings: 0 = safe, 1–2 = at-risk days missed, reset to 0 on 3 missed scheduled days
 export function evaluateHabitStreakAndWarnings(
   habit: Partial<IHabit>,
   todayStr: string
@@ -19,9 +19,10 @@ export function evaluateHabitStreakAndWarnings(
     };
   }
 
-  if (!habit.lastCompletedDate) {
+  // Habits with 0 streak, no completions, or no completion date NEVER have warnings or freeze
+  if (!habit.streakDays || habit.streakDays <= 0 || !habit.lastCompletedDate || (habit.totalCompletions ?? 0) <= 0) {
     return {
-      streakDays: habit.streakDays ?? 0,
+      streakDays: 0,
       warnings: 0,
     };
   }
@@ -69,20 +70,84 @@ export function evaluateHabitStreakAndWarnings(
   } else if (missedCount === 1) {
     return {
       streakDays: habit.streakDays ?? 0,
-      warnings: 1, // Warning 1: Streak frozen
+      warnings: 1, // Warning 1: Streak frozen / 1 strike used
     };
   } else if (missedCount === 2) {
     return {
       streakDays: habit.streakDays ?? 0,
-      warnings: 2, // Warning 2: Streak frozen
+      warnings: 2, // Warning 2: Final notice / 2 strikes used
     };
   } else {
-    // 3 or more consecutive missed days: streak resets to 0
+    // 3 or more consecutive missed scheduled days: streak resets to 0 and warnings clear
     return {
       streakDays: 0,
       warnings: 0,
     };
   }
+}
+
+// Calculate consistency rate based on scheduled days vs completed days over the past 7 days
+export function calculateHabitConsistency(
+  habit: Partial<IHabit>,
+  todayStr: string
+): number {
+  if (!habit.totalCompletions || habit.totalCompletions <= 0) {
+    return 0;
+  }
+
+  const activeDays: number[] =
+    Array.isArray(habit.activeDays) && habit.activeDays.length > 0
+      ? habit.activeDays
+      : [0, 1, 2, 3, 4, 5, 6];
+
+  const completedSet = new Set<string>(habit.completedDates || []);
+  if (habit.lastCompletedDate) {
+    completedSet.add(habit.lastCompletedDate);
+  }
+
+  // Backfill completed dates using active streak history leading up to lastCompletedDate
+  const streak = habit.streakDays ?? 0;
+  if (streak > 1 && habit.lastCompletedDate) {
+    const lastDate = new Date(habit.lastCompletedDate + 'T00:00:00Z');
+    if (!isNaN(lastDate.getTime())) {
+      const backCursor = new Date(lastDate);
+      let countAdded = 1;
+      for (let d = 1; d <= 30 && countAdded < streak; d++) {
+        backCursor.setUTCDate(backCursor.getUTCDate() - 1);
+        const jsDay = backCursor.getUTCDay();
+        const monBased = (jsDay + 6) % 7;
+        if (activeDays.includes(monBased)) {
+          completedSet.add(backCursor.toISOString().slice(0, 10));
+          countAdded++;
+        }
+      }
+    }
+  }
+
+  const today = new Date(todayStr + 'T00:00:00Z');
+  let scheduledCount = 0;
+  let completedCount = 0;
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    const jsDay = d.getUTCDay();
+    const monBased = (jsDay + 6) % 7; // Mon: 0 ... Sun: 6
+
+    if (activeDays.includes(monBased)) {
+      scheduledCount++;
+      const dateStr = d.toISOString().slice(0, 10);
+      if (completedSet.has(dateStr)) {
+        completedCount++;
+      }
+    }
+  }
+
+  if (scheduledCount === 0) {
+    return habit.totalCompletions > 0 ? 100 : 0;
+  }
+
+  return Math.min(100, Math.round((completedCount / scheduledCount) * 100));
 }
 
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
@@ -109,10 +174,17 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       habits.map(async (h) => {
         if (!h.isArchived) {
           const { streakDays, warnings } = evaluateHabitStreakAndWarnings(h, todayStr);
-          if (h.streakDays !== streakDays || h.warnings !== warnings) {
+          const consistencyRate = calculateHabitConsistency(h, todayStr);
+          const needsUpdate =
+            h.streakDays !== streakDays ||
+            h.warnings !== warnings ||
+            h.consistencyRate !== consistencyRate;
+
+          if (needsUpdate) {
             h.streakDays = streakDays;
             h.warnings = warnings;
-            await Habit.updateOne({ _id: h._id }, { $set: { streakDays, warnings } });
+            h.consistencyRate = consistencyRate;
+            await Habit.updateOne({ _id: h._id }, { $set: { streakDays, warnings, consistencyRate } });
           }
         }
         return h;
@@ -145,7 +217,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       totalCompletions: 0,
       warnings: 0,
       isArchived: false,
-      consistencyRate: 100,
+      consistencyRate: 0,
     });
 
     return sendSuccess(res, habit, 'Habit created successfully', 201);
@@ -298,13 +370,19 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
     if (typeof isStreakFrozen === 'boolean') {
       updateFields.isStreakFrozen = isStreakFrozen;
       if (isStreakFrozen) {
+        updateFields.frozenAt = new Date();
         updateFields.lastStreak = existing.streakDays;
       } else {
-        // Resuming from freeze / vacation mode: clear warnings and offset last completed
+        // Resuming from freeze / vacation mode: clear warnings and preserve or offset last completed
+        updateFields.frozenAt = null;
         updateFields.warnings = 0;
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        updateFields.lastCompletedDate = yesterday.toISOString().slice(0, 10);
+        const yStr = yesterday.toISOString().slice(0, 10);
+        // Only set lastCompletedDate to yesterday if current lastCompletedDate is older than yesterday
+        if (!existing.lastCompletedDate || existing.lastCompletedDate < yStr) {
+          updateFields.lastCompletedDate = yStr;
+        }
       }
     }
 
@@ -373,15 +451,28 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
+    const isAlreadyCompletedToday = Boolean(
+      habit.completedDates?.includes(todayStr) || habit.lastCompletedDate === todayStr
+    );
     const willBeCompleted =
-      typeof isCompleted === 'boolean' ? isCompleted : habit.lastCompletedDate !== todayStr;
+      typeof isCompleted === 'boolean' ? isCompleted : !isAlreadyCompletedToday;
 
     let updatedHabit;
     if (willBeCompleted) {
       // Completed: only increment streak if not already completed today
-      const isAlreadyCompletedToday = habit.lastCompletedDate === todayStr;
       const nextStreak = isAlreadyCompletedToday ? (habit.streakDays || 0) : (habit.streakDays || 0) + 1;
       const nextCompletions = isAlreadyCompletedToday ? (habit.totalCompletions || 0) : (habit.totalCompletions || 0) + 1;
+
+      const nextDates = Array.from(new Set([...(habit.completedDates || []), todayStr]));
+      const nextConsistency = calculateHabitConsistency(
+        {
+          ...habit.toObject(),
+          totalCompletions: nextCompletions,
+          lastCompletedDate: todayStr,
+          completedDates: nextDates,
+        },
+        todayStr
+      );
 
       updatedHabit = await Habit.findOneAndUpdate(
         { _id: id, userId: req.user!.id },
@@ -389,6 +480,7 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
           $set: {
             streakDays: nextStreak,
             totalCompletions: nextCompletions,
+            consistencyRate: nextConsistency,
             warnings: 0,
             lastCompletedDate: todayStr,
             isArchived: false, // Ensure NEVER archived!
@@ -400,17 +492,42 @@ router.post('/:id/toggle', requireAuth, async (req: AuthenticatedRequest, res: R
         { new: true }
       );
     } else {
-      // Uncompleted: -1 total completions, -1 streak (floor at 0), remove from completedDates
-      const nextStreak = Math.max(0, (habit.streakDays || 0) - 1);
+      // Uncompleted: remove todayStr from completedDates, derive new lastCompletedDate, recalculate streak & warnings
+      const remainingDates = (habit.completedDates || []).filter((d) => d !== todayStr).sort();
+      const newLastCompletedDate = remainingDates.length > 0 ? remainingDates[remainingDates.length - 1] : null;
       const nextCompletions = Math.max(0, (habit.totalCompletions || 0) - 1);
+      const baseStreak = Math.max(0, (habit.streakDays || 0) - (isAlreadyCompletedToday ? 1 : 0));
+
+      const evalResult = evaluateHabitStreakAndWarnings(
+        {
+          ...habit.toObject(),
+          lastCompletedDate: newLastCompletedDate,
+          streakDays: baseStreak,
+          completedDates: remainingDates,
+          totalCompletions: nextCompletions,
+        },
+        todayStr
+      );
+
+      const nextConsistency = calculateHabitConsistency(
+        {
+          ...habit.toObject(),
+          totalCompletions: nextCompletions,
+          lastCompletedDate: newLastCompletedDate,
+          completedDates: remainingDates,
+        },
+        todayStr
+      );
 
       updatedHabit = await Habit.findOneAndUpdate(
         { _id: id, userId: req.user!.id },
         {
           $set: {
-            streakDays: nextStreak,
+            streakDays: evalResult.streakDays,
+            warnings: evalResult.warnings,
             totalCompletions: nextCompletions,
-            lastCompletedDate: null,
+            consistencyRate: nextConsistency,
+            lastCompletedDate: newLastCompletedDate,
             isArchived: false, // Ensure NEVER archived!
           },
           $pull: {

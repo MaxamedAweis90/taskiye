@@ -41,6 +41,7 @@ export interface GuestHabit {
  * Calculates current streak and warning buffer (0, 1, 2, or reset to 0)
  * based on missed scheduled days since lastCompletedDate.
  */
+// warnings: 0 = safe, 1–2 = at-risk days missed, reset to 0 on 3 missed scheduled days
 export function evaluateHabitStreakAndWarnings(
   habit: {
     isArchived?: boolean;
@@ -49,6 +50,7 @@ export function evaluateHabitStreakAndWarnings(
     warnings?: number;
     lastCompletedDate?: string | null;
     activeDays?: number[];
+    totalCompletions?: number;
   },
   todayStr: string
 ): { streakDays: number; warnings: number } {
@@ -59,10 +61,11 @@ export function evaluateHabitStreakAndWarnings(
     };
   }
 
-  if (!habit.lastCompletedDate) {
+  // Habits with 0 streak, no completions, or no completion date NEVER have warnings or freeze
+  if (!habit.streakDays || habit.streakDays <= 0 || !habit.lastCompletedDate || (habit.totalCompletions ?? 0) <= 0) {
     return {
-      streakDays: habit.streakDays ?? 0,
-      warnings: habit.warnings ?? 0,
+      streakDays: 0,
+      warnings: 0,
     };
   }
 
@@ -79,7 +82,7 @@ export function evaluateHabitStreakAndWarnings(
   if (isNaN(lastDate.getTime()) || isNaN(today.getTime()) || lastDate >= today) {
     return {
       streakDays: habit.streakDays ?? 0,
-      warnings: habit.warnings ?? 0,
+      warnings: 0,
     };
   }
 
@@ -109,20 +112,90 @@ export function evaluateHabitStreakAndWarnings(
   } else if (missedCount === 1) {
     return {
       streakDays: habit.streakDays ?? 0,
-      warnings: 1, // Warning 1: Streak frozen
+      warnings: 1, // Warning 1: Streak frozen / 1 strike used
     };
   } else if (missedCount === 2) {
     return {
       streakDays: habit.streakDays ?? 0,
-      warnings: 2, // Warning 2: Streak frozen
+      warnings: 2, // Warning 2: Final notice / 2 strikes used
     };
   } else {
-    // 3 or more consecutive missed days: reset streak to 0
+    // 3 or more consecutive missed scheduled days: reset streak to 0
     return {
       streakDays: 0,
       warnings: 0,
     };
   }
+}
+
+// Calculate consistency rate based on scheduled days vs completed days over the past 7 days
+export function calculateHabitConsistency(
+  habit: {
+    totalCompletions?: number;
+    streakDays?: number;
+    activeDays?: number[];
+    completedDates?: string[];
+    lastCompletedDate?: string | null;
+  },
+  todayStr: string
+): number {
+  if (!habit.totalCompletions || habit.totalCompletions <= 0) {
+    return 0;
+  }
+
+  const activeDays: number[] =
+    Array.isArray(habit.activeDays) && habit.activeDays.length > 0
+      ? habit.activeDays
+      : [0, 1, 2, 3, 4, 5, 6];
+
+  const completedSet = new Set<string>(habit.completedDates || []);
+  if (habit.lastCompletedDate) {
+    completedSet.add(habit.lastCompletedDate);
+  }
+
+  // Backfill completed dates using active streak history leading up to lastCompletedDate
+  const streak = habit.streakDays ?? 0;
+  if (streak > 1 && habit.lastCompletedDate) {
+    const lastDate = new Date(habit.lastCompletedDate + 'T00:00:00Z');
+    if (!isNaN(lastDate.getTime())) {
+      const backCursor = new Date(lastDate);
+      let countAdded = 1;
+      for (let d = 1; d <= 30 && countAdded < streak; d++) {
+        backCursor.setUTCDate(backCursor.getUTCDate() - 1);
+        const jsDay = backCursor.getUTCDay();
+        const monBased = (jsDay + 6) % 7;
+        if (activeDays.includes(monBased)) {
+          completedSet.add(backCursor.toISOString().slice(0, 10));
+          countAdded++;
+        }
+      }
+    }
+  }
+
+  const today = new Date(todayStr + 'T00:00:00Z');
+  let scheduledCount = 0;
+  let completedCount = 0;
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    const jsDay = d.getUTCDay();
+    const monBased = (jsDay + 6) % 7; // Mon: 0 ... Sun: 6
+
+    if (activeDays.includes(monBased)) {
+      scheduledCount++;
+      const dateStr = d.toISOString().slice(0, 10);
+      if (completedSet.has(dateStr)) {
+        completedCount++;
+      }
+    }
+  }
+
+  if (scheduledCount === 0) {
+    return habit.totalCompletions > 0 ? 100 : 0;
+  }
+
+  return Math.min(100, Math.round((completedCount / scheduledCount) * 100));
 }
 
 export type AuthModalTriggerReason =
@@ -357,7 +430,9 @@ export const useTaskiyeStore = create<TaskiyeState>()(
 
               if (!matchesId && !matchesTitle) return habit;
 
-              const isAlreadyCompletedToday = habit.lastCompletedDate === todayStr;
+              const isAlreadyCompletedToday = Boolean(
+                habit.completedDates?.includes(todayStr) || habit.lastCompletedDate === todayStr
+              );
               const completedDates = Array.from(new Set([...(habit.completedDates || []), todayStr]));
 
               return {
@@ -407,7 +482,9 @@ export const useTaskiyeStore = create<TaskiyeState>()(
 
             if (nextCompleted) {
               // Checking off: only increment streak if not already completed on this date
-              const isAlreadyCompletedToday = habit.lastCompletedDate === taskDateStr;
+              const isAlreadyCompletedToday = Boolean(
+                habit.completedDates?.includes(taskDateStr) || habit.lastCompletedDate === taskDateStr
+              );
               const completedDates = Array.from(new Set([...(habit.completedDates || []), taskDateStr]));
               return {
                 ...habit,
@@ -433,12 +510,29 @@ export const useTaskiyeStore = create<TaskiyeState>()(
                 return habit;
               }
 
-              const completedDates = (habit.completedDates || []).filter((d) => d !== taskDateStr);
+              const wasAlreadyCompleted = Boolean(
+                habit.completedDates?.includes(taskDateStr) || habit.lastCompletedDate === taskDateStr
+              );
+              const completedDates = (habit.completedDates || []).filter((d) => d !== taskDateStr).sort();
+              const newLastCompletedDate = completedDates.length > 0 ? completedDates[completedDates.length - 1] : null;
+              const nextCompletions = Math.max(0, (habit.totalCompletions || 0) - (wasAlreadyCompleted ? 1 : 0));
+              const baseStreak = Math.max(0, (habit.streakDays || 0) - (wasAlreadyCompleted ? 1 : 0));
+
+              const evalResult = evaluateHabitStreakAndWarnings(
+                {
+                  ...habit,
+                  lastCompletedDate: newLastCompletedDate,
+                  streakDays: baseStreak,
+                },
+                taskDateStr
+              );
+
               return {
                 ...habit,
-                totalCompletions: Math.max(0, (habit.totalCompletions || 0) - 1),
-                streakDays: Math.max(0, (habit.streakDays || 0) - 1),
-                lastCompletedDate: null,
+                totalCompletions: nextCompletions,
+                streakDays: evalResult.streakDays,
+                warnings: evalResult.warnings,
+                lastCompletedDate: newLastCompletedDate,
                 completedDates,
                 isArchived: false,
               };
@@ -466,7 +560,9 @@ export const useTaskiyeStore = create<TaskiyeState>()(
         const updatedHabits = state.habits.map((h) => {
           if (h.id !== habitId) return h;
           if (willBeCompleted) {
-            const isAlreadyCompletedToday = h.lastCompletedDate === todayStr;
+            const isAlreadyCompletedToday = Boolean(
+              h.completedDates?.includes(todayStr) || h.lastCompletedDate === todayStr
+            );
             const completedDates = Array.from(new Set([...(h.completedDates || []), todayStr]));
             return {
               ...h,
@@ -478,12 +574,29 @@ export const useTaskiyeStore = create<TaskiyeState>()(
               isArchived: false,
             };
           } else {
-            const completedDates = (h.completedDates || []).filter((d) => d !== todayStr);
+            const wasAlreadyCompleted = Boolean(
+              h.completedDates?.includes(todayStr) || h.lastCompletedDate === todayStr
+            );
+            const completedDates = (h.completedDates || []).filter((d) => d !== todayStr).sort();
+            const newLastCompletedDate = completedDates.length > 0 ? completedDates[completedDates.length - 1] : null;
+            const nextCompletions = Math.max(0, (h.totalCompletions || 0) - (wasAlreadyCompleted ? 1 : 0));
+            const baseStreak = Math.max(0, (h.streakDays || 0) - (wasAlreadyCompleted ? 1 : 0));
+
+            const evalResult = evaluateHabitStreakAndWarnings(
+              {
+                ...h,
+                lastCompletedDate: newLastCompletedDate,
+                streakDays: baseStreak,
+              },
+              todayStr
+            );
+
             return {
               ...h,
-              totalCompletions: Math.max(0, (h.totalCompletions || 0) - 1),
-              streakDays: Math.max(0, (h.streakDays || 0) - 1),
-              lastCompletedDate: null,
+              totalCompletions: nextCompletions,
+              streakDays: evalResult.streakDays,
+              warnings: evalResult.warnings,
+              lastCompletedDate: newLastCompletedDate,
               completedDates,
               isArchived: false,
             };
@@ -621,14 +734,15 @@ export const useTaskiyeStore = create<TaskiyeState>()(
           return true; // default Daily / Everyday
         };
 
-        // Evaluate streaks & warnings for all active habits with dirty check
+        // Evaluate streaks, warnings & consistency for all active habits with dirty check
         let habitsChanged = false;
         const evaluatedHabits = state.habits.map((h) => {
           if (h.isArchived) return h;
           const { streakDays, warnings } = evaluateHabitStreakAndWarnings(h, todayStr);
-          if (h.streakDays !== streakDays || h.warnings !== warnings) {
+          const consistencyRate = calculateHabitConsistency(h, todayStr);
+          if (h.streakDays !== streakDays || h.warnings !== warnings || h.consistencyRate !== consistencyRate) {
             habitsChanged = true;
-            return { ...h, streakDays, warnings };
+            return { ...h, streakDays, warnings, consistencyRate };
           }
           return h;
         });

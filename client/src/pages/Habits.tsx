@@ -2,7 +2,6 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus,
   Search,
-  Check,
   Clock,
   Pencil,
   Archive,
@@ -20,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
-import { useTaskiyeStore, GuestHabit } from '../store/useTaskiyeStore';
+import { useTaskiyeStore, GuestHabit, calculateHabitConsistency } from '../store/useTaskiyeStore';
 import { APP_CATEGORIES, normalizeCategory, getCategoryBadgeStyle } from '../constants/categories';
 import { SEOHead } from '../components/common/SEOHead';
 import { useOnlineStatus, reportNetworkFailure } from '../hooks/useOnlineStatus';
@@ -1014,6 +1013,7 @@ export const Habits: React.FC = () => {
   };
 
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   if (!isOnline) {
     return (
@@ -1185,6 +1185,20 @@ export const Habits: React.FC = () => {
             const isDragging = draggedHabitId === habit.id;
             const isDragOver = dragOverHabitId === habit.id;
 
+            const streak = habit.streakDays ?? 0;
+            const totalComps = habit.totalCompletions ?? 0;
+            const hasActiveStreak = streak > 0 && totalComps > 0;
+            const isFrozen = habit.isStreakFrozen ?? false;
+            // Only apply strikes/warnings if the habit actually has an active streak and is not frozen
+            const effectiveWarnings = hasActiveStreak && !isFrozen ? (habit.warnings ?? 0) : 0;
+            const consistency = calculateHabitConsistency(habit, todayStr);
+
+            const habitDays = Array.isArray(habit.activeDays) && habit.activeDays.length > 0
+              ? habit.activeDays
+              : isWeekdays
+              ? [0, 1, 2, 3, 4]
+              : [0, 1, 2, 3, 4, 5, 6];
+
             return (
               <div
                 key={habit.id}
@@ -1209,6 +1223,12 @@ export const Habits: React.FC = () => {
                     ? 'animate-card-edit-pulse border-amber-500 dark:border-amber-400/80 shadow-[0_0_25px_rgba(250,204,21,0.35)] z-20'
                     : isCreating
                     ? 'border-violet-500 dark:border-violet-400/80 shadow-[0_0_30px_rgba(167,139,250,0.35)] scale-[1.01] z-20 before:absolute before:inset-0 before:bg-gradient-to-br before:from-violet-500/[0.12] before:to-transparent before:pointer-events-none'
+                    : isFrozen
+                    ? 'border-cyan-400/90 dark:border-cyan-400/80 bg-cyan-500/[0.02] dark:bg-cyan-500/[0.05] shadow-[0_0_20px_rgba(34,211,238,0.18)]'
+                    : effectiveWarnings === 2
+                    ? 'border-rose-400/90 dark:border-rose-500/80 bg-rose-500/[0.02] dark:bg-rose-500/[0.05] shadow-[0_0_20px_rgba(244,63,94,0.2)]'
+                    : effectiveWarnings === 1
+                    ? 'border-amber-400/90 dark:border-amber-500/70 bg-amber-500/[0.02] dark:bg-amber-500/[0.04] shadow-[0_0_18px_rgba(245,158,11,0.15)]'
                     : 'border-slate-200/90 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.12]'
                 }`}
               >
@@ -1255,62 +1275,45 @@ export const Habits: React.FC = () => {
 
                   {/* Streak & Warning Badges */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {habit.isStreakFrozen ? (
+                    {isFrozen ? (
                       <span
                         className="bg-cyan-50 border border-cyan-200 text-cyan-700 dark:bg-[#0b2430] dark:border-cyan-400/50 dark:text-cyan-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 shadow-sm dark:shadow-[0_0_12px_rgba(34,211,238,0.25)]"
-                        title="Streak Frozen (Vacation Mode). Streak count and warnings are protected from penalty."
+                        title="Streak Frozen: Protected from penalty until resumed."
                       >
                         <Snowflake className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                        <span>{habit.streakDays ?? 0}d (Frozen)</span>
+                        <span>{streak}d (Frozen)</span>
                       </span>
-                    ) : habit.warnings === 1 ? (
+                    ) : effectiveWarnings === 1 ? (
                       <span
                         className="bg-amber-50 border border-amber-300 text-amber-700 dark:bg-[#2b1f09] dark:border-amber-500/50 dark:text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm"
-                        title="Warning 1: 1 Day Missed! Streak is frozen. Complete today to clear warning."
+                        title="Strike 1: Missed 1 scheduled day. Streak protected in grace period."
                       >
-                        <span>⚠️</span>
-                        <span>{habit.streakDays ?? 0}d (At Risk)</span>
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                        <span>{streak}d • Strike 1</span>
                       </span>
-                    ) : habit.warnings === 2 ? (
+                    ) : effectiveWarnings === 2 ? (
                       <span
                         className="bg-rose-50 border border-rose-300 text-rose-700 dark:bg-[#2e1219] dark:border-rose-500/50 dark:text-rose-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm animate-pulse"
-                        title="Warning 2: 2 Days Missed! Final warning before streak resets to 0. Complete today to save streak!"
+                        title="Strike 2: Missed 2 scheduled days. Final notice before reset to 0!"
                       >
-                        <span>🚨</span>
-                        <span>{habit.streakDays ?? 0}d (Final Notice)</span>
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                        <span>{streak}d • Strike 2</span>
                       </span>
-                    ) : (
+                    ) : streak > 0 ? (
                       <span className="bg-amber-50 border border-amber-200 text-amber-700 dark:bg-[#271E0B] dark:border-amber-500/30 dark:text-amber-300 text-xs font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0">
                         <span>🔥</span>
-                        <span>{habit.streakDays ?? 0} Days Active</span>
+                        <span>{streak}d Active</span>
+                      </span>
+                    ) : (
+                      <span className="bg-slate-100 border border-slate-200 text-slate-500 dark:bg-white/[0.05] dark:border-white/[0.08] dark:text-slate-400 text-xs font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0">
+                        <Zap className="w-3 h-3 text-slate-400" />
+                        <span>Ready to start</span>
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Vacation Mode Banner */}
-                {habit.isStreakFrozen && (
-                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-cyan-50 border border-cyan-200 dark:bg-cyan-500/10 dark:border-cyan-500/25 flex items-center gap-1.5 text-[11px] text-cyan-700 dark:text-cyan-300 font-medium">
-                    <Snowflake className="w-3.5 h-3.5 shrink-0 text-cyan-600 dark:text-cyan-400" />
-                    <span>Vacation Mode Active: Streak is safely paused without penalties.</span>
-                  </div>
-                )}
-
-                {/* Warning Alert Banner (if under Warning 1 or Warning 2) */}
-                {habit.warnings === 1 && (
-                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 dark:bg-amber-500/10 dark:border-amber-500/25 flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <span>Warning 1: Missed 1 day. Streak is frozen. Complete today to clear warning!</span>
-                  </div>
-                )}
-                {habit.warnings === 2 && (
-                  <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-300 dark:bg-rose-500/15 dark:border-rose-500/30 flex items-center gap-1.5 text-[11px] text-rose-700 dark:text-rose-300 font-semibold animate-pulse">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
-                    <span>Warning 2: Missed 2 days. Streak resets to 0 if not completed today!</span>
-                  </div>
-                )}
-
-                {/* Habit Title */}
+                {/* Habit Title (Consistent vertical alignment across all cards) */}
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight mt-3 truncate">
                   {isCreating ? (
                     <TypewriterTitle
@@ -1343,7 +1346,7 @@ export const Habits: React.FC = () => {
                       Completions
                     </span>
                     <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
-                      {habit.totalCompletions ?? 0} {habit.targetUnit || 'sessions'}
+                      {totalComps} {habit.targetUnit || 'sessions'}
                     </span>
                   </div>
 
@@ -1351,35 +1354,99 @@ export const Habits: React.FC = () => {
                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
                       Consistency
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-                      {(typeof habit.consistencyRate === 'number' ? habit.consistencyRate : 100).toFixed(1)}%
+                    <span
+                      className={`text-sm sm:text-base font-extrabold ${
+                        consistency >= 80
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : consistency >= 40
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {consistency.toFixed(1)}%
                     </span>
                   </div>
                 </div>
 
-                {/* Weekday Consistency Matrix Strip */}
+                {/* Streak Shield / Frozen Notice (Placed below metrics to preserve layout alignment) */}
+                {isFrozen && (
+                  <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Snowflake className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span className="font-semibold text-[11px]">Streak Shield Active (Protected)</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/20 px-2 py-0.5 rounded border border-cyan-400/30">
+                      PAUSED
+                    </span>
+                  </div>
+                )}
+
+                {/* Gamified 3-Strike Warning Strip (Sleek, placed below metrics) */}
+                {effectiveWarnings > 0 && (
+                  <div
+                    className={`mt-2.5 px-3 py-1.5 rounded-xl border flex items-center justify-between text-xs transition-all ${
+                      effectiveWarnings === 2
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-semibold text-[11px] truncate">
+                      <AlertTriangle
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          effectiveWarnings === 2 ? 'text-rose-400 animate-pulse' : 'text-amber-400'
+                        }`}
+                      />
+                      <span className="truncate">
+                        {effectiveWarnings === 2
+                          ? 'Strike 2/2: Final notice! Complete today.'
+                          : 'Strike 1/2: Grace active. Complete today.'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <span
+                        className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]"
+                        title="Strike 1 used"
+                      />
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          effectiveWarnings === 2
+                            ? 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)] animate-pulse'
+                            : 'bg-slate-300 dark:bg-white/20'
+                        }`}
+                        title={effectiveWarnings === 2 ? 'Strike 2 used' : 'Strike 2 available'}
+                      />
+                      <span
+                        className="w-2 h-2 rounded-full bg-slate-300 dark:bg-white/10"
+                        title="Strike 3 (Streak resets to 0)"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Weekday Schedule Matrix Strip */}
                 <div className="mt-4">
                   {/* Day labels (M T W T F S S) */}
                   <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
                     {dayLabels.map((day, idx) => (
-                      <span key={idx} className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                      <span key={idx} className="text-[10px] font-bold text-slate-400 dark:text-slate-500 select-none">
                         {day}
                       </span>
                     ))}
                   </div>
 
-                  {/* 7 Checkmark Day Cells */}
+                  {/* 7 Day Schedule Cells (Vibrant solid tiles for active days, 'off' for rest days, no misleading checks) */}
                   <div className="grid grid-cols-7 gap-1">
                     {Array.from({ length: 7 }).map((_, dayIndex) => {
-                      const isScheduled = !(isWeekdays && (dayIndex === 5 || dayIndex === 6));
-                      const isCompleted = isScheduled && (habit.activeDays?.includes(dayIndex) ?? false);
+                      const isDayScheduled = habitDays.includes(dayIndex);
+                      const fullDayName = DAY_NAMES[dayIndex] || `Day ${dayIndex + 1}`;
 
-                      if (!isScheduled) {
+                      if (!isDayScheduled) {
                         return (
                           <div
                             key={dayIndex}
                             className="h-7 bg-slate-100 text-slate-400 dark:bg-[#141C2B] dark:text-slate-600 text-[10px] font-bold rounded-lg flex items-center justify-center select-none"
-                            title="Day off"
+                            title={`${fullDayName}: Rest day`}
                           >
                             off
                           </div>
@@ -1389,14 +1456,10 @@ export const Habits: React.FC = () => {
                       return (
                         <div
                           key={dayIndex}
-                          className={`h-7 rounded-lg flex items-center justify-center transition-all ${
-                            isCompleted
-                              ? 'bg-amber-500 text-white dark:bg-[#FACC15] dark:text-slate-950 shadow-sm'
-                              : 'bg-slate-100 border border-slate-200 dark:bg-[#1C263A] dark:border-white/[0.04]'
-                          }`}
-                          title={isCompleted ? 'Completed' : 'Pending / Missed'}
+                          className="h-7 rounded-lg flex items-center justify-center transition-all bg-amber-400 text-slate-950 dark:bg-[#FACC15] dark:text-slate-950 shadow-sm select-none"
+                          title={`${fullDayName}: Scheduled day`}
                         >
-                          {isCompleted && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />
                         </div>
                       );
                     })}

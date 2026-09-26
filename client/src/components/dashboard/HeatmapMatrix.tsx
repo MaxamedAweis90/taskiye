@@ -350,17 +350,23 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({
         {hoveredCell ? (
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-900 dark:text-slate-200">{hoveredCell.date}:</span>
-            {hoveredCell.totalCount > 0 ? (
+            {hoveredCell.totalCount > 0 && hoveredCell.completedCount > 0 ? (
               <span className="text-amber-600 dark:text-amber-400 font-medium">
                 {hoveredCell.completedCount} of {hoveredCell.totalCount} completed (
-                {Math.round((hoveredCell.completedCount / hoveredCell.totalCount) * 100)}%)
+                {Math.round((hoveredCell.completedCount / hoveredCell.totalCount) * 100)}%) 🔥 Streak
+              </span>
+            ) : hoveredCell.totalCount > 0 && hoveredCell.completedCount === 0 ? (
+              <span className="text-rose-600 dark:text-rose-400 font-medium">
+                0 of {hoveredCell.totalCount} completed ❌ Missed Day
               </span>
             ) : hoveredCell.completedCount > 0 ? (
               <span className="text-amber-600 dark:text-amber-400 font-medium">
-                {hoveredCell.completedCount} completed
+                {hoveredCell.completedCount} completed 🔥 Streak
               </span>
             ) : (
-              <span className="text-slate-400 dark:text-slate-500 font-medium">No activity recorded</span>
+              <span className="text-slate-400 dark:text-slate-500 font-medium">
+                Skipped / Rest Day ☕ (No scheduled items)
+              </span>
             )}
             {hoveredCell.isToday && (
               <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300 px-1.5 py-0.2 rounded font-bold">

@@ -132,26 +132,79 @@ export const AppLayout: React.FC = () => {
     return getGuestActivityMap();
   }, [session?.user, serverActivity, getGuestActivityMap, guestTasks, guestHabits]);
 
-  const pastConsecutiveDays = useMemo(() => {
-    if (!activityLogs) return 0;
-    let count = 0;
+  const globalStreakInfo = useMemo(() => {
+    if (!activityLogs) {
+      return {
+        streak: 0,
+        state: 'active' as 'active' | 'frozen-1' | 'frozen-2' | 'reset',
+        recentMisses: 0,
+        freezeDates: new Set<string>(),
+      };
+    }
+
+    let streak = 0;
+    let consecutiveMisses = 0;
+    const freezeDates = new Set<string>();
+    const currentRunMissDates: string[] = [];
+
     const d = new Date();
-    d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() - 1); // Start checking backwards from yesterday
+
     for (let i = 0; i < 365; i++) {
       const localStr = d.toLocaleDateString('en-CA');
       const utcStr = d.toISOString().slice(0, 10);
       const log = activityLogs[localStr] || activityLogs[utcStr];
-      if (log && log.completedCount > 0) {
-        count++;
-        d.setDate(d.getDate() - 1);
+      const dateKey = activityLogs[localStr] ? localStr : utcStr;
+
+      const hasItems = Boolean(log && log.totalCount > 0);
+      const hasCompleted = Boolean(log && log.completedCount > 0);
+
+      if (hasCompleted) {
+        // Active streak day!
+        // If 1-2 misses occurred right before this, they were protected by freeze
+        if (currentRunMissDates.length > 0 && currentRunMissDates.length <= 2) {
+          currentRunMissDates.forEach((date) => freezeDates.add(date));
+          currentRunMissDates.length = 0;
+        }
+        streak++;
+        consecutiveMisses = 0;
+      } else if (!hasItems) {
+        // Skipped / Rest day: does not count as a miss, streak continues across it
       } else {
-        break;
+        // Missed day: had items scheduled, completed 0
+        consecutiveMisses++;
+        currentRunMissDates.push(dateKey);
+
+        if (consecutiveMisses >= 3) {
+          // 3 or more consecutive misses: streak resets to 0!
+          streak = 0;
+          break;
+        }
       }
+
+      d.setDate(d.getDate() - 1);
     }
-    return count;
+
+    // Trailing misses leading right into yesterday before any earlier completions:
+    if (currentRunMissDates.length > 0 && currentRunMissDates.length <= 2 && streak > 0) {
+      currentRunMissDates.forEach((date) => freezeDates.add(date));
+    }
+
+    let state: 'active' | 'frozen-1' | 'frozen-2' | 'reset' = 'active';
+    if (consecutiveMisses === 1 && streak > 0) {
+      state = 'frozen-1';
+    } else if (consecutiveMisses === 2 && streak > 0) {
+      state = 'frozen-2';
+    } else if (consecutiveMisses >= 3 || streak === 0) {
+      state = 'reset';
+    }
+
+    return { streak, state, recentMisses: consecutiveMisses, freezeDates };
   }, [activityLogs]);
 
-  const effectiveBaseStreak = pastConsecutiveDays;
+  const effectiveBaseStreak = globalStreakInfo.streak;
+  const globalStreakState = globalStreakInfo.state;
+  const freezeDates = globalStreakInfo.freezeDates;
 
   useEffect(() => {
     setBaseStreakDays(effectiveBaseStreak);
@@ -992,7 +1045,13 @@ export const AppLayout: React.FC = () => {
       isToday: boolean;
       isFuture: boolean;
       isCompleted: boolean;
+      isFrozen: boolean;
+      isMissed: boolean;
+      isSkipped: boolean;
+      status: 'completed' | 'frozen' | 'missed' | 'skipped';
       dayOfWeek: number;
+      completedCount: number;
+      totalCount: number;
     }> = [];
 
     for (let d = 1; d <= daysInMonth; d++) {
@@ -1005,13 +1064,31 @@ export const AppLayout: React.FC = () => {
         dateStr === todayStr || dateStr === localTodayStr || dateStr === utcTodayStr;
       const isFuture =
         dateStr > todayStr && dateStr > localTodayStr && dateStr > utcTodayStr;
+      const isPast = !isToday && !isFuture;
 
-      let isCompleted = false;
+      const log = activityLogs[dateStr];
+      const hasItems = Boolean(log && log.totalCount > 0);
+      const hasCompleted = Boolean(log && log.completedCount > 0);
+
+      let status: 'completed' | 'frozen' | 'missed' | 'skipped' = 'skipped';
       if (isToday) {
-        isCompleted = isTaskDoneToday;
-      } else if (!isFuture) {
-        const log = activityLogs[dateStr];
-        isCompleted = Boolean(log && log.completedCount > 0);
+        if (isTaskDoneToday) {
+          status = 'completed';
+        } else if (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2') {
+          status = 'frozen';
+        } else {
+          status = 'skipped';
+        }
+      } else if (isPast) {
+        if (hasCompleted) {
+          status = 'completed';
+        } else if (!hasItems) {
+          status = 'skipped';
+        } else if (freezeDates.has(dateStr)) {
+          status = 'frozen';
+        } else {
+          status = 'missed';
+        }
       }
 
       days.push({
@@ -1019,8 +1096,14 @@ export const AppLayout: React.FC = () => {
         dateStr,
         isToday,
         isFuture,
-        isCompleted,
+        isCompleted: status === 'completed',
+        isFrozen: status === 'frozen',
+        isMissed: status === 'missed',
+        isSkipped: status === 'skipped',
+        status,
         dayOfWeek,
+        completedCount: isToday ? (isTaskDoneToday ? 1 : 0) : (log?.completedCount ?? 0),
+        totalCount: isToday ? (todayChecklistCompletedCount || 1) : (log?.totalCount ?? 0),
       });
     }
 
@@ -1039,6 +1122,9 @@ export const AppLayout: React.FC = () => {
     utcTodayStr,
     isTaskDoneToday,
     activityLogs,
+    globalStreakState,
+    freezeDates,
+    todayChecklistCompletedCount,
   ]);
 
   useEffect(() => {
@@ -1398,22 +1484,36 @@ export const AppLayout: React.FC = () => {
                     ? 'bg-amber-500/10 border-amber-500 dark:bg-[#151D33] dark:border-amber-400 shadow-[0_0_14px_rgba(250,204,21,0.3)] ring-1 ring-amber-400/50'
                     : isTaskDoneToday
                       ? 'bg-amber-50 border-amber-300 dark:bg-[#151D33] dark:border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
-                      : 'bg-white border-slate-200 dark:bg-[#10192D] dark:border-white/[0.08]'
+                      : (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2')
+                        ? 'bg-cyan-500/10 border-cyan-400 dark:bg-[#0c2333] dark:border-cyan-400/50 shadow-[0_0_14px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/40'
+                        : 'bg-white border-slate-200 dark:bg-[#10192D] dark:border-white/[0.08]'
                 }`}
-                title={`Streak: ${maxStreak}`}
+                title={`Streak: ${maxStreak}${
+                  globalStreakState === 'frozen-1'
+                    ? ' (Frozen - 1 day missed)'
+                    : globalStreakState === 'frozen-2'
+                      ? ' (Frozen - 2 days missed)'
+                      : ''
+                }`}
               >
-                <Flame
-                  className={`w-4 h-4 transition-all duration-300 shrink-0 ${
-                    isTaskDoneToday || activeDropdown === 'streak'
-                      ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]'
-                      : 'text-slate-500 fill-slate-500/20 opacity-50'
-                  }`}
-                />
+                {globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                  <Snowflake className="w-4 h-4 text-cyan-500 dark:text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)] animate-pulse shrink-0" />
+                ) : (
+                  <Flame
+                    className={`w-4 h-4 transition-all duration-300 shrink-0 ${
+                      isTaskDoneToday || activeDropdown === 'streak'
+                        ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]'
+                        : 'text-slate-500 fill-slate-500/20 opacity-50'
+                    }`}
+                  />
+                )}
                 <span
                   className={`text-xs ml-1.5 transition-all duration-300 ${
-                    isTaskDoneToday || activeDropdown === 'streak'
-                      ? 'text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                      : 'text-slate-400 font-semibold'
+                    globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2'
+                      ? 'text-cyan-600 dark:text-cyan-300 font-extrabold drop-shadow-[0_0_6px_rgba(34,211,238,0.4)]'
+                      : isTaskDoneToday || activeDropdown === 'streak'
+                        ? 'text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                        : 'text-slate-400 font-semibold'
                   }`}
                 >
                   {maxStreak}
@@ -1430,7 +1530,9 @@ export const AppLayout: React.FC = () => {
                     : `hidden sm:flex absolute left-0 top-0 w-full h-10 rounded-full border px-2 sm:px-3.5 items-center justify-center select-none transition-all duration-350 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         isTaskDoneToday
                           ? 'bg-amber-50 dark:bg-[#151D33] border-amber-300 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400'
-                          : 'bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2]'
+                          : (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2')
+                            ? 'bg-cyan-500/10 dark:bg-[#0c2333] border-cyan-400/60 dark:border-cyan-400/50 shadow-sm dark:shadow-[0_0_14px_rgba(34,211,238,0.25)] hover:border-cyan-400'
+                            : 'bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2]'
                       }`
                 }`}
               >
@@ -1445,21 +1547,35 @@ export const AppLayout: React.FC = () => {
                       ? 'justify-between w-full gap-2'
                       : 'justify-center gap-1.5 w-full h-full'
                   }`}
-                  title={`Streak: ${maxStreak} (${isTaskDoneToday ? 'Active today!' : 'Pending today - complete a task/habit to light up'})`}
+                  title={`Streak: ${maxStreak} (${
+                    isTaskDoneToday
+                      ? 'Active today!'
+                      : globalStreakState === 'frozen-1'
+                        ? 'Frozen (1 day missed) - complete items today!'
+                        : globalStreakState === 'frozen-2'
+                          ? 'Frozen (2 days missed) - complete items today!'
+                          : 'Pending today - complete a task/habit to light up'
+                  })`}
                 >
                   <div className="flex items-center gap-1.5">
-                    <Flame
-                      className={`w-4 h-4 transition-all duration-300 shrink-0 ${
-                        isTaskDoneToday
-                          ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)] group-hover:scale-110'
-                          : 'text-slate-400 fill-slate-400/20 dark:text-slate-500 dark:fill-slate-500/20 opacity-50'
-                      }`}
-                    />
+                    {globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                      <Snowflake className="w-4 h-4 text-cyan-500 dark:text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)] animate-pulse shrink-0" />
+                    ) : (
+                      <Flame
+                        className={`w-4 h-4 transition-all duration-300 shrink-0 ${
+                          isTaskDoneToday
+                            ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.7)] group-hover:scale-110'
+                            : 'text-slate-400 fill-slate-400/20 dark:text-slate-500 dark:fill-slate-500/20 opacity-50'
+                        }`}
+                      />
+                    )}
                     <span
                       className={`text-xs transition-all duration-300 ${
-                        isTaskDoneToday
-                          ? 'text-amber-600 dark:text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                          : 'text-slate-600 dark:text-slate-400 font-semibold'
+                        globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2'
+                          ? 'text-cyan-600 dark:text-cyan-300 font-extrabold drop-shadow-[0_0_6px_rgba(34,211,238,0.4)]'
+                          : isTaskDoneToday
+                            ? 'text-amber-600 dark:text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                            : 'text-slate-600 dark:text-slate-400 font-semibold'
                       }`}
                     >
                       {maxStreak}
@@ -1488,18 +1604,38 @@ export const AppLayout: React.FC = () => {
                     {/* Streak Header Info */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
                             {maxStreak}
                           </span>
                           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                             Day Streak
                           </span>
+                          {globalStreakState === 'frozen-1' && (
+                            <span className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-400/50 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm">
+                              <Snowflake className="w-2.5 h-2.5" />
+                              <span>Freeze 1</span>
+                            </span>
+                          )}
+                          {globalStreakState === 'frozen-2' && (
+                            <span className="bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/50 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm animate-pulse">
+                              <Snowflake className="w-2.5 h-2.5" />
+                              <span>Freeze 2</span>
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-tight mt-0.5">
                           {isTaskDoneToday ? (
                             <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                               You've practiced today! Streak is protected.
+                            </span>
+                          ) : globalStreakState === 'frozen-1' ? (
+                            <span className="text-cyan-600 dark:text-cyan-300 font-semibold">
+                              Streak frozen ❄️ (1 missed day). Complete today to thaw!
+                            </span>
+                          ) : globalStreakState === 'frozen-2' ? (
+                            <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                              Final freeze day 🚨! Complete today to prevent reset to 0.
                             </span>
                           ) : (
                             <span className="text-amber-700 dark:text-amber-300 font-medium">
@@ -1514,16 +1650,22 @@ export const AppLayout: React.FC = () => {
                           className={`w-13 h-13 rounded-2xl flex items-center justify-center ${
                             isTaskDoneToday
                               ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-400/35 shadow-[0_0_20px_rgba(250,204,21,0.25)]'
-                              : 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10'
+                              : globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2'
+                                ? 'bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_20px_rgba(34,211,238,0.25)]'
+                                : 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10'
                           }`}
                         >
-                          <Flame
-                            className={`w-8 h-8 transition-all ${
-                              isTaskDoneToday
-                                ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]'
-                                : 'text-slate-400 fill-slate-400/30 dark:text-slate-500 dark:fill-slate-500/30'
-                            }`}
-                          />
+                          {globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                            <Snowflake className="w-8 h-8 text-cyan-500 dark:text-cyan-400 animate-pulse drop-shadow-[0_0_12px_rgba(34,211,238,0.6)]" />
+                          ) : (
+                            <Flame
+                              className={`w-8 h-8 transition-all ${
+                                isTaskDoneToday
+                                  ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]'
+                                  : 'text-slate-400 fill-slate-400/30 dark:text-slate-500 dark:fill-slate-500/30'
+                              }`}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1599,32 +1741,72 @@ export const AppLayout: React.FC = () => {
                               className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full flex items-center justify-center text-[10.5px] font-bold transition-all select-none ${
                                 day.isCompleted
                                   ? 'bg-gradient-to-b from-amber-400 to-amber-500 text-slate-950 shadow-[0_0_10px_rgba(250,204,21,0.4)] ring-1 ring-amber-300'
-                                  : day.isToday
-                                    ? 'bg-sky-500/15 border-2 border-sky-500 dark:border-sky-400 text-sky-600 dark:text-sky-300 shadow-sm'
-                                    : day.isFuture
-                                      ? 'text-slate-400 dark:text-slate-600'
-                                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/[0.04]'
+                                  : day.isFrozen
+                                    ? 'bg-cyan-500/20 border-2 border-cyan-400 text-cyan-600 dark:text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.35)] ring-1 ring-cyan-300/60'
+                                    : day.isMissed
+                                      ? 'bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400'
+                                      : day.isToday
+                                        ? 'bg-amber-500/15 border-2 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-300 shadow-sm'
+                                        : day.isFuture
+                                          ? 'text-slate-400 dark:text-slate-600'
+                                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/[0.04]'
                               }`}
                               title={`${day.dateStr}: ${
                                 day.isCompleted
-                                  ? 'Streak day completed! 🔥'
-                                  : day.isToday
-                                    ? 'Active today - complete your habits to keep streak alive!'
-                                    : day.isFuture
-                                      ? 'Upcoming'
-                                      : 'Missed'
+                                  ? `Streak completed! 🔥 (${day.completedCount} item${day.completedCount === 1 ? '' : 's'})`
+                                  : day.isFrozen
+                                    ? 'Streak Frozen ❄️ (Missed day protected by freeze grace)'
+                                    : day.isMissed
+                                      ? `Missed day ❌ (${day.totalCount} item${day.totalCount === 1 ? '' : 's'} scheduled, 0 done)`
+                                      : day.isSkipped
+                                        ? 'Skipped / Rest Day ☕ (No habits or tasks scheduled)'
+                                        : day.isToday
+                                          ? 'Active today — complete your habits to keep streak alive!'
+                                          : 'Upcoming'
                               }`}
                             >
                               {day.isCompleted ? (
                                 <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : day.isFrozen ? (
+                                <Snowflake className="w-3.5 h-3.5 stroke-[2.5]" />
+                              ) : day.isMissed ? (
+                                <X className="w-3.5 h-3.5 stroke-[2.5]" />
                               ) : day.isToday ? (
-                                <Snowflake className="w-3 h-3 stroke-[2.5]" />
+                                <Flame className="w-3.5 h-3.5 stroke-[2.5] text-amber-500 dark:text-amber-400" />
                               ) : (
                                 <span>{day.dayNumber}</span>
                               )}
                             </div>
                           </div>
                         ))}
+                      </div>
+
+                      {/* Streak Calendar Legend */}
+                      <div className="flex items-center justify-between px-1 pt-2 border-t border-slate-200 dark:border-white/[0.06] text-[10px] select-none">
+                        <div className="flex items-center gap-1" title="Streak day completed">
+                          <span className="w-3 h-3 rounded-full bg-gradient-to-b from-amber-400 to-amber-500 inline-flex items-center justify-center text-[7.5px] text-slate-950 font-black">
+                            ✓
+                          </span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Streak</span>
+                        </div>
+                        <div className="flex items-center gap-1" title="Protected by 3-day freeze grace">
+                          <span className="w-3 h-3 rounded-full bg-cyan-500/20 border border-cyan-400 inline-flex items-center justify-center text-[7.5px] text-cyan-500 dark:text-cyan-400">
+                            ❄
+                          </span>
+                          <span className="font-semibold text-cyan-600 dark:text-cyan-300">Frozen</span>
+                        </div>
+                        <div className="flex items-center gap-1" title="Missed day (items planned, 0 completed)">
+                          <span className="w-3 h-3 rounded-full bg-rose-500/20 border border-rose-500/40 inline-flex items-center justify-center text-[7.5px] text-rose-500 dark:text-rose-400 font-bold">
+                            ✕
+                          </span>
+                          <span className="font-semibold text-rose-600 dark:text-rose-400">Missed</span>
+                        </div>
+                        <div className="flex items-center gap-1" title="No tasks or habits scheduled (not a penalty)">
+                          <span className="w-3 h-3 rounded-full bg-slate-200/80 dark:bg-white/10 inline-flex items-center justify-center text-[7.5px] text-slate-400 font-bold">
+                            —
+                          </span>
+                          <span className="font-semibold text-slate-400 dark:text-slate-500">Skipped</span>
+                        </div>
                       </div>
                     </div>
 

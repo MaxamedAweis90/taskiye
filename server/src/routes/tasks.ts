@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Task } from '../models/Task.js';
 import { Habit } from '../models/Habit.js';
+import { evaluateHabitStreakAndWarnings, calculateHabitConsistency } from './habits.js';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { invalidateRankingsCache } from './rankings.js';
@@ -557,12 +558,14 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
           if (isCompleted) {
             const todayStr = taskDate.toISOString().slice(0, 10);
             const linkedHabit = await Habit.findOne({ _id: habitId, userId: req.user!.id });
-            const isAlreadyCompletedToday = linkedHabit?.lastCompletedDate === todayStr;
+            const isAlreadyCompletedToday = Boolean(
+              linkedHabit?.completedDates?.includes(todayStr) || linkedHabit?.lastCompletedDate === todayStr
+            );
             await Habit.findOneAndUpdate(
               { _id: habitId, userId: req.user!.id },
               {
                 $inc: {
-                  totalCompletions: 1,
+                  totalCompletions: isAlreadyCompletedToday ? 0 : 1,
                   streakDays: isAlreadyCompletedToday ? 0 : 1,
                 },
                 $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
@@ -592,12 +595,14 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     if (task.isHabitInstance && task.habitId && task.isCompleted) {
       const todayStr = taskDate.toISOString().slice(0, 10);
       const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
-      const isAlreadyCompletedToday = linkedHabit?.lastCompletedDate === todayStr;
+      const isAlreadyCompletedToday = Boolean(
+        linkedHabit?.completedDates?.includes(todayStr) || linkedHabit?.lastCompletedDate === todayStr
+      );
       await Habit.findOneAndUpdate(
         { _id: task.habitId, userId: req.user!.id },
         {
           $inc: {
-            totalCompletions: 1,
+            totalCompletions: isAlreadyCompletedToday ? 0 : 1,
             streakDays: isAlreadyCompletedToday ? 0 : 1,
           },
           $set: { warnings: 0, lastCompletedDate: todayStr, isArchived: false },
@@ -669,15 +674,29 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
       if (isCompleted) {
         // Checking off: only increment streak if not already completed on this date
         const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
-        const isAlreadyCompletedToday = linkedHabit?.lastCompletedDate === taskDateStr;
+        const isAlreadyCompletedToday = Boolean(
+          linkedHabit?.completedDates?.includes(taskDateStr) || linkedHabit?.lastCompletedDate === taskDateStr
+        );
+        const nextCompletions = (linkedHabit?.totalCompletions || 0) + (isAlreadyCompletedToday ? 0 : 1);
+        const nextDates = Array.from(new Set([...(linkedHabit?.completedDates || []), taskDateStr]));
+        const nextConsistency = calculateHabitConsistency(
+          {
+            ...linkedHabit?.toObject(),
+            totalCompletions: nextCompletions,
+            lastCompletedDate: taskDateStr,
+            completedDates: nextDates,
+          },
+          taskDateStr
+        );
+
         await Habit.findOneAndUpdate(
           { _id: task.habitId, userId: req.user!.id },
           {
             $inc: {
-              totalCompletions: 1,
+              totalCompletions: isAlreadyCompletedToday ? 0 : 1,
               streakDays: isAlreadyCompletedToday ? 0 : 1,
             },
-            $set: { warnings: 0, lastCompletedDate: taskDateStr, isArchived: false },
+            $set: { warnings: 0, consistencyRate: nextConsistency, lastCompletedDate: taskDateStr, isArchived: false },
             $addToSet: { completedDates: taskDateStr },
           }
         );
@@ -697,15 +716,44 @@ router.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Respons
         if (!otherCompletedToday) {
           const linkedHabit = await Habit.findOne({ _id: task.habitId, userId: req.user!.id });
           if (linkedHabit) {
-            const nextCompletions = Math.max(0, (linkedHabit.totalCompletions || 0) - 1);
-            const nextStreak = Math.max(0, (linkedHabit.streakDays || 0) - 1);
+            const wasAlreadyCompleted = Boolean(
+              linkedHabit.completedDates?.includes(taskDateStr) || linkedHabit.lastCompletedDate === taskDateStr
+            );
+            const remainingDates = (linkedHabit.completedDates || []).filter((d) => d !== taskDateStr).sort();
+            const newLastCompletedDate = remainingDates.length > 0 ? remainingDates[remainingDates.length - 1] : null;
+            const nextCompletions = Math.max(0, (linkedHabit.totalCompletions || 0) - (wasAlreadyCompleted ? 1 : 0));
+            const baseStreak = Math.max(0, (linkedHabit.streakDays || 0) - (wasAlreadyCompleted ? 1 : 0));
+
+            const evalResult = evaluateHabitStreakAndWarnings(
+              {
+                ...linkedHabit.toObject(),
+                lastCompletedDate: newLastCompletedDate,
+                streakDays: baseStreak,
+                completedDates: remainingDates,
+                totalCompletions: nextCompletions,
+              },
+              taskDateStr
+            );
+
+            const nextConsistency = calculateHabitConsistency(
+              {
+                ...linkedHabit.toObject(),
+                totalCompletions: nextCompletions,
+                lastCompletedDate: newLastCompletedDate,
+                completedDates: remainingDates,
+              },
+              taskDateStr
+            );
+
             await Habit.updateOne(
               { _id: task.habitId, userId: req.user!.id },
               {
                 $set: {
                   totalCompletions: nextCompletions,
-                  streakDays: nextStreak,
-                  lastCompletedDate: null,
+                  streakDays: evalResult.streakDays,
+                  warnings: evalResult.warnings,
+                  consistencyRate: nextConsistency,
+                  lastCompletedDate: newLastCompletedDate,
                   isArchived: false,
                 },
                 $pull: { completedDates: taskDateStr },

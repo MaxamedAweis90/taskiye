@@ -588,6 +588,7 @@ export const Dashboard: React.FC = () => {
   const pastConsecutiveDailyStreak = useMemo(() => {
     if (!activityLogs) return 0;
     let streak = 0;
+    let consecutiveMisses = 0;
     const d = new Date();
     d.setDate(d.getDate() - 1); // Start checking backwards from yesterday
 
@@ -595,12 +596,26 @@ export const Dashboard: React.FC = () => {
       const localStr = d.toLocaleDateString('en-CA');
       const utcStr = d.toISOString().slice(0, 10);
       const dayRecord = activityLogs[localStr] || activityLogs[utcStr];
-      if (dayRecord && dayRecord.completedCount > 0) {
+
+      const hasItems = Boolean(dayRecord && dayRecord.totalCount > 0);
+      const hasCompleted = Boolean(dayRecord && dayRecord.completedCount > 0);
+
+      if (hasCompleted) {
         streak++;
-        d.setDate(d.getDate() - 1);
+        consecutiveMisses = 0;
+      } else if (!hasItems) {
+        // Skipped day (no scheduled tasks or habits): does not penalize streak
       } else {
-        break;
+        // Missed day (had tasks/habits, completed 0)
+        consecutiveMisses++;
+        if (consecutiveMisses >= 3) {
+          // 3 or more consecutive misses: streak resets to 0
+          streak = 0;
+          break;
+        }
       }
+
+      d.setDate(d.getDate() - 1);
     }
     return streak;
   }, [activityLogs]);
