@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+import { ENV } from './env.js';
 
 dotenv.config();
 dotenv.config({ path: '../.env' });
@@ -12,10 +13,10 @@ interface EmailPayload {
 }
 
 function getMailTransporter() {
-  const gmailUser = process.env.GMAIL_USER || process.env.SMTP_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS;
+  const mailUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const mailPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
 
-  if (!gmailUser || !gmailPass) {
+  if (!mailUser || !mailPass) {
     return null;
   }
 
@@ -25,8 +26,8 @@ function getMailTransporter() {
       port: Number(process.env.SMTP_PORT) || 587,
       secure: Number(process.env.SMTP_PORT) === 465,
       auth: {
-        user: gmailUser,
-        pass: gmailPass,
+        user: mailUser,
+        pass: mailPass,
       },
     });
   }
@@ -34,19 +35,31 @@ function getMailTransporter() {
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: gmailUser,
-      pass: gmailPass,
+      user: mailUser,
+      pass: mailPass,
     },
   });
 }
 
 export async function sendEmail({ to, subject, html, text }: EmailPayload): Promise<{ success: boolean; delivered: boolean }> {
   const transporter = getMailTransporter();
-  const gmailUser = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || (gmailUser ? `Taskiye <${gmailUser}>` : 'Taskiye <no-reply@taskiye.com>');
+  const mailUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || (mailUser ? `Taskiye <${mailUser}>` : 'Taskiye <no-reply@taskiye.com>');
 
   if (!transporter) {
-    return { success: true, delivered: false };
+    if (!ENV.IS_PRODUCTION) {
+      console.log('\n===========================================================');
+      console.log('📬 [Taskiye Dev Email Simulator - No SMTP Configured]');
+      console.log(`To: ${to}`);
+      console.log(`Subject: ${subject}`);
+      console.log('-----------------------------------------------------------');
+      console.log(text);
+      console.log('===========================================================\n');
+      return { success: true, delivered: false };
+    }
+
+    console.error(`[CRITICAL] Email dispatch to ${to} failed: No SMTP credentials configured on server in production.`);
+    return { success: false, delivered: false };
   }
 
   try {

@@ -7,6 +7,7 @@ import { sendSuccess, sendError } from '../utils/response.js';
 import { PushSubscription } from '../models/PushSubscription.js';
 import { sendPushNotification } from '../lib/push.js';
 import { renderTemplate, pickRandomTemplate, GUEST_MIGRATION_TEMPLATES } from '../lib/notificationTemplates.js';
+import { evaluateHabitStreakAndWarnings } from './habits.js';
 
 const router = Router();
 
@@ -44,9 +45,87 @@ interface GuestTaskInput {
   sortOrder?: number;
 }
 
+function sanitizeSyncHabit(
+  item: GuestHabitInput,
+  userId: string,
+  todayStr: string
+) {
+  const trimmedTitle = item.title.trim();
+  const localKey = item.id || item.localId;
+
+  // Validate and sanitize completedDates: strictly valid YYYY-MM-DD format, unique, not future dates
+  const rawDates = Array.isArray(item.completedDates) ? item.completedDates : [];
+  const validDatesSet = new Set<string>();
+
+  for (const d of rawDates) {
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      if (d <= todayStr) {
+        validDatesSet.add(d);
+      }
+    }
+  }
+
+  let lastCompletedDate = item.lastCompletedDate || null;
+  if (lastCompletedDate && (!/^\d{4}-\d{2}-\d{2}$/.test(lastCompletedDate) || lastCompletedDate > todayStr)) {
+    lastCompletedDate = null;
+  }
+  if (lastCompletedDate) {
+    validDatesSet.add(lastCompletedDate);
+  }
+
+  const completedDates = Array.from(validDatesSet).sort();
+  if (!lastCompletedDate && completedDates.length > 0) {
+    lastCompletedDate = completedDates[completedDates.length - 1] || null;
+  }
+
+  // Mathematically bound total completions and active streak to actual completed dates
+  const maxPossibleStreak = completedDates.length;
+  const streakDays = Math.max(0, Math.min(item.streakDays ?? 0, maxPossibleStreak));
+  const totalCompletions = Math.max(0, Math.min(item.totalCompletions ?? 0, Math.max(completedDates.length, 1000)));
+
+  const activeDays = Array.isArray(item.activeDays) && item.activeDays.length > 0
+    ? item.activeDays.filter((d) => typeof d === 'number' && d >= 0 && d <= 6)
+    : [0, 1, 2, 3, 4, 5, 6];
+
+  const streakEval = evaluateHabitStreakAndWarnings(
+    {
+      streakDays,
+      lastCompletedDate,
+      totalCompletions,
+      activeDays,
+      isStreakFrozen: Boolean(item.isStreakFrozen),
+      isArchived: Boolean(item.isArchived),
+      warnings: item.warnings ?? 0,
+    },
+    todayStr
+  );
+
+  return {
+    userId,
+    title: trimmedTitle,
+    category: item.category?.trim() || 'Health & Fitness',
+    frequency: item.frequency?.trim() || 'daily',
+    timeOfDay: item.timeOfDay?.trim() || 'Morning (08:00 AM)',
+    targetUnit: item.targetUnit?.trim() || 'sessions',
+    streakDays: streakEval.streakDays,
+    totalCompletions,
+    warnings: streakEval.warnings,
+    lastCompletedDate,
+    lastStreak: Math.max(0, item.lastStreak ?? 0),
+    isStreakFrozen: Boolean(item.isStreakFrozen),
+    completedDates,
+    activeDays,
+    isArchived: Boolean(item.isArchived),
+    _localKey: localKey,
+  };
+}
+
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
     const { habits = [], tasks = [] } = req.body as {
       habits?: GuestHabitInput[];
       tasks?: GuestTaskInput[];
@@ -75,43 +154,33 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
 
     for (const item of habits) {
       if (!item.title || typeof item.title !== 'string') continue;
-      const trimmedTitle = item.title.trim();
-      const localKey = item.id || item.localId;
-      const existing = existingHabitsMap.get(trimmedTitle.toLowerCase());
+      const sanitized = sanitizeSyncHabit(item, userId, todayStr);
+      const localKey = sanitized._localKey;
+      const existing = existingHabitsMap.get(sanitized.title.toLowerCase());
 
       if (!existing) {
-        habitsToCreate.push({
-          userId,
-          title: trimmedTitle,
-          category: item.category?.trim() || 'Health & Fitness',
-          frequency: item.frequency?.trim() || 'daily',
-          timeOfDay: item.timeOfDay?.trim() || 'Morning (08:00 AM)',
-          targetUnit: item.targetUnit?.trim() || 'sessions',
-          streakDays: item.streakDays ?? 0,
-          totalCompletions: item.totalCompletions ?? 0,
-          warnings: item.warnings ?? 0,
-          lastCompletedDate: item.lastCompletedDate || null,
-          lastStreak: item.lastStreak ?? 0,
-          isStreakFrozen: Boolean(item.isStreakFrozen),
-          completedDates: Array.isArray(item.completedDates) ? item.completedDates : [],
-          activeDays: Array.isArray(item.activeDays) ? item.activeDays : [0, 1, 2, 3, 4, 5, 6],
-          isArchived: Boolean(item.isArchived),
-          _localKey: localKey,
-        });
+        habitsToCreate.push(sanitized);
       } else {
         if (localKey) {
           habitIdMap.set(localKey, existing._id.toString());
         }
-        // Merge streak & completed dates if needed
-        if (Array.isArray(item.completedDates) && item.completedDates.length > 0) {
-          existing.completedDates = Array.from(
-            new Set([...(existing.completedDates || []), ...item.completedDates])
+        // Merge verified streak & completed dates if needed
+        if (sanitized.completedDates.length > 0) {
+          const mergedDates = Array.from(
+            new Set([...(existing.completedDates || []), ...sanitized.completedDates])
+          ).sort();
+          existing.completedDates = mergedDates;
+          existing.totalCompletions = Math.max(existing.totalCompletions || 0, mergedDates.length);
+          existing.streakDays = Math.min(
+            Math.max(existing.streakDays || 0, sanitized.streakDays),
+            mergedDates.length
           );
-          existing.streakDays = Math.max(existing.streakDays || 0, item.streakDays || 0);
-          existing.totalCompletions = Math.max(
-            existing.totalCompletions || 0,
-            item.totalCompletions || 0
-          );
+          if (sanitized.lastCompletedDate) {
+            existing.lastCompletedDate =
+              !existing.lastCompletedDate || sanitized.lastCompletedDate > existing.lastCompletedDate
+                ? sanitized.lastCompletedDate
+                : existing.lastCompletedDate;
+          }
           await existing.save();
         }
       }

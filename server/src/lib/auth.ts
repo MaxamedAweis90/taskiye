@@ -13,6 +13,18 @@ dotenv.config({ path: '../.env' });
 
 import { ENV } from './env.js';
 
+const isSmtpConfigured = Boolean(
+  (process.env.SMTP_USER || process.env.GMAIL_USER) &&
+  (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD)
+);
+
+const requireEmailVerification =
+  process.env.REQUIRE_EMAIL_VERIFICATION === 'true'
+    ? true
+    : process.env.REQUIRE_EMAIL_VERIFICATION === 'false'
+      ? false
+      : isSmtpConfigured;
+
 export const auth = betterAuth({
   database: mongodbAdapter(mongoDb, {
     client: mongoClient,
@@ -38,7 +50,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    requireEmailVerification,
     async sendResetPassword({ user, url }) {
       if (user.email) {
         await sendPasswordResetEmail(user.email, url);
