@@ -42,6 +42,27 @@ export interface MindTaskItem {
   isHabitInstance?: boolean;
 }
 
+interface RawTaskRecord {
+  _id?: string;
+  id?: string;
+  title: string;
+  category?: string;
+  date?: string;
+  isCompleted?: boolean;
+  isHabitInstance?: boolean;
+}
+
+interface RawHistoryDay {
+  tasks?: RawTaskRecord[];
+}
+
+interface RawHabitRecord {
+  _id?: string;
+  id?: string;
+  title: string;
+  isArchived?: boolean;
+}
+
 export interface SuggestedRoute {
   path: string;
   label: string;
@@ -338,7 +359,7 @@ export function parseCreateIntent(text: string): ExtractedCreateIntent | null {
     /(?:create|add|build|start|track|make|new)\s+(?:a\s+|new\s+)?habit\b/i.test(lower) ||
     /^(?:please\s+)?(?:can\s+(?:you|u)\s+)?(?:create|add|build|start)\s+(?:a\s+)?habit\b/i.test(lower) ||
     /^(?:i\s+(?:want|need|would\s+like)\s+to\s+)?(?:create|add|build|start)\s+(?:a\s+)?habit\b/i.test(lower) ||
-    /^habit\s*[:\-]/i.test(lower) ||
+    /^habit\s*[:-]/i.test(lower) ||
     /(?:abuur|ku\s+dar|dhis|bilaab|samee)\s+caado\b/i.test(lower) ||
     /(?:waxaan\s+rabaa\s+(?:inaan\s+(?:dhisato|bilaabo|abuuro)\s+)?caado|fadlan\s+ii\s+abuur\s+caado|fadlan\s+iigu\s+dar\s+caado)\b/i.test(lower);
 
@@ -347,7 +368,7 @@ export function parseCreateIntent(text: string): ExtractedCreateIntent | null {
     /(?:create|add|make|schedule|set|remind\s+me\s+to|new)\s+(?:a\s+|new\s+)?task\b/i.test(lower) ||
     /^(?:please\s+)?(?:can\s+(?:you|u)\s+)?(?:create|add|make|schedule)\s+(?:a\s+)?task\b/i.test(lower) ||
     /^(?:i\s+(?:want|need|would\s+like)\s+to\s+)?(?:create|add|make|schedule)\s+(?:a\s+)?task\b/i.test(lower) ||
-    /^task\s*[:\-]/i.test(lower) ||
+    /^task\s*[:-]/i.test(lower) ||
     /^remind\s+me\s+(?:to|tomorrow\s+to)\b/i.test(lower) ||
     /(?:abuur|ku\s+dar|samee)\s+hawl\b/i.test(lower) ||
     /(?:waxaan\s+rabaa\s+(?:inaan\s+abuuro\s+)?hawl|fadlan\s+ii\s+abuur\s+hawl|fadlan\s+iigu\s+dar\s+hawl|i\s+qor\s+hawl|i\s+xasuusi)\b/i.test(lower);
@@ -362,7 +383,7 @@ export function parseCreateIntent(text: string): ExtractedCreateIntent | null {
       clean.match(
         /(?:abuur|ku\s+dar|dhis|bilaab|samee)\s+caado(?:\s+(?:cusub|ah|ku\s+saabsan|oo\s+ah|lagu\s+magacaabo|:))?\s*(.*)/i
       ) ||
-      clean.match(/^habit\s*[:\-]\s*(.*)/i);
+      clean.match(/^habit\s*[:-]\s*(.*)/i);
 
     if (match && match[1]) {
       title = match[1].trim();
@@ -386,7 +407,7 @@ export function parseCreateIntent(text: string): ExtractedCreateIntent | null {
         /(?:create|add|make|schedule|set)\s+(?:a\s+|new\s+)?task(?:\s+(?:to|named|called|for|about|:|ah|ku\s+saabsan|oo\s+ah))?\s*(.*)/i
       ) ||
       cleanedText.match(/^remind\s+me\s+(?:to\s+)(.*)/i) ||
-      cleanedText.match(/^task\s*[:\-]\s*(.*)/i) ||
+      cleanedText.match(/^task\s*[:-]\s*(.*)/i) ||
       cleanedText.match(
         /(?:abuur|ku\s+dar|samee)\s+hawl(?:\s+(?:cusub|ah|ku\s+saabsan|oo\s+ah|lagu\s+magacaabo|:))?\s*(.*)/i
       ) ||
@@ -566,7 +587,7 @@ export function useChatMind({
     const todayStr = getTodayStr();
 
     if (isAuthenticated) {
-      const cached = queryClient.getQueryData<any[]>(['tasks', todayStr]);
+      const cached = queryClient.getQueryData<RawTaskRecord[]>(['tasks', todayStr]);
       if (cached && Array.isArray(cached) && cached.length > 0) {
         return cached.map((t) => ({
           id: String(t._id || t.id),
@@ -581,8 +602,8 @@ export function useChatMind({
         const res = await fetch(`/api/tasks?date=${todayStr}`, { credentials: 'include' });
         if (res.ok) {
           const json = await res.json();
-          const list = json.data || [];
-          return list.map((t: any) => ({
+          const list: RawTaskRecord[] = json.data || [];
+          return list.map((t) => ({
             id: String(t._id || t.id),
             title: t.title,
             category: t.category,
@@ -627,11 +648,11 @@ export function useChatMind({
         const res = await fetch('/api/tasks/history?days=14&hideCompleted=true', { credentials: 'include' });
         if (res.ok) {
           const json = await res.json();
-          const upcoming = json.data?.upcomingTasks || [];
-          const days = json.data?.days || [];
+          const upcoming: RawTaskRecord[] = json.data?.upcomingTasks || [];
+          const days: RawHistoryDay[] = json.data?.days || [];
           const histTasks = [
             ...upcoming,
-            ...days.flatMap((d: any) => d.tasks || []),
+            ...days.flatMap((d) => d.tasks || []),
           ];
           const seen = new Set<string>();
           const uncompleted: MindTaskItem[] = [];
@@ -681,7 +702,7 @@ export function useChatMind({
    */
   const fetchHabitsCount = useCallback(async (): Promise<number> => {
     if (isAuthenticated) {
-      const cached = queryClient.getQueryData<any[]>(['habits']);
+      const cached = queryClient.getQueryData<RawHabitRecord[]>(['habits']);
       if (cached && Array.isArray(cached)) {
         return cached.filter((h) => !h.isArchived).length;
       }
@@ -689,8 +710,8 @@ export function useChatMind({
         const res = await fetch('/api/habits', { credentials: 'include' });
         if (res.ok) {
           const json = await res.json();
-          const list = json.data || [];
-          return list.filter((h: any) => !h.isArchived).length;
+          const list: RawHabitRecord[] = json.data || [];
+          return list.filter((h) => !h.isArchived).length;
         }
       } catch (err) {
         console.error('[ChatMind] Failed fetching habits count:', err);
@@ -711,9 +732,9 @@ export function useChatMind({
             method: 'DELETE',
             credentials: 'include',
           });
-          queryClient.setQueriesData({ queryKey: ['tasks'] }, (old: any) => {
+          queryClient.setQueriesData({ queryKey: ['tasks'] }, (old: unknown) => {
             if (Array.isArray(old)) {
-              return old.filter((item: any) => String(item._id || item.id) !== String(taskId));
+              return (old as RawTaskRecord[]).filter((item) => String(item._id || item.id) !== String(taskId));
             }
             return old;
           });
@@ -1226,11 +1247,13 @@ export function useChatMind({
               const histRes = await fetch(`/api/tasks/history?search=${encodeURIComponent(titleMatch)}&hideCompleted=true`, { credentials: 'include' });
               if (histRes.ok) {
                 const histJson = await histRes.json();
+                const upcoming: RawTaskRecord[] = histJson.data?.upcomingTasks || [];
+                const days: RawHistoryDay[] = histJson.data?.days || [];
                 const allHist = [
-                  ...(histJson.data?.upcomingTasks || []),
-                  ...(histJson.data?.days || []).flatMap((d: any) => d.tasks || []),
+                  ...upcoming,
+                  ...days.flatMap((d) => d.tasks || []),
                 ];
-                const match = allHist.find((t: any) => t.title.toLowerCase().includes(titleMatch.toLowerCase()));
+                const match = allHist.find((t) => t.title.toLowerCase().includes(titleMatch.toLowerCase()));
                 if (match) {
                   found = {
                     id: String(match._id || match.id),

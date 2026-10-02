@@ -36,6 +36,7 @@ export default tseslint.config(
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
   {
@@ -49,6 +50,7 @@ export default tseslint.config(
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
   {

@@ -194,8 +194,6 @@ self.addEventListener('push', (event) => {
       clientList = [];
     }
 
-    const isAppFocused = clientList.some((c) => c.focused);
-
     // 2. Increment / set App Badge if supported
     if ('setAppBadge' in navigator) {
       try {

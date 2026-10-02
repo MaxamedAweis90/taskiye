@@ -27,7 +27,9 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security Headers via Helmet (CJS/ESM interop safe)
-const helmetMiddleware = ((helmet as any)?.default || helmet)({
+type HelmetHandler = (options?: Record<string, unknown>) => express.RequestHandler;
+const helmetFn = ((helmet as unknown as { default?: HelmetHandler })?.default || (helmet as unknown as HelmetHandler));
+const helmetMiddleware = helmetFn({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 });
 app.use(helmetMiddleware);

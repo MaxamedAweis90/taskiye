@@ -327,10 +327,11 @@ router.post('/', chatLimiter, optionalAuth, async (req: AuthenticatedRequest, re
                 break;
               }
             }
-          } catch (modelError: any) {
+          } catch (modelError: unknown) {
+            const err = modelError as { status?: number; message?: string } | undefined;
             console.warn(
               `[Gemini model ${modelCandidate} failed]:`,
-              modelError?.status || modelError?.message?.slice(0, 100)
+              err?.status || err?.message?.slice(0, 100)
             );
             continue;
           }

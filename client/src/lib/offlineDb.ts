@@ -9,7 +9,7 @@ export interface OutboxItem {
   type: 'CREATE_TASK' | 'TOGGLE_TASK' | 'UPDATE_TASK' | 'DELETE_TASK' | 'CREATE_HABIT';
   endpoint: string;
   method: 'POST' | 'PATCH' | 'DELETE' | 'PUT';
-  payload?: any;
+  payload?: unknown;
   tempId?: string;
   createdAt: number;
   retryCount: number;
@@ -17,7 +17,7 @@ export interface OutboxItem {
 
 interface CacheRecord {
   key: string;
-  data: any;
+  data: unknown;
   updatedAt: number;
 }
 
@@ -50,7 +50,7 @@ function openDb(): Promise<IDBDatabase> {
 // Query Cache (Persists server state offline)
 // -------------------------------------------------------------
 
-export async function saveQueryCache(key: string, data: any): Promise<void> {
+export async function saveQueryCache(key: string, data: unknown): Promise<void> {
   try {
     const db = await openDb();
     return new Promise((resolve, reject) => {
@@ -66,7 +66,7 @@ export async function saveQueryCache(key: string, data: any): Promise<void> {
   }
 }
 
-export async function getQueryCache<T = any>(key: string): Promise<T | null> {
+export async function getQueryCache<T = unknown>(key: string): Promise<T | null> {
   try {
     const db = await openDb();
     return new Promise((resolve) => {

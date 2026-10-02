@@ -15,6 +15,7 @@
     "build:server": "pnpm --filter @taskiye/server build",
     "seed": "pnpm --filter @taskiye/server seed",
     "lint": "eslint .",
+    "test": "vitest run",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\""
   },
   "devDependencies": {
@@ -25,8 +26,10 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
     "prettier": "^3.5.2",
-    "typescript-eslint": "^8.24.1"
+    "typescript-eslint": "^8.24.1",
+    "vitest": "^5.0.3"
   },
+  "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
@@ -35,12 +38,7 @@
       "qs@>=6.14.2 <=6.15.3": ">=6.16.0",
       "qs@>=2.2.5 <6.16.0": ">=6.16.0",
       "multer@>=2.2.0 <2.4.0": ">=2.4.0",
-      "brace-expansion@<1.1.21": ">=1.1.21",
-      "brace-expansion@>=4.0.0 <5.0.12": ">=5.0.12",
-      "brace-expansion@<1.1.20": ">=1.1.20",
-      "brace-expansion@>=4.0.0 <5.0.11": ">=5.0.11",
-      "brace-expansion@<1.1.19": ">=1.1.19",
-      "brace-expansion@>=4.0.0 <5.0.10": ">=5.0.10"
+      "brace-expansion@>=4.0.0 <5.0.12": ">=5.0.12"
     }
   }
 }
