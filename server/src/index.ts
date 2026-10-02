@@ -26,12 +26,11 @@ dotenv.config({ path: '../.env' });
 const app = express();
 app.set('trust proxy', 1);
 
-// Security Headers via Helmet
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-);
+// Security Headers via Helmet (CJS/ESM interop safe)
+const helmetMiddleware = ((helmet as any)?.default || helmet)({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+});
+app.use(helmetMiddleware);
 
 const PORT = ENV.PORT;
 const allowedOrigins = Array.from(
