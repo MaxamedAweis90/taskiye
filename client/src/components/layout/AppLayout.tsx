@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { PageLoader } from '../common/PageLoader';
 import {
   LayoutGrid,
   CheckSquare,
@@ -2566,7 +2567,9 @@ export const AppLayout: React.FC = () => {
           id="main-workspace"
           className="flex-1 bg-slate-50/70 dark:bg-[#0E1628] border-t md:border-l border-slate-200/80 dark:border-white/[0.06] rounded-t-3xl md:rounded-tr-none md:rounded-tl-3xl sm:md:rounded-tl-[2.5rem] overflow-y-auto overflow-x-hidden w-full max-w-full min-w-0 px-3 sm:px-8 py-4 sm:py-6 pb-24 md:pb-6 relative custom-scrollbar"
         >
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

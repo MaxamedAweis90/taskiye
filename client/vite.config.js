@@ -13,4 +13,34 @@ export default defineConfig({
             },
         },
     },
+    build: {
+        chunkSizeWarningLimit: 700,
+        rollupOptions: {
+            output: {
+                manualChunks: function (id) {
+                    var normalizedId = id.replace(/\\/g, '/');
+                    if (normalizedId.includes('/node_modules/')) {
+                        if (normalizedId.includes('/react/') ||
+                            normalizedId.includes('/react-dom/') ||
+                            normalizedId.includes('/react-router-dom/') ||
+                            normalizedId.includes('/react-router/')) {
+                            return 'vendor-react';
+                        }
+                        if (normalizedId.includes('lucide-react')) {
+                            return 'vendor-lucide';
+                        }
+                        if (normalizedId.includes('@tanstack') || normalizedId.includes('/zustand/')) {
+                            return 'vendor-state';
+                        }
+                        if (normalizedId.includes('better-auth')) {
+                            return 'vendor-auth';
+                        }
+                        if (normalizedId.includes('/qrcode/') || normalizedId.includes('/jsqr/')) {
+                            return 'vendor-qr';
+                        }
+                    }
+                },
+            },
+        },
+    },
 });

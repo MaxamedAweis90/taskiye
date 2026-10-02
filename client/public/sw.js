@@ -1,11 +1,13 @@
 // Taskiye Native High-Performance Service Worker
-const CACHE_NAME = 'taskiye-cache-v4';
+const CACHE_NAME = 'taskiye-cache-v5';
 
 // Critical Shell Assets to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/favicon.svg',
+  '/icons/icon-192.png',
   '/logo.png',
 ];
 
@@ -92,7 +94,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // C. Static Assets & Fonts (JS, CSS, Images, Google Fonts): Stale-While-Revalidate
+  // C. Immutable Hashed Assets (/assets/*): Cache-First strategy
+  if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) {
+          return cached;
+        }
+        return fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
+  // D. Static Assets & Fonts (JS, CSS, Images, Google Fonts): Stale-While-Revalidate
   const isStaticAsset =
     url.origin === self.location.origin ||
     url.hostname === 'fonts.googleapis.com' ||
@@ -103,13 +124,16 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then((cachedResponse) => {
         const fetchPromise = fetch(request)
           .then((networkResponse) => {
-            if (networkResponse.status === 200) {
+            if (networkResponse && networkResponse.status === 200) {
               const responseClone = networkResponse.clone();
               caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
             }
             return networkResponse;
           })
-          .catch(() => cachedResponse);
+          .catch((err) => {
+            if (cachedResponse) return cachedResponse;
+            throw err;
+          });
 
         return cachedResponse || fetchPromise;
       })

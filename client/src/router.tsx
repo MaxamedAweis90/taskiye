@@ -1,11 +1,43 @@
+import { lazy, Suspense, type ComponentType } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { RouteErrorBoundary } from './components/common/RouteErrorBoundary';
-import { Dashboard } from './pages/Dashboard';
-import { Habits } from './pages/Habits';
-import { Tasks } from './pages/Tasks';
-import { Rank } from './pages/Rank';
-import { NotFound } from './pages/NotFound';
+import { PageLoader } from './components/common/PageLoader';
+
+/**
+ * Lazy loads a component with automated chunk-load retry on redeployments
+ */
+function lazyWithRetry<T extends ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    const pageHasAlreadyBeenForceRefreshed =
+      typeof window !== 'undefined'
+        ? JSON.parse(window.sessionStorage.getItem('taskiye_chunk_reload') || 'false')
+        : false;
+
+    try {
+      const component = await factory();
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('taskiye_chunk_reload', 'false');
+      }
+      return component;
+    } catch (error) {
+      if (!pageHasAlreadyBeenForceRefreshed && typeof window !== 'undefined') {
+        window.sessionStorage.setItem('taskiye_chunk_reload', 'true');
+        window.location.reload();
+        return { default: (() => null) as unknown as T };
+      }
+      throw error;
+    }
+  });
+}
+
+const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
+const Habits = lazyWithRetry(() => import('./pages/Habits'));
+const Tasks = lazyWithRetry(() => import('./pages/Tasks'));
+const Rank = lazyWithRetry(() => import('./pages/Rank'));
+const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
 
 export const router = createBrowserRouter([
   {
@@ -45,6 +77,10 @@ export const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <NotFound />,
+    element: (
+      <Suspense fallback={<PageLoader message="Loading page..." />}>
+        <NotFound />
+      </Suspense>
+    ),
   },
 ]);

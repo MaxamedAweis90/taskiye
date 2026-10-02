@@ -1,13 +1,19 @@
-import React from 'react';
+import { lazy, Suspense, type FC } from 'react';
 import { useRouteError, isRouteErrorResponse, Link } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, Home, Sparkles } from 'lucide-react';
-import { NotFound } from '../../pages/NotFound';
+import { PageLoader } from './PageLoader';
 
-export const RouteErrorBoundary: React.FC = () => {
+const NotFound = lazy(() => import('../../pages/NotFound'));
+
+export const RouteErrorBoundary: FC = () => {
   const error = useRouteError();
 
   if (isRouteErrorResponse(error) && error.status === 404) {
-    return <NotFound />;
+    return (
+      <Suspense fallback={<PageLoader message="Loading..." />}>
+        <NotFound />
+      </Suspense>
+    );
   }
 
   let errorMessage = 'An unexpected error occurred in the application.';
