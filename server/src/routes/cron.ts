@@ -17,6 +17,7 @@ import {
   TRASH_EXPIRING_TEMPLATES,
   TRASH_PURGED_TEMPLATES,
 } from '../lib/notificationTemplates.js';
+import { ENV } from '../lib/env.js';
 
 const router = Router();
 
@@ -417,20 +418,25 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
 
 router.get('/reminders', async (req: Request, res: Response) => {
   try {
-    const cronSecret = process.env.CRON_SECRET;
+    const cronSecret = ENV.CRON_SECRET || process.env.CRON_SECRET;
     const authHeader = req.headers.authorization;
     const queryKey = (req.query.key as string | undefined) || (req.query.secret as string | undefined);
     const customHeader = req.headers['x-cron-secret'];
 
-    // Secure endpoint when CRON_SECRET is configured in production
-    if (cronSecret) {
+    // Enforce strict cron authentication
+    if (!cronSecret) {
+      if (ENV.IS_PRODUCTION) {
+        console.error('[Security Warning] CRON_SECRET is not configured in production. Rejecting request.');
+        return sendError(res, 'Cron authorization is not configured on this server', 500);
+      }
+    } else {
       const isAuthorized =
         authHeader === `Bearer ${cronSecret}` ||
         queryKey === cronSecret ||
         customHeader === cronSecret;
 
       if (!isAuthorized) {
-        return sendError(res, 'Unauthorized cron invocation', 401);
+        return sendError(res, 'Unauthorized cron invocation: invalid or missing secret', 401);
       }
     }
 

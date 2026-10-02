@@ -1,7 +1,10 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
+import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
+import { chatLimiter } from '../middleware/rateLimiter.js';
+import { ENV } from '../lib/env.js';
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
@@ -214,18 +217,16 @@ function getFallbackResponse(
   }
 }
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', chatLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       messages,
       language = 'en',
       stream = false,
-      user,
     } = req.body as {
       messages?: Array<{ role: 'user' | 'model' | 'assistant'; content: string }>;
       language?: 'en' | 'so';
       stream?: boolean;
-      user?: { name?: string; username?: string; email?: string; isGuest?: boolean };
     };
 
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -235,8 +236,38 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    if (messages.length > 25) {
+      return res.status(400).json({
+        success: false,
+        error: 'Conversation history exceeds maximum supported limit (25 messages)',
+      });
+    }
+
+    const hasInvalidMessage = messages.some(
+      (m) => !m || typeof m.content !== 'string' || m.content.length > 2500
+    );
+
+    if (hasInvalidMessage) {
+      return res.status(400).json({
+        success: false,
+        error: 'Each message must be a string under 2500 characters',
+      });
+    }
+
+    // Safely derive user profile from validated session instead of client-supplied body
+    const user = req.user
+      ? {
+          name: req.user.name || req.user.username || 'User',
+          email: req.user.email,
+          isGuest: false,
+        }
+      : {
+          name: 'Guest',
+          isGuest: true,
+        };
+
     const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const apiKey = ENV.GEMINI_API_KEY;
 
     // If API key is available, call Google Gemini via @google/genai SDK
     if (apiKey) {

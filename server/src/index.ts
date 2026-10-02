@@ -1,8 +1,10 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth.js';
+import { ENV } from './lib/env.js';
 import { connectDB } from './db/connection.js';
 import { authLimiter, generalApiLimiter } from './middleware/rateLimiter.js';
 import { responseCompression } from './middleware/compression.js';
@@ -24,23 +26,41 @@ dotenv.config({ path: '../.env' });
 const app = express();
 app.set('trust proxy', 1);
 
-const PORT = process.env.PORT || 5000;
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5000',
-  'https://taskiye.vercel.app',
-  'https://taskiye-server.vercel.app',
-  ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((url) => url.trim()) : []),
-];
+// Security Headers via Helmet
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+const PORT = ENV.PORT;
+const allowedOrigins = Array.from(
+  new Set([
+    'http://localhost:5173',
+    'http://localhost:5000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5000',
+    ...(ENV.CLIENT_URL ? ENV.CLIENT_URL.split(',').map((url) => url.trim()) : []),
+    ENV.BETTER_AUTH_URL,
+  ].filter(Boolean))
+);
 
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, serverless internal calls)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+
+      const normalizedOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some(
+        (allowed) => allowed.replace(/\/$/, '') === normalizedOrigin
+      );
+
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(null, origin);
+
+      return callback(new Error(`CORS blocked: Origin ${origin} is not allowed`));
     },
     credentials: true,
   })

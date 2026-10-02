@@ -139,3 +139,19 @@ export const generalApiLimiter = rateLimiterManager.createMiddleware({
   max: 250,
   message: 'Too many requests across the API. Please slow down.',
 });
+
+export const chatLimiter = rateLimiterManager.createMiddleware({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: 'AI Chat request limit exceeded. Please wait a minute before sending more messages.',
+  keyGenerator: (req) => {
+    const userId = (req as Request & { user?: { id: string } }).user?.id;
+    if (userId) return `chat:user:${userId}`;
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = typeof forwarded === 'string'
+      ? forwarded.split(',')[0]?.trim() || '127.0.0.1'
+      : req.socket?.remoteAddress || '127.0.0.1';
+    return `chat:ip:${ip}`;
+  },
+});
+

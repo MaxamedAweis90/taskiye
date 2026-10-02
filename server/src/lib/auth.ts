@@ -11,20 +11,25 @@ import dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: '../.env' });
 
+import { ENV } from './env.js';
+
 export const auth = betterAuth({
   database: mongodbAdapter(mongoDb, {
     client: mongoClient,
     transaction: false, // Prevents errors on standalone local MongoDB instances
   }),
-  secret: process.env.BETTER_AUTH_SECRET || 'taskiye_dev_auth_secret_minimum_32_characters_long',
-  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:5000',
-  trustedOrigins: [
-    'http://localhost:5173',
-    'http://localhost:5000',
-    'https://taskiye.vercel.app',
-    'https://taskiye-server.vercel.app',
-    ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((u) => u.trim()) : []),
-  ],
+  secret: ENV.BETTER_AUTH_SECRET,
+  baseURL: ENV.BETTER_AUTH_URL,
+  trustedOrigins: Array.from(
+    new Set([
+      'http://localhost:5173',
+      'http://localhost:5000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5000',
+      ...ENV.CLIENT_URL.split(',').map((u) => u.trim()).filter(Boolean),
+      ENV.BETTER_AUTH_URL,
+    ])
+  ),
   account: {
     accountLinking: {
       enabled: true,

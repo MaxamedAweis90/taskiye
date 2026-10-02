@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { ObjectId } from 'mongodb';
-import { optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
+import { requireAuth, optionalAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { Friendship } from '../models/Friendship.js';
 import { Habit } from '../models/Habit.js';
@@ -164,9 +164,12 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-router.get('/search', searchLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/search', searchLimiter, requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const rawQuery = ((req.query.q as string) || '').trim().replace(/^@/, '').toLowerCase();
+    if (!rawQuery || rawQuery.length < 2) {
+      return sendSuccess(res, [], 'Search query must be at least 2 characters long');
+    }
     if (rawQuery.length > 50) {
       return sendError(res, 'Search query too long', 400);
     }
@@ -378,7 +381,7 @@ async function deliverFriendAcceptedNotification(
   }
 }
 
-router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/request', socialLimiter, requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id
       ? String(req.user.id)
@@ -595,7 +598,7 @@ router.post('/request', socialLimiter, optionalAuth, async (req: AuthenticatedRe
   }
 });
 
-router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/respond', socialLimiter, requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { friendshipId, action } = req.body;
 
@@ -678,7 +681,7 @@ router.post('/respond', socialLimiter, optionalAuth, async (req: AuthenticatedRe
   }
 });
 
-router.post('/remove', socialLimiter, optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/remove', socialLimiter, requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id
       ? String(req.user.id)
