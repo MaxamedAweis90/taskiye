@@ -66,13 +66,17 @@ app.use(
   })
 );
 
-// Re-establish DB connection on every serverless invocation
-app.use(async (_req, _res, next) => {
+// Re-establish DB connection on every serverless invocation with graceful 503 on failure
+app.use(async (_req, res, next) => {
   try {
     await connectDB();
     next();
   } catch (err) {
-    next(err);
+    console.error('[DB Connection Failure] Request halted:', err);
+    return res.status(503).json({
+      success: false,
+      error: 'Database service temporarily unavailable. Please try again shortly.',
+    });
   }
 });
 
@@ -105,6 +109,35 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/cron', cronRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/feedback', feedbackRouter);
+
+// 404 catch-all for unknown API routes
+app.use('/api/*', (_req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: 'API endpoint not found',
+  });
+});
+
+// Centralized Express Global Error Handler
+app.use((err: unknown, _req: Request, res: Response, _next: express.NextFunction) => {
+  const error = err as Error;
+  console.error('[Global Error Caught]:', error);
+
+  if (res.headersSent) {
+    return;
+  }
+
+  const statusCode =
+    (err as { status?: number; statusCode?: number }).status ||
+    (err as { status?: number; statusCode?: number }).statusCode ||
+    500;
+
+  res.status(statusCode).json({
+    success: false,
+    error: ENV.IS_PRODUCTION ? 'An unexpected internal error occurred' : error.message || 'Internal Server Error',
+    ...(ENV.IS_PRODUCTION ? {} : { stack: error.stack }),
+  });
+});
 
 async function startServer() {
   if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {

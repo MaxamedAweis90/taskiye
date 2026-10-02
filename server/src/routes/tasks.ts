@@ -50,18 +50,9 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
       return true;
     });
 
-    // Clean up any orphaned habit instances in the background
-    const orphanedIds = tasks
-      .filter((t) => t.isHabitInstance && (!t.habitId || (t.habitId as unknown as { isArchived?: boolean }).isArchived))
-      .map((t) => t._id);
-    if (orphanedIds.length > 0) {
-      Task.deleteMany({ _id: { $in: orphanedIds } }).catch(() => {});
-    }
-
-    // Deduplicate any accidental duplicate habit tasks for the same habit and date
+    // Deduplicate any accidental duplicate habit tasks for the same habit and date in memory
     const seenHabits = new Map<string, (typeof validTasks)[0]>();
     const deduplicatedTasks: (typeof validTasks)[0][] = [];
-    const duplicateIdsToDelete: unknown[] = [];
 
     for (const t of validTasks) {
       if (t.isHabitInstance && t.habitId) {
@@ -72,23 +63,16 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
           seenHabits.set(habitKey, t);
           deduplicatedTasks.push(t);
         } else {
-          // If the new one is completed while existing is not, prioritize the completed one
+          // If the new one is completed while existing is not, prioritize the completed one in view
           if (!existing.isCompleted && t.isCompleted) {
             const idx = deduplicatedTasks.indexOf(existing);
             if (idx !== -1) deduplicatedTasks[idx] = t;
-            duplicateIdsToDelete.push(existing._id);
             seenHabits.set(habitKey, t);
-          } else {
-            duplicateIdsToDelete.push(t._id);
           }
         }
       } else {
         deduplicatedTasks.push(t);
       }
-    }
-
-    if (duplicateIdsToDelete.length > 0) {
-      Task.deleteMany({ _id: { $in: duplicateIdsToDelete } }).catch(() => {});
     }
 
     return sendSuccess(res, deduplicatedTasks);

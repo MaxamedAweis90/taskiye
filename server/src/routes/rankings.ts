@@ -27,176 +27,62 @@ interface CachedRankings {
   items: Omit<UserRankItem, 'isCurrentUser'>[];
 }
 
-let cachedRankings: CachedRankings | null = null;
-const RANKINGS_CACHE_TTL_MS = 60 * 1000; // 60-second TTL cache
+let cachedGlobalRankings: CachedRankings | null = null;
+const RANKINGS_CACHE_TTL_MS = 60 * 1000; // 60-second TTL cache for global
 
 export function invalidateRankingsCache(): void {
-  cachedRankings = null;
+  cachedGlobalRankings = null;
+}
+
+function buildRankItem(
+  u: Record<string, unknown> | null,
+  userId: string,
+  stats: { streakCount: number; consistencyRate: number; totalCompletions: number },
+  rank: number,
+  isCurrentUser: boolean,
+  fallbackName: string = 'User'
+): UserRankItem {
+  const name = (u?.name as string) || (u?.username as string) || fallbackName;
+  const rawHandle = (u?.username as string) || name.toLowerCase().replace(/\s+/g, '');
+  const handle = `@${rawHandle.replace(/^@/, '')}`;
+  const avatar = (u?.avatarUrl as string) || (u?.image as string) || '';
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'U';
+
+  return {
+    userId,
+    rank,
+    userName: name,
+    handle,
+    userAvatar: avatar,
+    initials,
+    streakCount: Math.max(0, stats.streakCount || 0),
+    consistencyRate: Math.max(0, Math.min(100, Math.round(stats.consistencyRate || 100))),
+    totalCompletions: Math.max(0, stats.totalCompletions || 0),
+    isOnline: true,
+    isCurrentUser,
+  };
 }
 
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const type = (req.query.type as string) || 'friends';
-    const currentUserId = req.user?.id;
+    const currentUserId = req.user?.id ? String(req.user.id) : '';
 
     // Prevent shared CDN / edge proxy caching of personalized rankings
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.setHeader('Vary', 'Cookie');
 
-    const isCacheExpired = !cachedRankings || (Date.now() - cachedRankings.timestamp > RANKINGS_CACHE_TTL_MS);
-
-    if (isCacheExpired) {
-      // Fetch real registered users from MongoDB user collection
-      const users = await mongoDb.collection('user').find({}).toArray();
-
-      // Fetch all active habits (not archived, not deleted)
-      const habits = await Habit.find({
-        isArchived: { $ne: true },
-        deletedAt: null,
-      }).lean();
-
-      // Group habits by userId
-      const habitsByUser = new Map<string, typeof habits>();
-      for (const habit of habits) {
-        if (!habit.userId) continue;
-        const list = habitsByUser.get(habit.userId) || [];
-        list.push(habit);
-        habitsByUser.set(habit.userId, list);
-      }
-
-      // Build ranking items for each user
-      const rawRankItems: Omit<UserRankItem, 'isCurrentUser'>[] = users.map((u) => {
-        const uId = String((u.id as string) || u._id?.toString() || '');
-        const userHabits =
-          habitsByUser.get(uId) || habitsByUser.get(u._id?.toString() || '') || [];
-
-        // Streak rank factor: maximum active streak across user's active habits
-        const streakCount =
-          userHabits.length > 0
-            ? Math.max(...userHabits.map((h) => Number(h.streakDays) || 0))
-            : 0;
-
-        // Consistency: average consistencyRate across habits (default 100%)
-        const consistencyRate =
-          userHabits.length > 0
-            ? Math.round(
-                userHabits.reduce(
-                  (acc, h) =>
-                    acc + (typeof h.consistencyRate === 'number' ? h.consistencyRate : 100),
-                  0
-                ) / userHabits.length
-              )
-            : 100;
-
-        const totalCompletions = userHabits.reduce(
-          (acc, h) => acc + (Number(h.totalCompletions) || 0),
-          0
-        );
-
-        const name = (u.name as string) || (u.username as string) || 'User';
-        const rawHandle =
-          (u.username as string) || name.toLowerCase().replace(/\s+/g, '');
-        const handle = `@${rawHandle.replace(/^@/, '')}`;
-        const avatar = (u.avatarUrl as string) || (u.image as string) || '';
-        const initials =
-          name
-            .split(' ')
-            .filter(Boolean)
-            .map((p) => p[0])
-            .join('')
-            .slice(0, 2)
-            .toUpperCase() || 'U';
-
-        return {
-          userId: uId,
-          rank: 0,
-          userName: name,
-          handle,
-          userAvatar: avatar,
-          initials,
-          streakCount,
-          consistencyRate,
-          totalCompletions,
-          isOnline: true,
-        };
-      });
-
-      // Sort strictly by streakCount descending, then consistencyRate descending
-      rawRankItems.sort((a, b) => {
-        if (b.streakCount !== a.streakCount) return b.streakCount - a.streakCount;
-        if (b.consistencyRate !== a.consistencyRate) return b.consistencyRate - a.consistencyRate;
-        return b.totalCompletions - a.totalCompletions;
-      });
-
-      // Assign continuous all-time ranks (1, 2, 3...)
-      rawRankItems.forEach((item, index) => {
-        item.rank = index + 1;
-      });
-
-      cachedRankings = {
-        timestamp: Date.now(),
-        items: rawRankItems,
-      };
-    }
-
-    const currentUserIdStr = currentUserId ? String(currentUserId) : '';
-
-    // 2. Clone cached global list and map isCurrentUser defensively for requester
-    const cachedItems = cachedRankings?.items || [];
-    const allRankItems: UserRankItem[] = cachedItems.map((item) => ({
-      ...item,
-      isCurrentUser: Boolean(
-        currentUserIdStr &&
-          (item.userId === currentUserIdStr || String(item.userId) === currentUserIdStr)
-      ),
-    }));
-
-    // If current logged-in user isn't in users list yet, add them so they are represented
-    if (currentUserIdStr && !allRankItems.some((item) => item.isCurrentUser)) {
-      const currentUserName = req.user?.name || req.user?.username || 'You';
-      const currentUserAvatar =
-        (req.user as unknown as { avatarUrl?: string; image?: string })?.avatarUrl ||
-        (req.user as unknown as { image?: string })?.image ||
-        '';
-      allRankItems.push({
-        userId: currentUserIdStr,
-        rank: allRankItems.length + 1,
-        userName: currentUserName,
-        handle: `@${currentUserName.toLowerCase().replace(/\s+/g, '')}`,
-        userAvatar: currentUserAvatar,
-        initials: currentUserName.slice(0, 2).toUpperCase(),
-        streakCount: 0,
-        consistencyRate: 100,
-        totalCompletions: 0,
-        isOnline: true,
-        isCurrentUser: true,
-      });
-    }
-
-    // Identify current user item: strictly matching authenticated session
-    let currentUserItem: UserRankItem | null =
-      allRankItems.find((item) => item.isCurrentUser) || null;
-
-    // NEVER fall back to allRankItems[0] for guests or unmatched sessions
-    if (!currentUserItem && currentUserIdStr) {
-      const fallbackName = req.user?.name || req.user?.username || 'You';
-      currentUserItem = {
-        userId: currentUserIdStr,
-        rank: allRankItems.length + 1,
-        userName: fallbackName,
-        handle: `@${fallbackName.toLowerCase().replace(/\s+/g, '')}`,
-        userAvatar: (req.user as unknown as { image?: string })?.image || '',
-        initials: fallbackName.slice(0, 2).toUpperCase(),
-        streakCount: 0,
-        consistencyRate: 100,
-        totalCompletions: 0,
-        isOnline: true,
-        isCurrentUser: true,
-      };
-    }
-
+    // -------------------------------------------------------------
+    // Branch A: Friends League (Scoped Strictly to Connected Users)
+    // -------------------------------------------------------------
     if (type === 'friends') {
-      if (!currentUserIdStr) {
+      if (!currentUserId) {
         return sendSuccess(res, {
           type: 'friends',
           currentUser: null,
@@ -204,17 +90,16 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         });
       }
 
-      // Collect all aliases for the current authenticated user
       const currentAltId = req.user && (req.user as unknown as { _id?: string })._id
         ? String((req.user as unknown as { _id?: string })._id)
-        : currentUserIdStr;
+        : currentUserId;
       const currentUsername = (req.user as unknown as { username?: string })?.username || '';
       const currentName = req.user?.name || '';
       const currentEmail = req.user?.email || '';
 
       const currentAliases = Array.from(
         new Set([
-          currentUserIdStr,
+          currentUserId,
           currentAltId,
           currentUsername,
           currentName,
@@ -225,7 +110,7 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         ])
       ).filter(Boolean);
 
-      // Find accepted friendships for current user matching any alias
+      // Find accepted friendships
       const friendships = await Friendship.find({
         status: 'ACCEPTED',
         $or: [
@@ -234,7 +119,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         ],
       }).lean();
 
-      // Collect raw partner IDs/aliases from friendships
       const rawPartnerIds = new Set<string>();
       for (const f of friendships) {
         const isCurrentRequester = currentAliases.includes(String(f.requesterId));
@@ -242,7 +126,6 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         if (partnerId) rawPartnerIds.add(partnerId);
       }
 
-      // Look up partner user records in MongoDB to resolve their full alias set
       const partnerIdsArray = Array.from(rawPartnerIds);
       const queryOr: Record<string, unknown>[] = [
         { id: { $in: partnerIdsArray } },
@@ -260,64 +143,244 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
         ? await mongoDb.collection('user').find({ $or: queryOr }).toArray()
         : [];
 
-      // Build a fast lookup set containing all aliases for accepted friends
-      const friendMatchSet = new Set<string>();
-      for (const pId of partnerIdsArray) {
-        friendMatchSet.add(pId.toLowerCase());
-      }
+      // Collect all valid user IDs for habits query (friends + current user)
+      const targetUserIds = new Set<string>([currentUserId, currentAltId]);
       for (const u of friendUsers) {
-        if (u._id) friendMatchSet.add(u._id.toString().toLowerCase());
-        if (u.id) friendMatchSet.add(String(u.id).toLowerCase());
-        if (u.username) {
-          const uLower = String(u.username).toLowerCase();
-          friendMatchSet.add(uLower);
-          friendMatchSet.add(uLower.replace(/^@/, ''));
-        }
-        if (u.name) friendMatchSet.add(String(u.name).toLowerCase());
-        if (u.email) friendMatchSet.add(String(u.email).toLowerCase());
+        if (u.id) targetUserIds.add(String(u.id));
+        if (u._id) targetUserIds.add(u._id.toString());
+      }
+      for (const pId of partnerIdsArray) {
+        targetUserIds.add(pId);
       }
 
-      // Filter leaderboard to friends + current user
-      let friendsLeaderboard = allRankItems
-        .filter((item) => {
-          if (item.isCurrentUser) return true;
-          const uId = String(item.userId).toLowerCase();
-          const uHandle = item.handle.toLowerCase().replace(/^@/, '');
-          const uName = item.userName.toLowerCase();
-          return (
-            friendMatchSet.has(uId) ||
-            friendMatchSet.has(uHandle) ||
-            friendMatchSet.has(uName)
-          );
-        })
-        .map((item, idx) => ({
-          ...item,
-          rank: idx + 1,
-        }));
+      const targetUserIdsList = Array.from(targetUserIds).filter(Boolean);
 
-      // Ensure current user appears in friendsLeaderboard
-      if (currentUserItem && !friendsLeaderboard.some((i) => i.isCurrentUser)) {
-        friendsLeaderboard = [
-          { ...currentUserItem, rank: 1 },
-          ...friendsLeaderboard.map((i, idx) => ({ ...i, rank: idx + 2 })),
-        ];
+      // Aggregation pipeline scoped ONLY to target users
+      const habitStats = await Habit.aggregate([
+        {
+          $match: {
+            isArchived: { $ne: true },
+            deletedAt: null,
+            userId: { $in: targetUserIdsList },
+          },
+        },
+        {
+          $group: {
+            _id: '$userId',
+            streakCount: { $max: { $ifNull: ['$streakDays', 0] } },
+            avgConsistency: { $avg: { $ifNull: ['$consistencyRate', 100] } },
+            totalCompletions: { $sum: { $ifNull: ['$totalCompletions', 0] } },
+          },
+        },
+      ]);
+
+      const statsByUserId = new Map<string, { streakCount: number; consistencyRate: number; totalCompletions: number }>();
+      for (const stat of habitStats) {
+        statsByUserId.set(String(stat._id), {
+          streakCount: stat.streakCount || 0,
+          consistencyRate: Math.round(stat.avgConsistency || 100),
+          totalCompletions: stat.totalCompletions || 0,
+        });
       }
 
-      const activeCurrentUser =
-        friendsLeaderboard.find((i) => i.isCurrentUser) || currentUserItem;
+      // Build user documents map
+      const usersMap = new Map<string, Record<string, unknown>>();
+      for (const u of friendUsers) {
+        if (u.id) usersMap.set(String(u.id), u);
+        if (u._id) usersMap.set(u._id.toString(), u);
+      }
+
+      // Construct friend rank items
+      const candidateList: UserRankItem[] = [];
+      const seenIds = new Set<string>();
+
+      // Add current user
+      const currentUserStats = statsByUserId.get(currentUserId) || statsByUserId.get(currentAltId) || {
+        streakCount: 0,
+        consistencyRate: 100,
+        totalCompletions: 0,
+      };
+      const currentUserDoc = req.user ? (req.user as unknown as Record<string, unknown>) : null;
+      const currentRankItem = buildRankItem(
+        currentUserDoc,
+        currentUserId,
+        currentUserStats,
+        0,
+        true,
+        req.user?.name || req.user?.username || 'You'
+      );
+      candidateList.push(currentRankItem);
+      seenIds.add(currentUserId);
+      seenIds.add(currentAltId);
+
+      // Add friends
+      for (const u of friendUsers) {
+        const uId = String(u.id || u._id?.toString() || '');
+        if (!uId || seenIds.has(uId)) continue;
+        seenIds.add(uId);
+
+        const stats = statsByUserId.get(uId) || {
+          streakCount: 0,
+          consistencyRate: 100,
+          totalCompletions: 0,
+        };
+        candidateList.push(buildRankItem(u, uId, stats, 0, false));
+      }
+
+      // Sort candidate list
+      candidateList.sort((a, b) => {
+        if (b.streakCount !== a.streakCount) return b.streakCount - a.streakCount;
+        if (b.consistencyRate !== a.consistencyRate) return b.consistencyRate - a.consistencyRate;
+        return b.totalCompletions - a.totalCompletions;
+      });
+
+      // Assign ranks
+      candidateList.forEach((item, idx) => {
+        item.rank = idx + 1;
+      });
+
+      const activeCurrentUser = candidateList.find((i) => i.isCurrentUser) || currentRankItem;
 
       return sendSuccess(res, {
         type: 'friends',
         currentUser: activeCurrentUser,
-        leaderboard: friendsLeaderboard,
+        leaderboard: candidateList,
       });
     }
 
-    // Default: Global League
+    // -------------------------------------------------------------
+    // Branch B: Global League (Optimized Database Aggregation)
+    // -------------------------------------------------------------
+    const isCacheExpired =
+      !cachedGlobalRankings || Date.now() - cachedGlobalRankings.timestamp > RANKINGS_CACHE_TTL_MS;
+
+    if (isCacheExpired) {
+      // High-performance MongoDB aggregation for top 100 global ranks
+      const topHabitStats = await Habit.aggregate([
+        {
+          $match: {
+            isArchived: { $ne: true },
+            deletedAt: null,
+            userId: { $type: 'string', $ne: '' },
+          },
+        },
+        {
+          $group: {
+            _id: '$userId',
+            streakCount: { $max: { $ifNull: ['$streakDays', 0] } },
+            avgConsistency: { $avg: { $ifNull: ['$consistencyRate', 100] } },
+            totalCompletions: { $sum: { $ifNull: ['$totalCompletions', 0] } },
+          },
+        },
+        {
+          $sort: {
+            streakCount: -1,
+            avgConsistency: -1,
+            totalCompletions: -1,
+          },
+        },
+        { $limit: 100 },
+      ]);
+
+      const candidateUserIds = topHabitStats.map((s) => String(s._id));
+      const objectIdQueries = candidateUserIds
+        .filter((id) => ObjectId.isValid(id))
+        .map((id) => new ObjectId(id));
+
+      const matchedUsers = candidateUserIds.length > 0
+        ? await mongoDb
+            .collection('user')
+            .find({
+              $or: [{ id: { $in: candidateUserIds } }, { _id: { $in: objectIdQueries } }],
+            })
+            .toArray()
+        : [];
+
+      const usersMap = new Map<string, Record<string, unknown>>();
+      for (const u of matchedUsers) {
+        if (u.id) usersMap.set(String(u.id), u);
+        if (u._id) usersMap.set(u._id.toString(), u);
+      }
+
+      const rawRankItems: Omit<UserRankItem, 'isCurrentUser'>[] = [];
+      topHabitStats.forEach((stat, index) => {
+        const uId = String(stat._id);
+        const userDoc = usersMap.get(uId) || null;
+        const item = buildRankItem(
+          userDoc,
+          uId,
+          {
+            streakCount: stat.streakCount || 0,
+            consistencyRate: stat.avgConsistency || 100,
+            totalCompletions: stat.totalCompletions || 0,
+          },
+          index + 1,
+          false
+        );
+        rawRankItems.push(item);
+      });
+
+      cachedGlobalRankings = {
+        timestamp: Date.now(),
+        items: rawRankItems,
+      };
+    }
+
+    const cachedItems = cachedGlobalRankings?.items || [];
+    let currentUserRankItem: UserRankItem | null = null;
+
+    const globalLeaderboard: UserRankItem[] = cachedItems.map((item) => {
+      const isMatch = Boolean(currentUserId && item.userId === currentUserId);
+      const enrichedItem = { ...item, isCurrentUser: isMatch };
+      if (isMatch) currentUserRankItem = enrichedItem;
+      return enrichedItem;
+    });
+
+    // If current user is not in top 100, fetch their personal stats on-demand
+    if (currentUserId && !currentUserRankItem) {
+      const personalStats = await Habit.aggregate([
+        {
+          $match: {
+            userId: currentUserId,
+            isArchived: { $ne: true },
+            deletedAt: null,
+          },
+        },
+        {
+          $group: {
+            _id: '$userId',
+            streakCount: { $max: { $ifNull: ['$streakDays', 0] } },
+            avgConsistency: { $avg: { $ifNull: ['$consistencyRate', 100] } },
+            totalCompletions: { $sum: { $ifNull: ['$totalCompletions', 0] } },
+          },
+        },
+      ]);
+
+      const stats = personalStats[0] || {
+        streakCount: 0,
+        avgConsistency: 100,
+        totalCompletions: 0,
+      };
+
+      const userDoc = req.user ? (req.user as unknown as Record<string, unknown>) : null;
+      currentUserRankItem = buildRankItem(
+        userDoc,
+        currentUserId,
+        {
+          streakCount: stats.streakCount || 0,
+          consistencyRate: stats.avgConsistency || 100,
+          totalCompletions: stats.totalCompletions || 0,
+        },
+        globalLeaderboard.length + 1,
+        true,
+        req.user?.name || req.user?.username || 'You'
+      );
+    }
+
     return sendSuccess(res, {
       type: 'global',
-      currentUser: currentUserItem,
-      leaderboard: allRankItems,
+      currentUser: currentUserRankItem,
+      leaderboard: globalLeaderboard,
     });
   } catch (error) {
     return sendError(res, 'Failed to fetch rankings', 500, error);
@@ -325,4 +388,3 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
 });
 
 export default router;
-

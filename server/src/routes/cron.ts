@@ -60,6 +60,16 @@ async function processSubscriptionReminder(sub: IPushSubscription, now: Date): P
       sub.lastNotifiedDate = localDate;
     };
 
+    // Fast-path guard: Skip all database queries if this subscriber has no pending alerts for this hour
+    const alertHours = [8, 14, 17, 20, 22];
+    const canSendHourly = alertHours.includes(localHour);
+    const canSendTrash = !hasSentToday('trashAlert');
+    const canSendFreeze = !hasSentToday('freezeMelted');
+
+    if (!canSendHourly && !canSendTrash && !canSendFreeze) {
+      return false;
+    }
+
     let firstName = 'Champion';
     if (sub.userId) {
       try {

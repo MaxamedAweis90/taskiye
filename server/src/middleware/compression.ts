@@ -21,13 +21,25 @@ export function responseCompression(minByteLength: number = 1024) {
           return originalSend(jsonString);
         }
 
-        const gzipped = zlib.gzipSync(Buffer.from(jsonString, 'utf8'));
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.setHeader('Content-Encoding', 'gzip');
-        res.setHeader('Vary', 'Accept-Encoding');
-        res.setHeader('Content-Length', String(gzipped.length));
+        const inputBuffer = Buffer.from(jsonString, 'utf8');
 
-        return originalSend(gzipped);
+        // Asynchronous non-blocking compression keeps the event loop free
+        zlib.gzip(inputBuffer, (err, gzipped) => {
+          if (err || !gzipped) {
+            return originalSend(jsonString);
+          }
+
+          if (!res.headersSent) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.setHeader('Content-Encoding', 'gzip');
+            res.setHeader('Vary', 'Accept-Encoding');
+            res.setHeader('Content-Length', String(gzipped.length));
+          }
+
+          return originalSend(gzipped);
+        });
+
+        return res;
       } catch {
         return originalJson(body);
       }
