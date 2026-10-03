@@ -188,6 +188,11 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
           providers,
           avatarUrl: user.avatarUrl || user.image || '',
           phoneNumber: user.phoneNumber || '',
+          createdAt:
+            user.createdAt ||
+            (user._id instanceof ObjectId
+              ? user._id.getTimestamp().toISOString()
+              : undefined),
         },
       },
       'Profile retrieved successfully'

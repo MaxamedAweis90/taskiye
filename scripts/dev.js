@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import fs from 'node:fs';
 import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -9,7 +10,10 @@ const rootDir = path.resolve(__dirname, '..');
 dotenv.config({ path: path.join(rootDir, '.env') });
 
 const nodeExec = process.execPath;
-const viteJs = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
+const clientDir = path.join(rootDir, 'client');
+const viteJs = fs.existsSync(path.join(clientDir, 'node_modules', 'vite', 'bin', 'vite.js'))
+  ? path.join(clientDir, 'node_modules', 'vite', 'bin', 'vite.js')
+  : path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const tsxJs = path.join(rootDir, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
 console.log('\x1b[36m%s\x1b[0m', '⚡ Starting Taskiye Backend Server...');

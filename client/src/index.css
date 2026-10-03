@@ -387,3 +387,22 @@ body {
 .animate-card-restored-arrival {
   animation: card-restored-arrival 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Prevent iOS Safari auto-zoom on input/select focus by guaranteeing 16px font-size on mobile */
+@media screen and (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Fix native WebKit date pickers overflowing container bounds on iOS */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+

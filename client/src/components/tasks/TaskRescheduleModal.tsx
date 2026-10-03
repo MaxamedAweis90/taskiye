@@ -62,11 +62,11 @@ export const TaskRescheduleModal: React.FC<TaskRescheduleModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-3 sm:p-4 select-none animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-amber-400/30 rounded-3xl p-5 sm:p-6 shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(250,204,21,0.15)] flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+        className="w-full max-w-md bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-amber-400/30 rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.9),0_0_30px_rgba(250,204,21,0.15)] flex flex-col gap-4 max-h-[88dvh] overflow-y-auto custom-scrollbar animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -203,7 +203,7 @@ export const TaskRescheduleModal: React.FC<TaskRescheduleModalProps> = ({
                   min={todayStr}
                   value={customDate}
                   onChange={(e) => setCustomDate(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A] border border-amber-500/50 dark:border-amber-400/50 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 cursor-pointer"
+                  className="w-full min-w-0 max-w-full box-border bg-slate-50 dark:bg-[#0F172A] border border-amber-500/50 dark:border-amber-400/50 rounded-xl px-3 py-2 text-base sm:text-xs font-semibold text-slate-800 dark:text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:focus:ring-amber-400 cursor-pointer"
                 />
               </div>
             )}

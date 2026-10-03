@@ -103,6 +103,7 @@ export const AppLayout: React.FC = () => {
     setIsTrashOpen,
     habits: guestHabits,
     tasks: guestTasks,
+    guestCreatedAt,
     getGuestActivityMap,
     currentDateStr,
     triggerLogoutSplash,
@@ -211,7 +212,18 @@ export const AppLayout: React.FC = () => {
     setBaseStreakDays(effectiveBaseStreak);
   }, [effectiveBaseStreak, setBaseStreakDays]);
 
-  const { data: userProfileData } = useQuery({
+  const { data: userProfileData } = useQuery<{
+    id?: string;
+    name?: string;
+    username?: string;
+    email?: string;
+    emailVerified?: boolean;
+    hasPassword?: boolean;
+    providers?: string[];
+    avatarUrl?: string;
+    phoneNumber?: string;
+    createdAt?: string;
+  } | null>({
     queryKey: ['user', 'profile'],
     queryFn: async () => {
       const res = await fetch('/api/users/profile', { credentials: 'include' });
@@ -233,6 +245,7 @@ export const AppLayout: React.FC = () => {
         email?: string;
         avatarUrl?: string;
         image?: string | null;
+        createdAt?: string | Date;
       }
     | undefined;
 
@@ -497,6 +510,27 @@ export const AppLayout: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+
+    const handleVisualViewportChange = () => {
+      const scale = window.visualViewport?.scale ?? 1;
+      // When scale > 1.05, user is actively pinch-zoomed in
+      setIsZoomed(scale > 1.05);
+    };
+
+    const vv = window.visualViewport;
+    vv.addEventListener('resize', handleVisualViewportChange);
+    vv.addEventListener('scroll', handleVisualViewportChange);
+
+    return () => {
+      vv.removeEventListener('resize', handleVisualViewportChange);
+      vv.removeEventListener('scroll', handleVisualViewportChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -1013,18 +1047,121 @@ export const AppLayout: React.FC = () => {
     }
   }, []);
 
+  // Determine earliest start date for the user (account creation or earliest activity/item)
+  const userStartDate = useMemo(() => {
+    const timestamps: number[] = [];
+
+    // 1. Authenticated user profile / session creation date
+    const profileCreated =
+      userProfileData?.createdAt ||
+      (session?.user as { createdAt?: string | Date })?.createdAt;
+    if (profileCreated) {
+      const ts = new Date(profileCreated).getTime();
+      if (!isNaN(ts)) timestamps.push(ts);
+    }
+
+    // 2. Guest created date from persisted store
+    if (guestCreatedAt) {
+      const ts = new Date(guestCreatedAt).getTime();
+      if (!isNaN(ts)) timestamps.push(ts);
+    }
+
+    // 3. Guest tasks and habits
+    if (guestTasks && guestTasks.length > 0) {
+      guestTasks.forEach((t) => {
+        if (t.createdAt) {
+          const ts = new Date(t.createdAt).getTime();
+          if (!isNaN(ts)) timestamps.push(ts);
+        }
+        if (t.date) {
+          const ts = new Date(t.date).getTime();
+          if (!isNaN(ts)) timestamps.push(ts);
+        }
+      });
+    }
+
+    if (guestHabits && guestHabits.length > 0) {
+      guestHabits.forEach((h) => {
+        if (h.createdAt) {
+          const ts = new Date(h.createdAt).getTime();
+          if (!isNaN(ts)) timestamps.push(ts);
+        }
+        if (h.completedDates && h.completedDates.length > 0) {
+          h.completedDates.forEach((d) => {
+            const ts = new Date(d).getTime();
+            if (!isNaN(ts)) timestamps.push(ts);
+          });
+        }
+      });
+    }
+
+    // 4. Activity logs keys (YYYY-MM-DD)
+    if (activityLogs) {
+      Object.keys(activityLogs).forEach((dateStr) => {
+        const ts = new Date(dateStr).getTime();
+        if (!isNaN(ts)) timestamps.push(ts);
+      });
+    }
+
+    if (timestamps.length === 0) {
+      return new Date();
+    }
+
+    return new Date(Math.min(...timestamps));
+  }, [
+    userProfileData,
+    session?.user,
+    guestCreatedAt,
+    guestTasks,
+    guestHabits,
+    activityLogs,
+  ]);
+
+  const { startMonthDate, currentMonthDate } = useMemo(() => {
+    const now = new Date();
+    const curr = new Date(now.getFullYear(), now.getMonth(), 1);
+    const start = new Date(userStartDate.getFullYear(), userStartDate.getMonth(), 1);
+    // User cannot start in a future month beyond current month
+    const safeStart = start > curr ? curr : start;
+    return { startMonthDate: safeStart, currentMonthDate: curr };
+  }, [userStartDate]);
+
   const [streakCalendarDate, setStreakCalendarDate] = useState(() => new Date());
 
-  const canGoNextMonth = useMemo(() => {
-    const now = new Date();
+  // Reset to current month whenever the streak popup is opened
+  useEffect(() => {
+    if (activeDropdown === 'streak') {
+      setStreakCalendarDate(new Date());
+    }
+  }, [activeDropdown]);
+
+  // Keep streak calendar clamped between user's start month and current month
+  useEffect(() => {
+    if (streakCalendarDate < startMonthDate) {
+      setStreakCalendarDate(startMonthDate);
+    } else if (streakCalendarDate > currentMonthDate) {
+      setStreakCalendarDate(currentMonthDate);
+    }
+  }, [startMonthDate, currentMonthDate, streakCalendarDate]);
+
+  const canGoPrevMonth = useMemo(() => {
     return (
-      streakCalendarDate.getFullYear() < now.getFullYear() ||
-      (streakCalendarDate.getFullYear() === now.getFullYear() &&
-        streakCalendarDate.getMonth() < now.getMonth())
+      streakCalendarDate.getFullYear() > startMonthDate.getFullYear() ||
+      (streakCalendarDate.getFullYear() === startMonthDate.getFullYear() &&
+        streakCalendarDate.getMonth() > startMonthDate.getMonth())
     );
-  }, [streakCalendarDate]);
+  }, [streakCalendarDate, startMonthDate]);
+
+  const canGoNextMonth = useMemo(() => {
+    return (
+      streakCalendarDate.getFullYear() < currentMonthDate.getFullYear() ||
+      (streakCalendarDate.getFullYear() === currentMonthDate.getFullYear() &&
+        streakCalendarDate.getMonth() < currentMonthDate.getMonth())
+    );
+  }, [streakCalendarDate, currentMonthDate]);
 
   const handlePrevMonth = () => {
+    if (!canGoPrevMonth) return;
     setStreakCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
 
@@ -1681,8 +1818,13 @@ export const AppLayout: React.FC = () => {
                             e.stopPropagation();
                             handlePrevMonth();
                           }}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 active:scale-90 transition-all cursor-pointer"
-                          title="Previous month"
+                          disabled={!canGoPrevMonth}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                            canGoPrevMonth
+                              ? 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/10 active:scale-90 cursor-pointer'
+                              : 'text-slate-400 dark:text-slate-600 opacity-30 cursor-not-allowed'
+                          }`}
+                          title={canGoPrevMonth ? 'Previous month' : 'Start month'}
                         >
                           <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
                         </button>
@@ -2574,7 +2716,11 @@ export const AppLayout: React.FC = () => {
       </div>
 
       {/* Mobile Floating Chat & Feedback Triggers (< md) - Positioned safely above bottom navigation bar */}
-      <div className="md:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3.5 z-40 flex items-center gap-2">
+      <div
+        className={`md:hidden fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3.5 z-40 flex items-center gap-2 transition-all duration-300 ease-in-out ${
+          isZoomed ? 'translate-y-36 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+        }`}
+      >
         {/* Feedback button (mobile) */}
         <button
           type="button"
@@ -2634,7 +2780,11 @@ export const AppLayout: React.FC = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar (Visible only on screens < md) */}
-      <nav className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B132B]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none">
+      <nav
+        className={`flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0B132B]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-white/[0.08] px-3 py-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.6)] select-none transition-all duration-300 ease-in-out ${
+          isZoomed ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+        }`}
+      >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive =

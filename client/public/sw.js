@@ -53,6 +53,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Bypass Service Worker caching entirely in local development (Vite HMR & live module chunks)
+  if (
+    self.location.hostname === 'localhost' ||
+    self.location.hostname === '127.0.0.1' ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('node_modules') ||
+    url.search.includes('v=')
+  ) {
+    return;
+  }
+
   // A. Navigation / Page Loads (HTML): Network-First, fallback to cached shell
   if (request.mode === 'navigate') {
     event.respondWith(

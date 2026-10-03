@@ -141,7 +141,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: express.NextFunction
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  if (!process.env.VITEST && !process.env.VERCEL) {
     app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`[Taskiye Server] Running on http://localhost:${PORT}`);
     });

@@ -258,6 +258,7 @@ interface TaskiyeState {
   toggleFreezeGuestHabit: (id: string) => void;
 
   // Synchronization & Date Rollover
+  guestCreatedAt?: string;
   currentDateStr: string;
   setCurrentDateStr: (date: string) => void;
   syncHabitsToTodayTasks: () => void;
@@ -316,6 +317,7 @@ export const useTaskiyeStore = create<TaskiyeState>()(
       isAuthModalOpen: false,
       authModalTriggerReason: null,
       authModalInitialMode: 'signin',
+      guestCreatedAt: new Date().toISOString(),
       currentDateStr: new Date().toLocaleDateString('en-CA'),
       todayChecklistCompletedCount: 0,
       baseStreakDays: 0,
@@ -1044,14 +1046,20 @@ export const useTaskiyeStore = create<TaskiyeState>()(
     }),
     {
       name: 'taskiye-guest-storage',
-      // Persist only tasks and habits, keeping modal state ephemeral
+      // Persist tasks, habits, and guest start date
       partialize: (state) => ({
         tasks: state.tasks,
         habits: state.habits,
         dismissedHabitToday: state.dismissedHabitToday,
+        guestCreatedAt: state.guestCreatedAt,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
+          if (!state.guestCreatedAt) {
+            const earliestTask = state.tasks?.[0]?.createdAt;
+            const earliestHabit = state.habits?.[0]?.createdAt;
+            state.guestCreatedAt = earliestTask || earliestHabit || new Date().toISOString();
+          }
           // Filter out any legacy sample items from previous seeds
           if (Array.isArray(state.tasks)) {
             state.tasks = state.tasks.filter(
