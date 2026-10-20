@@ -68,11 +68,26 @@ export const Dashboard: React.FC = () => {
     updateGuestTask,
     removeGuestTask,
     reorderGuestTasks,
+    restDays: guestRestDays,
     syncHabitsToTodayTasks,
     setBaseStreakDays,
     showToast,
     restoredTaskId,
   } = useTaskiyeStore();
+
+  const { data: userProfileData } = useQuery<{
+    restDays?: number[];
+  } | null>({
+    queryKey: ['user', 'profile'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/profile', { credentials: 'include' });
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json?.data?.user || null;
+    },
+    enabled: Boolean(isAuthenticated),
+    staleTime: 30000,
+  });
 
   const [itemTitle, setItemTitle] = useState('');
   const [category, setCategory] = useState<string>('Work');
@@ -588,8 +603,12 @@ export const Dashboard: React.FC = () => {
   // Global Daily Streak: counts if user checked ANY task or habit on that calendar day.
   const pastConsecutiveDailyStreak = useMemo(() => {
     if (!activityLogs) return 0;
+    const effectiveRestDays =
+      (isAuthenticated && userProfileData?.restDays ? userProfileData.restDays : guestRestDays) || [];
     let streak = 0;
-    let consecutiveMisses = 0;
+    let consecutiveNonRestMisses = 0;
+    let trailingMissesBeforeToday = 0;
+    let hasFoundFirstCompletion = false;
     const d = new Date();
     d.setDate(d.getDate() - 1); // Start checking backwards from yesterday
 
@@ -598,28 +617,38 @@ export const Dashboard: React.FC = () => {
       const utcStr = d.toISOString().slice(0, 10);
       const dayRecord = activityLogs[localStr] || activityLogs[utcStr];
 
-      const hasItems = Boolean(dayRecord && dayRecord.totalCount > 0);
+      const jsDay = d.getDay();
+      const monBasedDay = (jsDay + 6) % 7; // Mon: 0 ... Sun: 6
+      const isRestDay = effectiveRestDays.includes(monBasedDay);
       const hasCompleted = Boolean(dayRecord && dayRecord.completedCount > 0);
 
       if (hasCompleted) {
+        hasFoundFirstCompletion = true;
         streak++;
-        consecutiveMisses = 0;
-      } else if (!hasItems) {
-        // Skipped day (no scheduled tasks or habits): does not penalize streak
+        consecutiveNonRestMisses = 0;
+      } else if (isRestDay) {
+        // Designated Rest Day: streak is preserved, does not count as a miss
       } else {
-        // Missed day (had tasks/habits, completed 0)
-        consecutiveMisses++;
-        if (consecutiveMisses >= 3) {
-          // 3 or more consecutive misses: streak resets to 0
-          streak = 0;
-          break;
+        // Inactive non-rest day: no task or habit completed
+        consecutiveNonRestMisses++;
+        if (!hasFoundFirstCompletion) {
+          trailingMissesBeforeToday = consecutiveNonRestMisses;
+          if (trailingMissesBeforeToday >= 3) {
+            streak = 0;
+            break;
+          }
+        } else {
+          if (consecutiveNonRestMisses >= 3) {
+            // Gap in past marks the start of the current active streak, stop walking back
+            break;
+          }
         }
       }
 
       d.setDate(d.getDate() - 1);
     }
     return streak;
-  }, [activityLogs]);
+  }, [activityLogs, isAuthenticated, userProfileData?.restDays, guestRestDays]);
 
   // Base daily streak prior to today, strictly matching calendar activity logs
   const baseDailyStreak = pastConsecutiveDailyStreak;

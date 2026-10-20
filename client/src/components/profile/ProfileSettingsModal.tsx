@@ -13,10 +13,12 @@ import {
   Monitor,
   Mail,
   WifiOff,
+  Coffee,
 } from 'lucide-react';
 import { useSession } from '../../lib/auth-client';
 import { useThemeStore } from '../../store/useThemeStore';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useTaskiyeStore } from '../../store/useTaskiyeStore';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -28,12 +30,14 @@ interface ProfileData {
   name: string;
   username: string;
   avatarUrl: string;
+  restDays: number[];
 }
 
 const initialProfile: ProfileData = {
   name: '',
   username: '',
   avatarUrl: '',
+  restDays: [],
 };
 
 export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
@@ -49,6 +53,7 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [restDays, setRestDays] = useState<number[]>([]);
 
   // Unsaved changes confirmation dialog
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
@@ -90,17 +95,20 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
     setEmailChangeError('');
     setEmailChangeSuccess('');
 
-    // Fallback initial values from session
+    // Fallback initial values from session & local store
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const userAny = session?.user as any;
+    const storeRestDays = useTaskiyeStore.getState().restDays || [];
     const baseData: ProfileData = {
       name: userAny?.name || '',
       username: userAny?.username || '',
       avatarUrl: userAny?.avatarUrl || userAny?.image || '',
+      restDays: Array.isArray(userAny?.restDays) ? userAny.restDays : storeRestDays,
     };
     setName(baseData.name);
     setUsername(baseData.username);
     setAvatarUrl(baseData.avatarUrl);
+    setRestDays(baseData.restDays);
     setInitialData(baseData);
     setEmailVerified(Boolean(userAny?.emailVerified));
 
@@ -115,17 +123,21 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       .then((json) => {
         if (json?.data?.user) {
           const u = json.data.user;
+          const userRestDays = Array.isArray(u.restDays) ? u.restDays : storeRestDays;
           const liveData: ProfileData = {
             name: u.name || '',
             username: u.username || '',
             avatarUrl: u.avatarUrl || u.image || '',
+            restDays: userRestDays,
           };
           setName(liveData.name);
           setUsername(liveData.username);
           setAvatarUrl(liveData.avatarUrl);
+          setRestDays(userRestDays);
           setInitialData(liveData);
           setEmailVerified(Boolean(u.emailVerified));
           setHasPassword(u.hasPassword !== false);
+          useTaskiyeStore.getState().setRestDays(userRestDays);
         }
       })
       .catch((err) => {
@@ -204,12 +216,16 @@ export const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
 
   // Track if any modifications occurred
   const hasChanges = useMemo(() => {
+    const restDaysChanged =
+      JSON.stringify([...restDays].sort()) !==
+      JSON.stringify([...(initialData.restDays || [])].sort());
     return (
       name.trim() !== initialData.name.trim() ||
       username.trim() !== initialData.username.trim() ||
-      avatarUrl !== initialData.avatarUrl
+      avatarUrl !== initialData.avatarUrl ||
+      restDaysChanged
     );
-  }, [name, username, avatarUrl, initialData]);
+  }, [name, username, avatarUrl, restDays, initialData]);
 
   // Handle ESC key to safely intercept close attempts
   useEffect(() => {
@@ -344,28 +360,34 @@ function compressAvatarImage(file: File): Promise<Blob> {
     setIsSaving(true);
 
     try {
-      const res = await fetch('/api/users/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          username: username.trim(),
-          avatarUrl: avatarUrl.trim(),
-        }),
-        credentials: 'include',
-      });
+      if (session?.user) {
+        const res = await fetch('/api/users/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: name.trim(),
+            username: username.trim(),
+            avatarUrl: avatarUrl.trim(),
+            restDays,
+          }),
+          credentials: 'include',
+        });
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.message || 'Failed to save profile settings');
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.message || 'Failed to save profile settings');
+        }
       }
+
+      useTaskiyeStore.getState().setRestDays(restDays);
 
       setInitialData({
         name: name.trim(),
         username: username.trim(),
         avatarUrl: avatarUrl.trim(),
+        restDays,
       });
       setSuccessMsg('Profile updated successfully!');
       if (session?.user?.id) {
@@ -406,6 +428,7 @@ function compressAvatarImage(file: File): Promise<Blob> {
     setName(initialData.name);
     setUsername(initialData.username);
     setAvatarUrl(initialData.avatarUrl);
+    setRestDays(initialData.restDays || []);
     setShowUnsavedPrompt(false);
     onClose();
   };
@@ -689,6 +712,62 @@ function compressAvatarImage(file: File): Promise<Blob> {
               </div>
             </div>
           )}
+
+          {/* Streak Recovery & Rest Days */}
+          <div className="space-y-2 pt-2 pb-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Coffee className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Weekly Rest Days
+                </label>
+              </div>
+              <span className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">
+                {restDays.length}/2 selected
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+              Select up to 2 days per week as your designated Rest Days. Your streak will be protected without penalty on these days.
+            </p>
+            <div className="grid grid-cols-7 gap-1.5 pt-1">
+              {[
+                { label: 'M', full: 'Monday', idx: 0 },
+                { label: 'T', full: 'Tuesday', idx: 1 },
+                { label: 'W', full: 'Wednesday', idx: 2 },
+                { label: 'T', full: 'Thursday', idx: 3 },
+                { label: 'F', full: 'Friday', idx: 4 },
+                { label: 'S', full: 'Saturday', idx: 5 },
+                { label: 'S', full: 'Sunday', idx: 6 },
+              ].map((day) => {
+                const isSelected = restDays.includes(day.idx);
+                return (
+                  <button
+                    key={day.idx}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        setRestDays((prev) => prev.filter((d) => d !== day.idx));
+                      } else {
+                        if (restDays.length >= 2) return;
+                        setRestDays((prev) => [...prev, day.idx].sort((a, b) => a - b));
+                      }
+                    }}
+                    className={`py-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer select-none ${
+                      isSelected
+                        ? 'bg-amber-500 text-white dark:bg-[#FACC15] dark:text-slate-950 shadow-md ring-1 ring-amber-400'
+                        : restDays.length >= 2
+                          ? 'opacity-40 bg-slate-100 dark:bg-white/[0.04] text-slate-400 cursor-not-allowed'
+                          : 'bg-white dark:bg-[#10192D] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] hover:border-amber-400/50'
+                    }`}
+                    title={`${day.full}${isSelected ? ' (Rest Day)' : ''}`}
+                  >
+                    <span>{day.label}</span>
+                    <span className="text-[9px] font-normal opacity-80">{isSelected ? '☕' : '—'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Theme / Appearance Selection */}
           <div className="space-y-1.5 pt-1">

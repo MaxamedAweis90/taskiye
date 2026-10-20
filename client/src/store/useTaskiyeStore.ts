@@ -269,6 +269,8 @@ interface TaskiyeState {
   setTodayChecklistCompletedCount: (count: number) => void;
   baseStreakDays: number;
   setBaseStreakDays: (days: number) => void;
+  restDays: number[]; // 0: Mon, 1: Tue, ..., 6: Sun (Max 2)
+  setRestDays: (days: number[]) => void;
 
   // Bulk Operations
   clearGuestData: () => void;
@@ -321,6 +323,17 @@ export const useTaskiyeStore = create<TaskiyeState>()(
       currentDateStr: new Date().toLocaleDateString('en-CA'),
       todayChecklistCompletedCount: 0,
       baseStreakDays: 0,
+      restDays: [],
+      setRestDays: (days: number[]) => {
+        const sanitized = Array.from(
+          new Set(
+            days
+              .filter((d) => typeof d === 'number' && d >= 0 && d <= 6)
+              .slice(0, 2)
+          )
+        );
+        set({ restDays: sanitized });
+      },
       isLoggingOut: false,
       logoutMessage: undefined,
       isTrashOpen: false,

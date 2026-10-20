@@ -87,6 +87,16 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/rank', label: 'RANK', icon: Trophy },
 ];
 
+const MISSED_MOTIVATIONS = [
+  "Champions stumble, but they always rise again. Start Day 1 today! 🌟",
+  "Every 100-day streak began with a single checkmark. You've got this! 💪",
+  "Don't look back — today is the perfect day for a fresh comeback! 🚀",
+  "Consistency isn't never falling; it's getting back up every single time. 🔥",
+  "One small checkmark today puts you right back on track! ✨",
+  "A fresh start brings fresh energy. Reignite your flame today! ⚡",
+  "Your discipline is still within you. Let's start a new streak! 🎯",
+];
+
 export const AppLayout: React.FC = () => {
   useMidnightRollover();
 
@@ -107,6 +117,7 @@ export const AppLayout: React.FC = () => {
     getGuestActivityMap,
     currentDateStr,
     triggerLogoutSplash,
+    restDays: guestRestDays,
     syncHabitsToTodayTasks,
     showToast,
   } = useTaskiyeStore();
@@ -120,6 +131,33 @@ export const AppLayout: React.FC = () => {
     },
     enabled: Boolean(session?.user),
     staleTime: 30000,
+  });
+
+  const { data: userProfileData } = useQuery<{
+    id?: string;
+    name?: string;
+    username?: string;
+    email?: string;
+    emailVerified?: boolean;
+    hasPassword?: boolean;
+    providers?: string[];
+    avatarUrl?: string;
+    phoneNumber?: string;
+    restDays?: number[];
+    createdAt?: string;
+  } | null>({
+    queryKey: ['user', 'profile'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/profile', { credentials: 'include' });
+      if (!res.ok) {
+        return null;
+      }
+      const json = await res.json();
+      return json?.data?.user || null;
+    },
+    enabled: Boolean(session?.user),
+    staleTime: 30000,
+    retry: false,
   });
 
   const localTodayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
@@ -141,12 +179,19 @@ export const AppLayout: React.FC = () => {
         state: 'active' as 'active' | 'frozen-1' | 'frozen-2' | 'reset',
         recentMisses: 0,
         freezeDates: new Set<string>(),
+        missedDates: new Set<string>(),
       };
     }
 
+    const effectiveRestDays =
+      (session?.user && userProfileData?.restDays ? userProfileData.restDays : guestRestDays) || [];
+
     let streak = 0;
-    let consecutiveMisses = 0;
+    let consecutiveNonRestMisses = 0;
+    let trailingMissesBeforeToday = 0;
+    let hasFoundFirstCompletion = false;
     const freezeDates = new Set<string>();
+    const missedDates = new Set<string>();
     const currentRunMissDates: string[] = [];
 
     const d = new Date();
@@ -158,29 +203,47 @@ export const AppLayout: React.FC = () => {
       const log = activityLogs[localStr] || activityLogs[utcStr];
       const dateKey = activityLogs[localStr] ? localStr : utcStr;
 
-      const hasItems = Boolean(log && log.totalCount > 0);
+      const jsDay = d.getDay();
+      const monBasedDay = (jsDay + 6) % 7; // Mon: 0 ... Sun: 6
+      const isRestDay = effectiveRestDays.includes(monBasedDay);
       const hasCompleted = Boolean(log && log.completedCount > 0);
 
       if (hasCompleted) {
-        // Active streak day!
-        // If 1-2 misses occurred right before this, they were protected by freeze
+        hasFoundFirstCompletion = true;
+        // Active streak day! Either Task or Habit completed on that day
+        // If 1-2 non-rest misses occurred right before this, they were protected by freeze
         if (currentRunMissDates.length > 0 && currentRunMissDates.length <= 2) {
           currentRunMissDates.forEach((date) => freezeDates.add(date));
-          currentRunMissDates.length = 0;
         }
+        currentRunMissDates.length = 0;
         streak++;
-        consecutiveMisses = 0;
-      } else if (!hasItems) {
-        // Skipped / Rest day: does not count as a miss, streak continues across it
+        consecutiveNonRestMisses = 0;
+      } else if (isRestDay) {
+        // Designated Rest Day: streak is preserved, no penalty, does not increment missed count
       } else {
-        // Missed day: had items scheduled, completed 0
-        consecutiveMisses++;
+        // Inactive non-rest day: no task or habit completed
+        consecutiveNonRestMisses++;
         currentRunMissDates.push(dateKey);
 
-        if (consecutiveMisses >= 3) {
-          // 3 or more consecutive misses: streak resets to 0!
-          streak = 0;
-          break;
+        if (!hasFoundFirstCompletion) {
+          trailingMissesBeforeToday = consecutiveNonRestMisses;
+          if (trailingMissesBeforeToday >= 3) {
+            // 3 or more consecutive non-rest misses immediately before today:
+            // The streak leading into today broke and resets to 0
+            currentRunMissDates.forEach((date) => missedDates.add(date));
+            currentRunMissDates.length = 0;
+            streak = 0;
+            break;
+          }
+        } else {
+          if (consecutiveNonRestMisses >= 3) {
+            // 3 or more consecutive non-rest misses occurred in the past:
+            // This is the boundary where the current active streak began.
+            // Do NOT reset streak to 0; simply stop counting back.
+            currentRunMissDates.forEach((date) => missedDates.add(date));
+            currentRunMissDates.length = 0;
+            break;
+          }
         }
       }
 
@@ -190,19 +253,27 @@ export const AppLayout: React.FC = () => {
     // Trailing misses leading right into yesterday before any earlier completions:
     if (currentRunMissDates.length > 0 && currentRunMissDates.length <= 2 && streak > 0) {
       currentRunMissDates.forEach((date) => freezeDates.add(date));
+    } else if (currentRunMissDates.length > 0) {
+      currentRunMissDates.forEach((date) => missedDates.add(date));
     }
 
     let state: 'active' | 'frozen-1' | 'frozen-2' | 'reset' = 'active';
-    if (consecutiveMisses === 1 && streak > 0) {
+    if (trailingMissesBeforeToday === 1 && streak > 0) {
       state = 'frozen-1';
-    } else if (consecutiveMisses === 2 && streak > 0) {
+    } else if (trailingMissesBeforeToday === 2 && streak > 0) {
       state = 'frozen-2';
-    } else if (consecutiveMisses >= 3 || streak === 0) {
+    } else if (trailingMissesBeforeToday >= 3 || streak === 0) {
       state = 'reset';
     }
 
-    return { streak, state, recentMisses: consecutiveMisses, freezeDates };
-  }, [activityLogs]);
+    return {
+      streak,
+      state,
+      recentMisses: trailingMissesBeforeToday,
+      freezeDates,
+      missedDates,
+    };
+  }, [activityLogs, session?.user, userProfileData?.restDays, guestRestDays]);
 
   const effectiveBaseStreak = globalStreakInfo.streak;
   const globalStreakState = globalStreakInfo.state;
@@ -211,32 +282,6 @@ export const AppLayout: React.FC = () => {
   useEffect(() => {
     setBaseStreakDays(effectiveBaseStreak);
   }, [effectiveBaseStreak, setBaseStreakDays]);
-
-  const { data: userProfileData } = useQuery<{
-    id?: string;
-    name?: string;
-    username?: string;
-    email?: string;
-    emailVerified?: boolean;
-    hasPassword?: boolean;
-    providers?: string[];
-    avatarUrl?: string;
-    phoneNumber?: string;
-    createdAt?: string;
-  } | null>({
-    queryKey: ['user', 'profile'],
-    queryFn: async () => {
-      const res = await fetch('/api/users/profile', { credentials: 'include' });
-      if (!res.ok) {
-        return null;
-      }
-      const json = await res.json();
-      return json?.data?.user || null;
-    },
-    enabled: Boolean(session?.user),
-    staleTime: 30000,
-    retry: false,
-  });
 
   const user = session?.user as
     | {
@@ -288,6 +333,8 @@ export const AppLayout: React.FC = () => {
       return false;
     }
   });
+
+  const [randomMotivationIndex, setRandomMotivationIndex] = useState(0);
 
   const [isFinishProfileDismissed, setIsFinishProfileDismissed] = useState(() => {
     try {
@@ -349,6 +396,12 @@ export const AppLayout: React.FC = () => {
   const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
   const [chatInitialLanguage, setChatInitialLanguage] = useState<'en' | 'so'>('en');
   const [isWelcomeBubbleVisible, setIsWelcomeBubbleVisible] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSettings = () => setIsProfileSettingsOpen(true);
+    window.addEventListener('open-profile-settings', handleOpenSettings);
+    return () => window.removeEventListener('open-profile-settings', handleOpenSettings);
+  }, []);
 
   useEffect(() => {
     try {
@@ -1177,6 +1230,9 @@ export const AppLayout: React.FC = () => {
     const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sunday
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+    const effectiveRestDays =
+      (session?.user && userProfileData?.restDays ? userProfileData.restDays : guestRestDays) || [];
+
     const days: Array<{
       dayNumber: number;
       dateStr: string;
@@ -1185,8 +1241,8 @@ export const AppLayout: React.FC = () => {
       isCompleted: boolean;
       isFrozen: boolean;
       isMissed: boolean;
-      isSkipped: boolean;
-      status: 'completed' | 'frozen' | 'missed' | 'skipped';
+      isRestDay: boolean;
+      status: 'completed' | 'frozen' | 'missed' | 'rest' | 'today' | 'future';
       dayOfWeek: number;
       completedCount: number;
       totalCount: number;
@@ -1197,6 +1253,8 @@ export const AppLayout: React.FC = () => {
       const dayStr = String(d).padStart(2, '0');
       const dateStr = `${year}-${monthStr}-${dayStr}`;
       const dayOfWeek = (firstDayIndex + d - 1) % 7;
+      const monBasedDay = (dayOfWeek + 6) % 7;
+      const isRestDay = effectiveRestDays.includes(monBasedDay);
 
       const isToday =
         dateStr === todayStr || dateStr === localTodayStr || dateStr === utcTodayStr;
@@ -1205,27 +1263,34 @@ export const AppLayout: React.FC = () => {
       const isPast = !isToday && !isFuture;
 
       const log = activityLogs[dateStr];
-      const hasItems = Boolean(log && log.totalCount > 0);
       const hasCompleted = Boolean(log && log.completedCount > 0);
 
-      let status: 'completed' | 'frozen' | 'missed' | 'skipped' = 'skipped';
+      let status: 'completed' | 'frozen' | 'missed' | 'rest' | 'today' | 'future' = 'future';
       if (isToday) {
-        if (isTaskDoneToday) {
+        if (isTaskDoneToday || hasCompleted) {
           status = 'completed';
+        } else if (isRestDay) {
+          status = 'rest';
         } else if (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2') {
           status = 'frozen';
         } else {
-          status = 'skipped';
+          status = 'today';
         }
       } else if (isPast) {
         if (hasCompleted) {
           status = 'completed';
-        } else if (!hasItems) {
-          status = 'skipped';
+        } else if (isRestDay) {
+          status = 'rest';
         } else if (freezeDates.has(dateStr)) {
           status = 'frozen';
         } else {
           status = 'missed';
+        }
+      } else {
+        if (isRestDay) {
+          status = 'rest';
+        } else {
+          status = 'future';
         }
       }
 
@@ -1237,7 +1302,7 @@ export const AppLayout: React.FC = () => {
         isCompleted: status === 'completed',
         isFrozen: status === 'frozen',
         isMissed: status === 'missed',
-        isSkipped: status === 'skipped',
+        isRestDay: status === 'rest',
         status,
         dayOfWeek,
         completedCount: isToday ? (isTaskDoneToday ? 1 : 0) : (log?.completedCount ?? 0),
@@ -1263,6 +1328,9 @@ export const AppLayout: React.FC = () => {
     globalStreakState,
     freezeDates,
     todayChecklistCompletedCount,
+    session?.user,
+    userProfileData?.restDays,
+    guestRestDays,
   ]);
 
   useEffect(() => {
@@ -1624,18 +1692,26 @@ export const AppLayout: React.FC = () => {
                       ? 'bg-amber-50 border-amber-300 dark:bg-[#151D33] dark:border-amber-400/40 shadow-[0_0_14px_rgba(250,204,21,0.18)]'
                       : (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2')
                         ? 'bg-cyan-500/10 border-cyan-400 dark:bg-[#0c2333] dark:border-cyan-400/50 shadow-[0_0_14px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/40'
-                        : 'bg-white border-slate-200 dark:bg-[#10192D] dark:border-white/[0.08]'
+                        : (globalStreakState === 'reset' || maxStreak === 0)
+                          ? 'bg-rose-500/10 border-rose-400/40 dark:bg-[#201018] dark:border-rose-400/40'
+                          : 'bg-white border-slate-200 dark:bg-[#10192D] dark:border-white/[0.08]'
                 }`}
                 title={`Streak: ${maxStreak}${
-                  globalStreakState === 'frozen-1'
-                    ? ' (Frozen - 1 day missed)'
-                    : globalStreakState === 'frozen-2'
-                      ? ' (Frozen - 2 days missed)'
-                      : ''
+                  isTaskDoneToday
+                    ? ' (Protected today!)'
+                    : globalStreakState === 'frozen-1'
+                      ? ' (Frozen - 1 day missed)'
+                      : globalStreakState === 'frozen-2'
+                        ? ' (Frozen - 2 days missed)'
+                        : globalStreakState === 'reset' || maxStreak === 0
+                          ? ' (Missed - start fresh today)'
+                          : ''
                 }`}
               >
-                {globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                {!isTaskDoneToday && (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2') ? (
                   <Snowflake className="w-4 h-4 text-cyan-500 dark:text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)] animate-pulse shrink-0" />
+                ) : !isTaskDoneToday && (globalStreakState === 'reset' || maxStreak === 0) ? (
+                  <span className="text-sm select-none" title="Streak missed - complete today to reignite!">🥺</span>
                 ) : (
                   <Flame
                     className={`w-4 h-4 transition-all duration-300 shrink-0 ${
@@ -1647,11 +1723,13 @@ export const AppLayout: React.FC = () => {
                 )}
                 <span
                   className={`text-xs ml-1.5 transition-all duration-300 ${
-                    globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2'
+                    !isTaskDoneToday && (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2')
                       ? 'text-cyan-600 dark:text-cyan-300 font-extrabold drop-shadow-[0_0_6px_rgba(34,211,238,0.4)]'
-                      : isTaskDoneToday || activeDropdown === 'streak'
-                        ? 'text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                        : 'text-slate-400 font-semibold'
+                      : !isTaskDoneToday && (globalStreakState === 'reset' || maxStreak === 0)
+                        ? 'text-rose-500 dark:text-rose-400 font-extrabold'
+                        : isTaskDoneToday || activeDropdown === 'streak'
+                          ? 'text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                          : 'text-slate-400 font-semibold'
                   }`}
                 >
                   {maxStreak}
@@ -1670,7 +1748,9 @@ export const AppLayout: React.FC = () => {
                           ? 'bg-amber-50 dark:bg-[#151D33] border-amber-300 dark:border-amber-400/40 shadow-sm dark:shadow-[0_0_14px_rgba(250,204,21,0.18)] hover:border-amber-400'
                           : (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2')
                             ? 'bg-cyan-500/10 dark:bg-[#0c2333] border-cyan-400/60 dark:border-cyan-400/50 shadow-sm dark:shadow-[0_0_14px_rgba(34,211,238,0.25)] hover:border-cyan-400'
-                            : 'bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2]'
+                            : (globalStreakState === 'reset' || maxStreak === 0)
+                              ? 'bg-rose-500/10 dark:bg-[#201018] border-rose-400/40 hover:border-rose-400'
+                              : 'bg-white dark:bg-[#10192D] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.2]'
                       }`
                 }`}
               >
@@ -1692,12 +1772,16 @@ export const AppLayout: React.FC = () => {
                         ? 'Frozen (1 day missed) - complete items today!'
                         : globalStreakState === 'frozen-2'
                           ? 'Frozen (2 days missed) - complete items today!'
-                          : 'Pending today - complete a task/habit to light up'
+                          : (globalStreakState === 'reset' || maxStreak === 0)
+                            ? 'Streak missed - start fresh today!'
+                            : 'Pending today - complete a task/habit to light up'
                   })`}
                 >
                   <div className="flex items-center gap-1.5">
-                    {globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                    {!isTaskDoneToday && (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2') ? (
                       <Snowflake className="w-4 h-4 text-cyan-500 dark:text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)] animate-pulse shrink-0" />
+                    ) : !isTaskDoneToday && (globalStreakState === 'reset' || maxStreak === 0) ? (
+                      <span className="text-sm select-none" title="Streak missed - complete today to reignite!">🥺</span>
                     ) : (
                       <Flame
                         className={`w-4 h-4 transition-all duration-300 shrink-0 ${
@@ -1709,11 +1793,13 @@ export const AppLayout: React.FC = () => {
                     )}
                     <span
                       className={`text-xs transition-all duration-300 ${
-                        globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2'
+                        !isTaskDoneToday && (globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2')
                           ? 'text-cyan-600 dark:text-cyan-300 font-extrabold drop-shadow-[0_0_6px_rgba(34,211,238,0.4)]'
-                          : isTaskDoneToday
-                            ? 'text-amber-600 dark:text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
-                            : 'text-slate-600 dark:text-slate-400 font-semibold'
+                          : !isTaskDoneToday && (globalStreakState === 'reset' || maxStreak === 0)
+                            ? 'text-rose-500 dark:text-rose-400 font-extrabold'
+                            : isTaskDoneToday
+                              ? 'text-amber-600 dark:text-[#FACC15] font-extrabold drop-shadow-[0_0_6px_rgba(250,204,21,0.4)]'
+                              : 'text-slate-600 dark:text-slate-400 font-semibold'
                       }`}
                     >
                       {maxStreak}
@@ -1749,18 +1835,27 @@ export const AppLayout: React.FC = () => {
                           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
                             Day Streak
                           </span>
-                          {globalStreakState === 'frozen-1' && (
+                          {isTaskDoneToday ? (
+                            <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm">
+                              <span>✓</span>
+                              <span>Protected</span>
+                            </span>
+                          ) : globalStreakState === 'frozen-1' ? (
                             <span className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-400/50 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm">
                               <Snowflake className="w-2.5 h-2.5" />
                               <span>Freeze 1</span>
                             </span>
-                          )}
-                          {globalStreakState === 'frozen-2' && (
+                          ) : globalStreakState === 'frozen-2' ? (
                             <span className="bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/50 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm animate-pulse">
                               <Snowflake className="w-2.5 h-2.5" />
                               <span>Freeze 2</span>
                             </span>
-                          )}
+                          ) : (globalStreakState === 'reset' || maxStreak === 0) ? (
+                            <span className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm">
+                              <span>✕</span>
+                              <span>Missed</span>
+                            </span>
+                          ) : null}
                         </div>
                         <p className="text-[11.5px] text-slate-600 dark:text-slate-400 leading-tight mt-0.5">
                           {isTaskDoneToday ? (
@@ -1775,6 +1870,10 @@ export const AppLayout: React.FC = () => {
                             <span className="text-rose-600 dark:text-rose-400 font-semibold">
                               Final freeze day 🚨! Complete today to prevent reset to 0.
                             </span>
+                          ) : (globalStreakState === 'reset' || maxStreak === 0) ? (
+                            <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                              Streak missed, but you can do it! Return to your habits to start fresh.
+                            </span>
                           ) : (
                             <span className="text-amber-700 dark:text-amber-300 font-medium">
                               Complete today's habits to protect your streak!
@@ -1784,27 +1883,40 @@ export const AppLayout: React.FC = () => {
                       </div>
 
                       <div className="relative shrink-0">
-                        <div
-                          className={`w-13 h-13 rounded-2xl flex items-center justify-center ${
-                            isTaskDoneToday
-                              ? 'bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-400/35 shadow-[0_0_20px_rgba(250,204,21,0.25)]'
-                              : globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2'
-                                ? 'bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_20px_rgba(34,211,238,0.25)]'
-                                : 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10'
-                          }`}
-                        >
-                          {globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                        {isTaskDoneToday ? (
+                          <div className="w-13 h-13 rounded-2xl flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-400/35 shadow-[0_0_20px_rgba(250,204,21,0.25)]">
+                            <Flame className="w-8 h-8 text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]" />
+                          </div>
+                        ) : globalStreakState === 'frozen-1' || globalStreakState === 'frozen-2' ? (
+                          <div className="w-13 h-13 rounded-2xl flex items-center justify-center bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_20px_rgba(34,211,238,0.25)]">
                             <Snowflake className="w-8 h-8 text-cyan-500 dark:text-cyan-400 animate-pulse drop-shadow-[0_0_12px_rgba(34,211,238,0.6)]" />
-                          ) : (
-                            <Flame
-                              className={`w-8 h-8 transition-all ${
-                                isTaskDoneToday
-                                  ? 'text-amber-500 fill-amber-500 dark:text-amber-400 dark:fill-amber-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]'
-                                  : 'text-slate-400 fill-slate-400/30 dark:text-slate-500 dark:fill-slate-500/30'
-                              }`}
-                            />
-                          )}
-                        </div>
+                          </div>
+                        ) : (globalStreakState === 'reset' || maxStreak === 0) ? (
+                          <div
+                            className="relative group/missed cursor-help"
+                            onMouseEnter={() =>
+                              setRandomMotivationIndex((prev) => (prev + 1) % MISSED_MOTIVATIONS.length)
+                            }
+                            onClick={() =>
+                              setRandomMotivationIndex((prev) => (prev + 1) % MISSED_MOTIVATIONS.length)
+                            }
+                          >
+                            <div className="w-13 h-13 rounded-2xl flex items-center justify-center bg-rose-500/15 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.2)] text-2xl select-none hover:scale-105 transition-transform active:scale-95">
+                              🥺
+                            </div>
+                            {/* Interactive motivational tooltip over the emoji */}
+                            <div className="absolute right-0 bottom-full mb-2.5 w-60 p-2.5 rounded-xl bg-slate-900/95 dark:bg-[#152033] border border-amber-400/30 text-white text-[11px] leading-snug shadow-2xl opacity-0 group-hover/missed:opacity-100 pointer-events-none transition-all duration-200 z-50 transform translate-y-1 group-hover/missed:translate-y-0 text-center font-medium">
+                              <p className="font-bold text-amber-400 mb-0.5">You can do it! 🌟</p>
+                              <p>{MISSED_MOTIVATIONS[randomMotivationIndex]}</p>
+                              <span className="text-[9.5px] text-slate-400 block mt-1">(Tap emoji for new motivation)</span>
+                              <div className="absolute top-full right-5 border-4 border-transparent border-t-slate-900/95 dark:border-t-[#152033]" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-13 h-13 rounded-2xl flex items-center justify-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                            <Flame className="w-8 h-8 text-slate-400 fill-slate-400/30 dark:text-slate-500 dark:fill-slate-500/30" />
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1888,11 +2000,13 @@ export const AppLayout: React.FC = () => {
                                     ? 'bg-cyan-500/20 border-2 border-cyan-400 text-cyan-600 dark:text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.35)] ring-1 ring-cyan-300/60'
                                     : day.isMissed
                                       ? 'bg-rose-500/15 border border-rose-500/40 text-rose-600 dark:text-rose-400'
-                                      : day.isToday
-                                        ? 'bg-amber-500/15 border-2 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-300 shadow-sm'
-                                        : day.isFuture
-                                          ? 'text-slate-400 dark:text-slate-600'
-                                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/[0.04]'
+                                      : day.isRestDay
+                                        ? 'bg-slate-200/70 dark:bg-white/[0.08] border border-slate-300 dark:border-white/[0.12] text-slate-700 dark:text-slate-300'
+                                        : day.isToday
+                                          ? 'bg-amber-500/15 border-2 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-300 shadow-sm'
+                                          : day.isFuture
+                                            ? 'text-slate-400 dark:text-slate-600'
+                                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/[0.04]'
                               }`}
                               title={`${day.dateStr}: ${
                                 day.isCompleted
@@ -1900,11 +2014,11 @@ export const AppLayout: React.FC = () => {
                                   : day.isFrozen
                                     ? 'Streak Frozen ❄️ (Missed day protected by freeze grace)'
                                     : day.isMissed
-                                      ? `Missed day ❌ (${day.totalCount} item${day.totalCount === 1 ? '' : 's'} scheduled, 0 done)`
-                                      : day.isSkipped
-                                        ? 'Skipped / Rest Day ☕ (No habits or tasks scheduled)'
+                                      ? 'Missed day ❌ (Streak broken / reset to 0)'
+                                      : day.isRestDay
+                                        ? 'Rest Day ☕ (Streak protected without penalty)'
                                         : day.isToday
-                                          ? 'Active today — complete your habits to keep streak alive!'
+                                          ? 'Active today — complete your tasks or habits to protect streak!'
                                           : 'Upcoming'
                               }`}
                             >
@@ -1914,6 +2028,8 @@ export const AppLayout: React.FC = () => {
                                 <Snowflake className="w-3.5 h-3.5 stroke-[2.5]" />
                               ) : day.isMissed ? (
                                 <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                              ) : day.isRestDay ? (
+                                <span className="text-[10px]">☕</span>
                               ) : day.isToday ? (
                                 <Flame className="w-3.5 h-3.5 stroke-[2.5] text-amber-500 dark:text-amber-400" />
                               ) : (
@@ -1932,23 +2048,23 @@ export const AppLayout: React.FC = () => {
                           </span>
                           <span className="font-semibold text-slate-700 dark:text-slate-300">Streak</span>
                         </div>
-                        <div className="flex items-center gap-1" title="Protected by 3-day freeze grace">
+                        <div className="flex items-center gap-1" title="Protected by 2-day freeze grace">
                           <span className="w-3 h-3 rounded-full bg-cyan-500/20 border border-cyan-400 inline-flex items-center justify-center text-[7.5px] text-cyan-500 dark:text-cyan-400">
                             ❄
                           </span>
                           <span className="font-semibold text-cyan-600 dark:text-cyan-300">Frozen</span>
                         </div>
-                        <div className="flex items-center gap-1" title="Missed day (items planned, 0 completed)">
+                        <div className="flex items-center gap-1" title="Missed day (inactivity after 2-day grace)">
                           <span className="w-3 h-3 rounded-full bg-rose-500/20 border border-rose-500/40 inline-flex items-center justify-center text-[7.5px] text-rose-500 dark:text-rose-400 font-bold">
                             ✕
                           </span>
                           <span className="font-semibold text-rose-600 dark:text-rose-400">Missed</span>
                         </div>
-                        <div className="flex items-center gap-1" title="No tasks or habits scheduled (not a penalty)">
-                          <span className="w-3 h-3 rounded-full bg-slate-200/80 dark:bg-white/10 inline-flex items-center justify-center text-[7.5px] text-slate-400 font-bold">
-                            —
+                        <div className="flex items-center gap-1" title="Designated Rest Day (streak safely protected without penalty)">
+                          <span className="w-3.5 h-3.5 rounded-full bg-slate-200/80 dark:bg-white/10 inline-flex items-center justify-center text-[8.5px]">
+                            ☕
                           </span>
-                          <span className="font-semibold text-slate-400 dark:text-slate-500">Skipped</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Rest Day</span>
                         </div>
                       </div>
                     </div>

@@ -188,6 +188,7 @@ router.get('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
           providers,
           avatarUrl: user.avatarUrl || user.image || '',
           phoneNumber: user.phoneNumber || '',
+          restDays: Array.isArray(user.restDays) ? user.restDays : [],
           createdAt:
             user.createdAt ||
             (user._id instanceof ObjectId
@@ -351,7 +352,7 @@ router.post('/validate-email', async (req: Request, res: Response) => {
 router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { name, username, avatarUrl } = req.body;
+    const { name, username, avatarUrl, restDays } = req.body;
 
     let queryFilter: Record<string, unknown> = { id: userId };
     try {
@@ -372,6 +373,16 @@ router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Respo
     if (typeof avatarUrl === 'string' && avatarUrl.trim()) {
       updateFields.avatarUrl = avatarUrl.trim();
       updateFields.image = avatarUrl.trim();
+    }
+    if (Array.isArray(restDays)) {
+      const sanitizedRestDays = Array.from(
+        new Set(
+          restDays
+            .filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6)
+            .slice(0, 2)
+        )
+      );
+      updateFields.restDays = sanitizedRestDays;
     }
 
     await mongoDb.collection('user').updateOne(queryFilter, {

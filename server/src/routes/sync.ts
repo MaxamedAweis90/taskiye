@@ -1,5 +1,7 @@
 import { Router, Response } from 'express';
 import { Types } from 'mongoose';
+import { ObjectId } from 'mongodb';
+import { mongoDb } from '../db/connection.js';
 import { Habit } from '../models/Habit.js';
 import { Task } from '../models/Task.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
@@ -126,10 +128,32 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
 
-    const { habits = [], tasks = [] } = req.body as {
+    const { habits = [], tasks = [], restDays } = req.body as {
       habits?: GuestHabitInput[];
       tasks?: GuestTaskInput[];
+      restDays?: number[];
     };
+
+    if (Array.isArray(restDays) && restDays.length > 0) {
+      const sanitizedRestDays = Array.from(
+        new Set(
+          restDays
+            .filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6)
+            .slice(0, 2)
+        )
+      );
+      try {
+        await mongoDb.collection('user').updateOne(
+          { $or: [{ id: userId }, { _id: new ObjectId(userId) }] },
+          { $set: { restDays: sanitizedRestDays, updatedAt: new Date() } }
+        );
+      } catch {
+        await mongoDb.collection('user').updateOne(
+          { id: userId },
+          { $set: { restDays: sanitizedRestDays, updatedAt: new Date() } }
+        );
+      }
+    }
 
     // 1. Boundary Guard: Reject excessively large payloads to protect server memory
     if (habits.length > 100 || tasks.length > 500) {

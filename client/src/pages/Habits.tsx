@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   GripVertical,
   Snowflake,
+  Coffee,
+  ShieldCheck,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../lib/auth-client';
@@ -94,6 +96,7 @@ const SETUP_CATEGORIES = [
 ] as const;
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
 const DEFAULT_FORM: HabitFormData = {
@@ -181,8 +184,23 @@ export const Habits: React.FC = () => {
     toggleFreezeGuestHabit,
     showToast,
     setIsTrashOpen,
+    restDays: guestRestDays,
     restoredHabitId: storeRestoredHabitId,
   } = useTaskiyeStore();
+
+  const { data: userProfileData } = useQuery<{
+    restDays?: number[];
+  } | null>({
+    queryKey: ['user', 'profile'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/profile', { credentials: 'include' });
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json?.data?.user || null;
+    },
+    enabled: Boolean(isAuthenticated),
+    staleTime: 30000,
+  });
 
   // Local UI State
   const [selectedCategory, setSelectedCategory] = useState<string>('All Habits');
@@ -194,6 +212,10 @@ export const Habits: React.FC = () => {
 
   // Animated states: delete, create, edit, archive, restore
   const [habitToDelete, setHabitToDelete] = useState<GuestHabit | null>(null);
+  const [coverageWarningPrompt, setCoverageWarningPrompt] = useState<{
+    habitTitle: string;
+    uncoveredDays: number[];
+  } | null>(null);
   const [deletingHabitId, setDeletingHabitId] = useState<string | null>(null);
   const [deletedHabitIds, setDeletedHabitIds] = useState<Set<string>>(new Set());
   const [newlyCreatedHabitId, setNewlyCreatedHabitId] = useState<string | null>(null);
@@ -476,6 +498,37 @@ export const Habits: React.FC = () => {
       }),
     [habitsList, deletedHabitIds, optimisticallyArchivedIds, optimisticallyRestoredIds]
   );
+
+
+  const effectiveRestDays = useMemo(() => {
+    return (isAuthenticated && userProfileData?.restDays ? userProfileData.restDays : guestRestDays) || [];
+  }, [isAuthenticated, userProfileData?.restDays, guestRestDays]);
+
+  const habitCoverage = useMemo(() => {
+    const coveredDays = new Set<number>();
+    activeHabits.forEach((h) => {
+      (h.activeDays || []).forEach((d) => coveredDays.add(d));
+    });
+    const restDaysSet = new Set<number>(effectiveRestDays);
+    const allProtectedDays = new Set<number>([...coveredDays, ...effectiveRestDays]);
+    const uncoveredDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !allProtectedDays.has(d));
+    return {
+      coveredDays,
+      restDaysSet,
+      uncoveredDays,
+      isFullCoverage: uncoveredDays.length === 0,
+    };
+  }, [activeHabits, effectiveRestDays]);
+
+  const checkCoverageBeforeRemoval = (targetHabitId: string): number[] => {
+    const remaining = activeHabits.filter((h) => h.id !== targetHabitId);
+    const remainingCovered = new Set<number>();
+    remaining.forEach((h) => {
+      (h.activeDays || []).forEach((d) => remainingCovered.add(d));
+    });
+    const remainingProtected = new Set<number>([...remainingCovered, ...effectiveRestDays]);
+    return [0, 1, 2, 3, 4, 5, 6].filter((d) => !remainingProtected.has(d));
+  };
 
   // Category counts for filter pills (safe against undefined category)
   const categoryCounts = useMemo(() => {
@@ -777,9 +830,30 @@ export const Habits: React.FC = () => {
     }, 400);
   };
 
+  const handleInitiateDelete = (habit: (typeof habitsList)[number]) => {
+    const uncovered = checkCoverageBeforeRemoval(habit.id);
+    if (uncovered.length > 0) {
+      setCoverageWarningPrompt({
+        habitTitle: habit.title,
+        uncoveredDays: uncovered,
+      });
+      return;
+    }
+    setHabitToDelete(habit as unknown as GuestHabit);
+  };
+
   // Option 1 Button Archive Handler
   const handleArchive = (id: string) => {
     if (archivingHabitId || deletingHabitId) return;
+    const uncovered = checkCoverageBeforeRemoval(id);
+    if (uncovered.length > 0) {
+      const target = habitsList.find((h) => h.id === id);
+      setCoverageWarningPrompt({
+        habitTitle: target?.title || 'Habit',
+        uncoveredDays: uncovered,
+      });
+      return;
+    }
     setArchivingHabitId(id);
 
     // Duration matches card-archive-sink (250ms)
@@ -1112,6 +1186,16 @@ export const Habits: React.FC = () => {
     setDragOverHabitId(null);
 
     if (source === 'active' && sourceId) {
+      const uncovered = checkCoverageBeforeRemoval(sourceId);
+      if (uncovered.length > 0) {
+        const target = habitsList.find((h) => h.id === sourceId);
+        setCoverageWarningPrompt({
+          habitTitle: target?.title || 'Habit',
+          uncoveredDays: uncovered,
+        });
+        return;
+      }
+
       // INSTANT ARCHIVE ON DROP (No snapback to active card!)
       setOptimisticallyArchivedIds((prev) => new Set(prev).add(sourceId));
       setOptimisticallyRestoredIds((prev) => {
@@ -1198,6 +1282,116 @@ export const Habits: React.FC = () => {
             <span>+ Create New Habit</span>
           </button>
         </div>
+      </div>
+
+      {/* 1.5 Weekly Habit Coverage Status Bar */}
+      <div className="bg-white dark:bg-[#152033] border border-slate-200/90 dark:border-white/[0.08] rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                habitCoverage.isFullCoverage
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-400 border border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-600 dark:bg-amber-400/15 dark:text-amber-400 border border-amber-500/20'
+              }`}
+            >
+              {habitCoverage.isFullCoverage ? (
+                <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  7-Day Streak Coverage
+                </h2>
+                {habitCoverage.isFullCoverage ? (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-400/20 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-400/30">
+                    Protected
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-400/20 dark:text-amber-300 border border-amber-300 dark:border-amber-400/30">
+                    {habitCoverage.uncoveredDays.length}{' '}
+                    {habitCoverage.uncoveredDays.length === 1 ? 'Day Uncovered' : 'Days Uncovered'}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {habitCoverage.isFullCoverage
+                  ? 'All 7 days are protected by active habits and designated rest days.'
+                  : 'Ensure every day is covered by a habit or set up to 2 weekly Rest Days in Settings to keep your streak alive.'}
+              </p>
+            </div>
+          </div>
+
+          {/* 7-Day Badges */}
+          <div className="flex items-center gap-1.5 sm:gap-2 self-start lg:self-auto overflow-x-auto py-1">
+            {DAY_SHORT.map((shortName, index) => {
+              const isRest = habitCoverage.restDaysSet.has(index);
+              const isCovered = habitCoverage.coveredDays.has(index);
+
+              return (
+                <div
+                  key={shortName}
+                  className={`flex flex-col items-center justify-center min-w-[42px] sm:min-w-[48px] py-1.5 px-2 rounded-xl text-center border transition-all ${
+                    isRest
+                      ? 'bg-amber-500/10 border-amber-400/30 text-amber-700 dark:bg-amber-400/15 dark:border-amber-400/30 dark:text-amber-300'
+                      : isCovered
+                      ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:bg-emerald-400/15 dark:border-emerald-400/30 dark:text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/25 text-rose-600 dark:bg-rose-400/15 dark:border-rose-400/30 dark:text-rose-300 ring-1 ring-rose-500/20'
+                  }`}
+                  title={`${DAY_NAMES[index]}: ${
+                    isRest ? 'Rest Day' : isCovered ? 'Covered by Habit' : 'No Habits Scheduled'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">
+                    {shortName}
+                  </span>
+                  <div className="mt-0.5 text-xs font-black flex items-center justify-center">
+                    {isRest ? (
+                      <Coffee className="w-3.5 h-3.5" />
+                    ) : isCovered ? (
+                      <span>✓</span>
+                    ) : (
+                      <span>✕</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Action Prompt if Uncovered Days Exist */}
+        {!habitCoverage.isFullCoverage && (
+          <div className="mt-3.5 pt-3.5 border-t border-slate-100 dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-amber-700 dark:text-amber-300/90 flex items-center gap-1.5">
+              <span>⚠️ Uncovered:</span>
+              <span className="font-bold">
+                {habitCoverage.uncoveredDays.map((d) => DAY_NAMES[d]).join(', ')}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-profile-settings'))}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-400/15 dark:hover:bg-amber-400/25 dark:text-amber-300 dark:border-amber-400/30 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Coffee className="w-3.5 h-3.5" />
+                <span>Configure Rest Days</span>
+              </button>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white dark:bg-amber-400 dark:hover:bg-amber-300 dark:text-slate-950 transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Habit</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 2. Controls & Filter Pills Bar */}
@@ -1633,7 +1827,7 @@ export const Habits: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setHabitToDelete(habit)}
+                      onClick={() => handleInitiateDelete(habit)}
                       className="flex items-center gap-1 text-rose-600 dark:text-rose-400/80 hover:text-rose-700 dark:hover:text-rose-300 transition-colors font-medium cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2 py-1 rounded-lg border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
                       title="Delete habit"
                     >
@@ -2038,6 +2232,67 @@ export const Habits: React.FC = () => {
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Move to Trash</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 7. Coverage Warning Modal (Prevent Leaving Days Without Habits) */}
+      {coverageWarningPrompt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setCoverageWarningPrompt(null)}
+        >
+          <div
+            className="bg-white dark:bg-[#141C2B] border border-amber-300 dark:border-amber-400/30 rounded-2xl p-6 max-w-md w-full shadow-2xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-4 relative animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:border dark:border-amber-400/30 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+                <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                  Cannot Remove Habit
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Removing or archiving{' '}
+                  <span className="text-slate-900 dark:text-white font-semibold">
+                    "{coverageWarningPrompt.habitTitle}"
+                  </span>{' '}
+                  would leave your weekly schedule with zero habits on{' '}
+                  <span className="text-amber-600 dark:text-amber-400 font-bold">
+                    {coverageWarningPrompt.uncoveredDays.map((d) => DAY_NAMES[d]).join(', ')}
+                  </span>
+                  .
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                  To keep your global streak protected every day, Taskiye requires at least one habit
+                  on every day of the week, or up to 2 designated Rest Days in Settings.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-white/[0.06] mt-1">
+              <button
+                type="button"
+                onClick={() => setCoverageWarningPrompt(null)}
+                className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Keep Habit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverageWarningPrompt(null);
+                  window.dispatchEvent(new CustomEvent('open-profile-settings'));
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-white dark:bg-gradient-to-r dark:from-amber-400 dark:to-yellow-400 dark:hover:from-amber-300 dark:hover:to-yellow-300 dark:text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow-sm dark:shadow-[0_0_15px_rgba(250,204,21,0.3)] transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Coffee className="w-4 h-4" />
+                <span>Configure Rest Days</span>
               </button>
             </div>
           </div>
